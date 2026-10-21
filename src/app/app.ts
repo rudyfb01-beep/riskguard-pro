@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from './services/risk-data.service';
 import { PersistenceService } from './services/persistence.service';
+import { LoginScreen } from './components/login-screen';
 import { TopBar } from './components/top-bar';
 import { ExecutiveKpis } from './components/executive-kpis';
 import { HeatmapMatrix } from './components/heatmap-matrix';
@@ -63,6 +64,7 @@ export type ActiveTab =
     RegulatoryReporting,
     ProvidersPanel,
     ContinuityPanel,
+    LoginScreen,
   ],
   templateUrl: './app.html',
   styleUrl: './app.css',

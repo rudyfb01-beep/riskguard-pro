@@ -33,6 +33,10 @@ docker compose up -d --build
 - Adminer (consultas SQL): http://localhost:8080 — servidor `postgres`, usuario `postgres`,
   contraseña `postgrespassword`, base `custodia_risk`.
 
+Para entrar con los datos de ejemplo, escribe `elena.vasconcelos@custodia-risk.com` y busca el
+código en `docker compose logs app` (sin SMTP configurado, los códigos se escriben ahí; ver
+[Inicio de sesión](#inicio-de-sesión)).
+
 Por defecto, Docker Compose carga los datos de ejemplo (`SEED_DEMO_DATA=true`). Para empezar sin
 ellos:
 
@@ -69,6 +73,53 @@ set -a; source .env; set +a
 npm run dev
 ```
 
+## Inicio de sesión
+
+Los usuarios entran con su **correo electrónico** y un **código de 6 dígitos** que se les envía
+por email (no hay contraseñas).
+
+- El código vence a los 10 minutos, sirve una sola vez y admite 5 intentos. Se pueden pedir
+  hasta 5 códigos cada 15 minutos por usuario, y hay un límite por dirección IP.
+- La respuesta es la misma exista o no el correo, así no se puede averiguar quién está
+  registrado.
+- La sesión se guarda en una cookie `HttpOnly` y `SameSite=Strict`. Vence tras 60 minutos sin
+  actividad o 10 horas en total (`SESSION_IDLE_MINUTES`, `SESSION_MAX_HOURS`). Si vence mientras
+  se trabaja, la app pide el código de nuevo y guarda los cambios pendientes al volver a entrar.
+- **El servidor valida los permisos del cargo** en cada guardado. Por ejemplo, el Consejo o la
+  Junta de Vigilancia no pueden modificar datos aunque lo intenten directamente contra la API.
+- El autor de cada bloque de la bitácora es siempre el usuario de la sesión. Los inicios y cierres
+  de sesión también quedan registrados.
+- Un administrador puede **desactivar** a un usuario en "Puestos & Permisos", lo que cierra sus
+  sesiones de inmediato. El sistema impide eliminarse o desactivarse a uno mismo y dejar el
+  sistema sin ningún administrador.
+- En la base de datos solo se guardan hashes de los códigos y de los tokens de sesión.
+
+### Configurar el envío de correo (SMTP)
+
+Se puede usar el servidor de correo de la organización. Dos configuraciones habituales:
+
+| Escenario | Variables |
+| :--- | :--- |
+| Microsoft 365 (buzón con SMTP AUTH habilitado) | `SMTP_HOST=smtp.office365.com`, `SMTP_PORT=587`, `SMTP_USER` y `SMTP_PASS` del buzón; `SMTP_FROM` igual a ese buzón |
+| Exchange local o relay interno que acepta la IP del servidor | `SMTP_HOST=<servidor de correo>`, `SMTP_PORT=25`, sin `SMTP_USER` |
+
+El primer administrador se define con `ADMIN_EMAIL` (por ejemplo, el correo del Jefe de Riesgo
+Operacional). Ese usuario se crea al iniciar una base vacía sin datos de ejemplo, y su correo se
+actualiza si cambia la variable. Desde ahí se dan de alta los demás usuarios en "Puestos &
+Permisos".
+
+**Para evaluar sin SMTP**, `AUTH_DEV_LOG_CODES=true` escribe los códigos en el log del servidor
+(`docker compose logs app`). Docker Compose lo trae activado por defecto junto con los datos de
+ejemplo; **en producción debe ser `false`**. Con los datos de ejemplo se puede entrar, por ejemplo,
+como `elena.vasconcelos@custodia-risk.com` (Jefa de Riesgo Operacional) o
+`carmen.soto@custodia-risk.com` (Consejo, solo lectura).
+
+### Publicar con HTTPS
+
+Detrás de un proxy inverso con HTTPS (IIS, nginx, balanceador), define `TRUST_PROXY=1` para que la
+cookie se marque como segura y se registre la IP real del usuario. Define también `AUTH_SECRET`
+con una cadena aleatoria larga.
+
 ## Variables de entorno
 
 | Variable | Descripción |
@@ -78,13 +129,23 @@ npm run dev
 | `ADMIN_EMAIL` | Correo del administrador inicial cuando no se cargan datos de ejemplo. |
 | `DATABASE_SSL` | `true` para conectarse con SSL (bases administradas en la nube). |
 | `DATABASE_SSL_REJECT_UNAUTHORIZED` | `false` solo si el certificado del servidor no es verificable. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Servidor de correo para enviar los códigos de acceso. |
+| `AUTH_DEV_LOG_CODES` | `true` muestra los códigos en el log (solo para evaluar sin SMTP). |
+| `AUTH_SECRET` | Clave para firmar los códigos. Recomendada; obligatoria con varias instancias. |
+| `SESSION_IDLE_MINUTES`, `SESSION_MAX_HOURS` | Vigencia de la sesión (60 minutos de inactividad y 10 horas en total por defecto). |
+| `TRUST_PROXY`, `COOKIE_SECURE` | Configuración detrás de un proxy HTTPS. |
 | `PORT` | Puerto HTTP (por defecto 4000; Docker usa 3000). |
 | `GEMINI_API_KEY` | Opcional: habilita el análisis de incidentes con IA. |
 
 ## API
 
+Todas las rutas (salvo `/api/auth/*` y `/api/db/health`) requieren sesión. Las escrituras deben
+enviar la cabecera `X-Requested-With: RiskGuard` (protección CSRF).
+
 | Método y ruta | Uso |
 | :--- | :--- |
+| `POST /api/auth/request-code` · `POST /api/auth/verify` | Pide el código por correo / lo verifica y abre la sesión. |
+| `GET /api/auth/me` · `POST /api/auth/logout` | Usuario de la sesión / cierre de sesión. |
 | `GET /api/data` | Carga completa de la aplicación (o `{"mode":"demo"}` sin base de datos). |
 | `PUT /api/data/:entidad/:id` | Guarda un objeto completo (riesgo, control, incidente, proveedor…). |
 | `DELETE /api/data/:entidad/:id` | Elimina un objeto. |
@@ -98,10 +159,9 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 
 ## Limitaciones conocidas
 
-- **No hay inicio de sesión.** El selector "Rol normativo" cambia de usuario sin contraseña y la
-  API no verifica permisos. Antes de exponer la aplicación fuera de un entorno controlado hay que
-  agregar autenticación (por ejemplo, con el directorio corporativo) y validar los permisos en el
-  servidor.
+- Algunos botones siguen visibles para cargos sin permiso (por ejemplo, "Registrar Incidencia"
+  para el Consejo). El servidor rechaza el guardado y la app muestra el error, pero conviene
+  ocultarlos.
 - Si dos personas editan **el mismo** registro a la vez, prevalece el último guardado.
 - Los montos se registran en USD.
 

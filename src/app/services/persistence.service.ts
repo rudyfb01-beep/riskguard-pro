@@ -3,7 +3,7 @@ import { RiskDataService } from './risk-data.service';
 import { ResilienceService } from './resilience.service';
 import { AuditLogEntry, UserProfile } from '../models/risk.model';
 
-export type DataMode = 'loading' | 'database' | 'demo' | 'error';
+export type DataMode = 'loading' | 'login' | 'database' | 'demo' | 'error';
 
 interface Identified { id: string }
 
@@ -20,7 +20,15 @@ interface Setting {
   last: string;
 }
 
-const PROFILE_STORAGE_KEY = 'riskguard.profileId';
+/** Cabecera anti-CSRF exigida por el servidor en toda escritura. */
+export const API_HEADERS = { 'X-Requested-With': 'RiskGuard' } as const;
+
+/** fetch hacia la API propia: misma cookie de sesión y cabecera de seguridad. */
+export function apiFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  for (const [k, v] of Object.entries(API_HEADERS)) headers.set(k, v);
+  return fetch(url, { ...init, headers, credentials: 'same-origin' });
+}
 
 /**
  * Sincroniza el estado de la aplicación con PostgreSQL.
@@ -41,6 +49,9 @@ export class PersistenceService {
   readonly pending = signal(0);
   readonly saveError = signal<string | null>(null);
   readonly lastSavedAt = signal<Date | null>(null);
+  /** La sesión venció mientras se trabajaba: se pide iniciar sesión sin perder cambios. */
+  readonly sessionExpired = signal(false);
+  readonly sessionUser = signal<UserProfile | null>(null);
 
   private enabled = false;
   private queue: Promise<void> = Promise.resolve();
@@ -79,38 +90,72 @@ export class PersistenceService {
       if (!this.enabled) return;
       untracked(() => this.diffAndQueue(values, settingValues, ledger));
     });
-
-    // Recordar el perfil elegido en este navegador.
-    effect(() => {
-      const id = this.rs.currentProfile().id;
-      if (this.mode() === 'database') {
-        try { localStorage.setItem(PROFILE_STORAGE_KEY, id); } catch { /* almacenamiento no disponible */ }
-      }
-    });
   }
 
   private col<T extends Identified>(entity: string, key: string, sig: WritableSignal<T[]>): Collection {
     return { entity, key, sig: sig as unknown as WritableSignal<Identified[]>, snapshot: new Map() };
   }
 
-  /** Carga inicial desde la API. */
+  /** Verifica la sesión y carga los datos (o pide iniciar sesión). */
   async init(): Promise<void> {
     this.mode.set('loading');
     this.loadError.set(null);
     try {
-      const resp = await fetch('/api/data');
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
-      if (data.mode === 'demo') {
+      const me = await apiFetch('/api/auth/me');
+      const meData = await me.json().catch(() => ({}));
+      if (me.status === 401) {
+        this.mode.set('login');
+        return;
+      }
+      if (!me.ok) throw new Error(meData?.error || `HTTP ${me.status}`);
+      if (meData.mode === 'demo') {
         this.mode.set('demo');
         return;
       }
-      this.hydrate(data);
-      this.mode.set('database');
+      this.sessionUser.set(meData.user);
+      await this.loadData();
     } catch (err) {
       this.loadError.set((err as Error).message);
       this.mode.set('error');
     }
+  }
+
+  private async loadData(): Promise<void> {
+    const resp = await apiFetch('/api/data');
+    const data = await resp.json();
+    if (resp.status === 401) {
+      this.mode.set('login');
+      return;
+    }
+    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+    this.hydrate(data);
+    this.rs.sessionLocked.set(true);
+    this.mode.set('database');
+  }
+
+  /** Llamado por la pantalla de acceso tras verificar el código. */
+  async onLoggedIn(user: UserProfile): Promise<void> {
+    this.sessionUser.set(user);
+    if (this.mode() === 'database') {
+      // Sesión renovada a mitad de trabajo: reintentar lo que no se pudo guardar.
+      this.sessionExpired.set(false);
+      this.rs.currentProfile.set(this.rs.userProfiles().find(u => u.id === user.id) ?? user);
+      this.retryFailed();
+      return;
+    }
+    this.mode.set('loading');
+    try {
+      await this.loadData();
+    } catch (err) {
+      this.loadError.set((err as Error).message);
+      this.mode.set('error');
+    }
+  }
+
+  async logout(): Promise<void> {
+    await this.flush();
+    await apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+    location.reload();
   }
 
   private hydrate(data: Record<string, unknown>) {
@@ -130,12 +175,9 @@ export class PersistenceService {
       s.last = JSON.stringify(s.sig());
     }
 
-    // Perfil activo: el recordado en este navegador o el primero disponible.
-    const users = this.rs.userProfiles();
-    let saved: string | null = null;
-    try { saved = localStorage.getItem(PROFILE_STORAGE_KEY); } catch { /* sin almacenamiento */ }
-    const profile: UserProfile | undefined =
-      users.find(u => u.id === saved) ?? users.find(u => u.permissions?.canManageRoles) ?? users[0];
+    // Perfil activo: el usuario de la sesión.
+    const me = this.sessionUser();
+    const profile: UserProfile | undefined = me ? (this.rs.userProfiles().find(u => u.id === me.id) ?? me) : this.rs.userProfiles()[0];
     if (profile) this.rs.currentProfile.set(profile);
 
     this.enabled = true;
@@ -195,20 +237,21 @@ export class PersistenceService {
   }
 
   private async send(method: 'PUT' | 'DELETE', url: string, body?: unknown): Promise<void> {
-    const resp = await fetch(url, {
+    const resp = await apiFetch(url, {
       method,
       headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     if (!resp.ok) {
       const data = await resp.json().catch(() => ({}));
+      if (resp.status === 401) this.sessionExpired.set(true);
       throw new Error(data?.error || `Error ${resp.status} al guardar`);
     }
   }
 
   /** El servidor asigna bloque, hora y hash; se reemplaza la entrada local. */
   private async appendLedger(e: AuditLogEntry): Promise<void> {
-    const resp = await fetch('/api/ledger', {
+    const resp = await apiFetch('/api/ledger', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -217,7 +260,10 @@ export class PersistenceService {
       }),
     });
     const saved = await resp.json();
-    if (!resp.ok) throw new Error(saved?.error || 'Error al registrar en la bitácora');
+    if (!resp.ok) {
+      if (resp.status === 401) this.sessionExpired.set(true);
+      throw new Error(saved?.error || 'Error al registrar en la bitácora');
+    }
 
     const list = this.rs.auditTrail();
     const idx = list.findIndex(x => x.id === e.id);
@@ -226,7 +272,7 @@ export class PersistenceService {
       this.rs.auditTrail.update(l => l.map(x => (x.id === e.id ? saved : x)));
     } else {
       // Otro usuario agregó bloques: se recarga la cadena completa del servidor.
-      const full = await fetch('/api/ledger').then(r => r.json());
+      const full = await apiFetch('/api/ledger').then(r => r.json());
       if (Array.isArray(full)) {
         for (const x of full) this.ledgerKnown.add(x.id);
         this.rs.auditTrail.set(full);

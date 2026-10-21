@@ -311,7 +311,9 @@ export interface AuditLogEntry {
     | 'ACTUALIZACIÓN_BIA'
     | 'ALTA_PLAN_CONTINUIDAD'
     | 'MODIFICACIÓN_PLAN_CONTINUIDAD'
-    | 'PRUEBA_CONTINUIDAD';
+    | 'PRUEBA_CONTINUIDAD'
+    | 'INICIO_SESIÓN'
+    | 'CIERRE_SESIÓN';
   entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad';
   entityCode: string;
   details: string;
@@ -401,6 +403,8 @@ export interface UserProfile {
   badge: string;
   isSystemUser?: boolean;
   permissions: UserPermissions;
+  /** Usuario habilitado para iniciar sesión (por defecto true). */
+  active?: boolean;
 }
 
 export interface ProcessHeatmapCell {

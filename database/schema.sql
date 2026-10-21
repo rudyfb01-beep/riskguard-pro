@@ -702,3 +702,42 @@ SELECT code, name, criticality, contract_end, (contract_end - CURRENT_DATE) AS d
 FROM service_providers
 WHERE contract_end <= CURRENT_DATE + 90
 ORDER BY contract_end;
+
+-- ==============================================================================
+-- 20. AUTENTICACIÓN: CÓDIGO DE UN SOLO USO POR CORREO Y SESIONES (FASE 4)
+-- ==============================================================================
+
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+-- El correo identifica al usuario al iniciar sesión: debe ser único sin distinguir mayúsculas.
+DO $$
+BEGIN
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_user_profiles_email_lower ON user_profiles (lower(email));
+EXCEPTION WHEN unique_violation THEN
+    RAISE WARNING 'Hay correos duplicados (sin distinguir mayúsculas) en user_profiles; corríjalos para habilitar el índice único.';
+END $$;
+
+-- Códigos de acceso enviados por correo (se guarda solo su hash)
+CREATE TABLE IF NOT EXISTS auth_login_codes (
+    id BIGSERIAL PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+    code_hash VARCHAR(128) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    consumed_at TIMESTAMPTZ,
+    request_ip VARCHAR(100),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_auth_codes_user ON auth_login_codes(user_id, created_at DESC);
+
+-- Sesiones activas (se guarda solo el hash del token de la cookie)
+CREATE TABLE IF NOT EXISTS auth_sessions (
+    token_hash VARCHAR(128) PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMPTZ NOT NULL,
+    ip VARCHAR(100),
+    user_agent VARCHAR(300)
+);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);

@@ -70,6 +70,16 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
     }
   });
 
+  // El correo del administrador inicial se puede fijar o corregir con ADMIN_EMAIL.
+  const adminEmail = process.env['ADMIN_EMAIL']?.trim();
+  if (adminEmail) {
+    await getPool()!.query(
+      `UPDATE user_profiles SET email = $1 WHERE id = 'usr-admin' AND lower(email) <> lower($1)
+         AND NOT EXISTS (SELECT 1 FROM user_profiles WHERE lower(email) = lower($1))`,
+      [adminEmail]
+    );
+  }
+
   return { migrated: true, baseSeeded, demoSeeded };
 }
 

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output } f
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
+import { PersistenceService } from '../services/persistence.service';
 import { ResilienceService } from '../services/resilience.service';
 import { ActiveTab } from '../app';
 
@@ -195,21 +196,33 @@ export interface NavGroup {
 
           @if (!isCollapsed()) {
             <div class="mt-2 pt-2 border-t border-slate-800/60">
-              <label for="sidebar-role-select" class="block text-[9px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
-                Rol Normativo (RBAC)
-              </label>
-              <select
-                id="sidebar-role-select"
-                [value]="riskService.currentProfile().id"
-                (change)="onRoleChange($event)"
-                class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-[11px] rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-              >
-                @for (profile of riskService.availableProfiles; track profile.id) {
-                  <option [value]="profile.id">
-                    {{ profile.role }}
-                  </option>
-                }
-              </select>
+              @if (riskService.sessionLocked()) {
+                <button
+                  type="button"
+                  (click)="persistence.logout()"
+                  class="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 bg-slate-800 hover:bg-rose-900/60 text-slate-200 hover:text-white rounded-md text-[11px] font-medium border border-slate-700/80 transition-colors cursor-pointer"
+                  title="Cerrar la sesión en este navegador"
+                >
+                  <mat-icon class="text-xs">logout</mat-icon>
+                  <span>Cerrar sesión</span>
+                </button>
+              } @else {
+                <label for="sidebar-role-select" class="block text-[9px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                  Rol Normativo (RBAC)
+                </label>
+                <select
+                  id="sidebar-role-select"
+                  [value]="riskService.currentProfile().id"
+                  (change)="onRoleChange($event)"
+                  class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-[11px] rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                >
+                  @for (profile of riskService.availableProfiles; track profile.id) {
+                    <option [value]="profile.id">
+                      {{ profile.role }}
+                    </option>
+                  }
+                </select>
+              }
 
               <button
                 type="button"
@@ -238,6 +251,7 @@ export interface NavGroup {
 })
 export class SidebarNav {
   readonly riskService = inject(RiskDataService);
+  readonly persistence = inject(PersistenceService);
   readonly resilience = inject(ResilienceService);
 
   readonly activeTab = input.required<ActiveTab>();

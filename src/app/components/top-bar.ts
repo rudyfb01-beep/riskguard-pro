@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, input, output } from '@angu
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
+import { PersistenceService } from '../services/persistence.service';
 
 @Component({
   selector: 'app-top-bar',
@@ -78,18 +79,30 @@ import { RiskDataService } from '../services/risk-data.service';
                 </div>
               </div>
 
-              <select
-                [value]="riskService.currentProfile().id"
-                (change)="onRoleChange($event)"
-                class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                title="Cambiar rol normativo de cumplimiento (RBAC)"
-              >
-                @for (profile of riskService.availableProfiles; track profile.id) {
-                  <option [value]="profile.id">
-                    {{ profile.role }} - {{ profile.name }}
-                  </option>
-                }
-              </select>
+              @if (riskService.sessionLocked()) {
+                <button
+                  type="button"
+                  (click)="persistence.logout()"
+                  class="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/60 text-slate-200 border border-slate-700 transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                  title="Cerrar sesión"
+                >
+                  <mat-icon class="text-sm">logout</mat-icon>
+                  <span class="hidden lg:inline">Salir</span>
+                </button>
+              } @else {
+                <select
+                  [value]="riskService.currentProfile().id"
+                  (change)="onRoleChange($event)"
+                  class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                  title="Cambiar rol normativo de cumplimiento (RBAC)"
+                >
+                  @for (profile of riskService.availableProfiles; track profile.id) {
+                    <option [value]="profile.id">
+                      {{ profile.role }} - {{ profile.name }}
+                    </option>
+                  }
+                </select>
+              }
 
               <button
                 type="button"
@@ -110,6 +123,7 @@ import { RiskDataService } from '../services/risk-data.service';
 })
 export class TopBar {
   readonly riskService = inject(RiskDataService);
+  readonly persistence = inject(PersistenceService);
 
   readonly currentLayout = input<'vertical' | 'horizontal'>('vertical');
 
