@@ -1,0 +1,15 @@
+node_modules
+dist
+.angular
+.git
+.github
+.aistudio
+.vscode
+.idea
+.env
+.env.*
+!.env.example
+*.log
+coverage
+Dockerfile
+docker-compose.yml
