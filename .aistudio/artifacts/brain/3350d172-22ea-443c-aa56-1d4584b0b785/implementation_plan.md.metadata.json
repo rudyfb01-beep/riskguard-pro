@@ -1,0 +1,6 @@
+{
+  "summary":  "Plan de implementación para el nuevo componente AlertSettingsModal, permitiendo configurar preferencias de notificación multicanal (Email y SMS) para umbrales preventivos y críticos de KRIs, con pruebas de envío simuladas y registro criptográfico en el ledger de auditoría.",
+  "updatedAt":  "2026-10-21T12:46:50.250930262Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

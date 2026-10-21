@@ -1,0 +1,849 @@
+import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import { MatIconModule } from '@angular/material/icon';
+import { RiskDataService } from '../services/risk-data.service';
+import { OrganizationalRole, UserPermissions } from '../models/risk.model';
+
+@Component({
+  selector: 'app-roles-management-modal',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule],
+  template: `
+    <div class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white rounded-2xl max-w-5xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200">
+        
+        <!-- Header -->
+        <div class="sticky top-0 bg-white px-6 py-4 border-b border-slate-200 flex items-center justify-between z-10">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center shrink-0">
+              <mat-icon class="text-xl">manage_accounts</mat-icon>
+            </div>
+            <div>
+              <h2 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                Estructura Organizacional, Puestos y Matriz de Permisos (RBAC)
+              </h2>
+              <p class="text-xs text-slate-500">
+                Define los puestos reales de tu organización, asigna colaboradores y calibra permisos normativos
+              </p>
+            </div>
+          </div>
+          
+          <button
+            type="button"
+            (click)="closeModal.emit()"
+            class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Cerrar ventana"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-6">
+
+          <!-- Action Toast Feedback -->
+          @if (actionToast(); as toast) {
+            <div class="p-3 bg-slate-900 text-white rounded-xl text-xs flex items-center justify-between gap-3 shadow-md animate-in fade-in duration-150">
+              <div class="flex items-center gap-2">
+                <mat-icon class="text-emerald-400 text-base">check_circle</mat-icon>
+                <span>{{ toast }}</span>
+              </div>
+              <button type="button" (click)="actionToast.set(null)" class="text-slate-400 hover:text-white p-1 cursor-pointer">
+                <mat-icon class="text-xs">close</mat-icon>
+              </button>
+            </div>
+          }
+
+          <!-- Current Active Session Card & Quick Switcher -->
+          <div class="p-4 rounded-xl bg-slate-950 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-md">
+                {{ getUserInitials(riskService.currentProfile().name) }}
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-bold text-white">{{ riskService.currentProfile().name }}</span>
+                  <span class="text-[10px] font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded-full">
+                    Sesión Activa
+                  </span>
+                </div>
+                <div class="text-xs text-slate-400">
+                  <span>{{ riskService.currentProfile().role }}</span>
+                  <span class="mx-1.5">•</span>
+                  <span>{{ riskService.currentProfile().department }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Permission Chips for active profile -->
+            <div class="flex flex-wrap gap-1.5 max-w-md">
+              @for (perm of activePermissionLabels(); track perm.key) {
+                <span
+                  [class]="perm.granted ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800' : 'bg-slate-900 text-slate-500 border-slate-800 line-through'"
+                  class="text-[10px] font-mono px-2 py-0.5 rounded border"
+                >
+                  {{ perm.label }}
+                </span>
+              }
+            </div>
+          </div>
+
+          <!-- Section Switcher Tabs -->
+          <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
+            <button
+              type="button"
+              (click)="activeTab.set('roles')"
+              [class]="activeTab() === 'roles'
+                ? 'bg-slate-900 text-white font-semibold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'"
+              class="px-3.5 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <mat-icon class="text-sm">badge</mat-icon>
+              <span>Catálogo de Puestos & Permisos ({{ riskService.organizationalRoles().length }})</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="activeTab.set('users')"
+              [class]="activeTab() === 'users'
+                ? 'bg-slate-900 text-white font-semibold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'"
+              class="px-3.5 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <mat-icon class="text-sm">group</mat-icon>
+              <span>Colaboradores & Usuarios ({{ riskService.userProfiles().length }})</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="activeTab.set('new-role')"
+              [class]="activeTab() === 'new-role'
+                ? 'bg-slate-900 text-white font-semibold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'"
+              class="px-3.5 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-1.5 cursor-pointer ml-auto"
+            >
+              <mat-icon class="text-sm text-emerald-600">add_moderator</mat-icon>
+              <span>+ Definir Nuevo Puesto</span>
+            </button>
+          </div>
+
+          <!-- TAB 1: PUESTOS & MATRIZ DE PERMISOS -->
+          @if (activeTab() === 'roles') {
+            <div class="space-y-4">
+              
+              <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                <table class="w-full text-left text-xs">
+                  <thead class="bg-slate-50 border-b border-slate-200 text-slate-700 font-semibold uppercase text-[10px] tracking-wider">
+                    <tr>
+                      <th class="py-3 px-4">Puesto Organizacional</th>
+                      <th class="py-3 px-3">Departamento</th>
+                      <th class="py-3 px-3 text-center" title="Crear y editar riesgos en matriz 4x4">Riesgos</th>
+                      <th class="py-3 px-3 text-center" title="Evaluar controles y subir evidencias">Controles</th>
+                      <th class="py-3 px-3 text-center" title="Registrar auditorías periódicas y hallazgos">Auditorías</th>
+                      <th class="py-3 px-3 text-center" title="Reportar incidentes y pérdidas reales">Incidencias</th>
+                      <th class="py-3 px-3 text-center" title="Transformar incidencias en riesgos formales">A Riesgo</th>
+                      <th class="py-3 px-3 text-center" title="Investigar y resolver alertas">Alertas</th>
+                      <th class="py-3 px-3 text-center" title="Configurar umbrales de KRIs por industria">KRIs</th>
+                      <th class="py-3 px-3 text-center" title="Administrar puestos y permisos">Roles</th>
+                      <th class="py-3 px-3 text-center" title="Exportar reportes PDF y Excel">Reportes</th>
+                      <th class="py-3 px-4 text-right">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-200 font-sans">
+                    @for (role of riskService.organizationalRoles(); track role.id) {
+                      <tr class="hover:bg-slate-50/70 transition-colors">
+                        
+                        <td class="py-3 px-4">
+                          <div class="font-bold text-slate-900">{{ role.title }}</div>
+                          <div class="text-[11px] text-slate-500 max-w-xs line-clamp-1">{{ role.description }}</div>
+                        </td>
+
+                        <td class="py-3 px-3 whitespace-nowrap text-slate-600">
+                          <span class="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                            {{ role.department }}
+                          </span>
+                        </td>
+
+                        <!-- Permisos Toggles (Click to toggle live!) -->
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canEditRisks')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canEditRisks ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de edición de riesgos"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canEditRisks ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canEvaluateControls')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canEvaluateControls ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de evaluación de controles"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canEvaluateControls ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canExecuteAudits')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canExecuteAudits ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de ejecución de auditorías"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canExecuteAudits ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canReportFlaws')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canReportFlaws ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de reporte de incidentes"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canReportFlaws ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canConvertFlaws')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canConvertFlaws ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de conversión a riesgo"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canConvertFlaws ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canAcknowledgeAlerts')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canAcknowledgeAlerts ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de resolución de alertas"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canAcknowledgeAlerts ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canConfigureKRIs')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canConfigureKRIs ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de configuración de KRIs"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canConfigureKRIs ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canManageRoles')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canManageRoles ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de administración de puestos y roles"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canManageRoles ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canExportReports')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canExportReports ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de exportación de informes"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canExportReports ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <!-- Switch to this role action -->
+                        <td class="py-3 px-4 text-right whitespace-nowrap">
+                          <div class="inline-flex items-center gap-1.5 justify-end">
+                            <button
+                              type="button"
+                              (click)="switchToRole(role)"
+                              class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                              title="Iniciar sesión inmediatamente con las credenciales de este puesto"
+                            >
+                              <mat-icon class="text-xs">login</mat-icon>
+                              <span>Probar Puesto</span>
+                            </button>
+
+                            @if (!role.isSystemRole) {
+                              <button
+                                type="button"
+                                (click)="onDeleteRole(role.id)"
+                                class="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Eliminar puesto personalizado"
+                              >
+                                <mat-icon class="text-sm">delete_outline</mat-icon>
+                              </button>
+                            }
+                          </div>
+                        </td>
+
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          }
+
+          <!-- TAB 2: USUARIOS & COLABORADORES -->
+          @if (activeTab() === 'users') {
+            <div class="space-y-4">
+              
+              <div class="flex items-center justify-between">
+                <p class="text-xs text-slate-500">
+                  Colaboradores habilitados para acceder a la plataforma y puestos asignados
+                </p>
+                <button
+                  type="button"
+                  (click)="showAddUserForm.set(!showAddUserForm())"
+                  class="px-3 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                >
+                  <mat-icon class="text-sm">{{ showAddUserForm() ? 'remove' : 'add' }}</mat-icon>
+                  <span>{{ showAddUserForm() ? 'Cancelar Alta' : 'Agregar Colaborador' }}</span>
+                </button>
+              </div>
+
+              <!-- Add User Inline Form -->
+              @if (showAddUserForm()) {
+                <form [formGroup]="userForm" (ngSubmit)="onCreateUser()" class="p-4 bg-slate-50 rounded-xl border border-slate-300 space-y-3 animate-fadeIn">
+                  <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1">
+                    <mat-icon class="text-sm text-emerald-600">person_add</mat-icon>
+                    <span>Alta de Nuevo Colaborador</span>
+                  </h4>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <label for="new-user-name" class="block font-semibold text-slate-700 mb-1">Nombre Completo</label>
+                      <input
+                        id="new-user-name"
+                        formControlName="name"
+                        type="text"
+                        placeholder="Ej. Ing. Mariana Silva"
+                        class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label for="new-user-email" class="block font-semibold text-slate-700 mb-1">Correo Institucional</label>
+                      <input
+                        id="new-user-email"
+                        formControlName="email"
+                        type="email"
+                        placeholder="mariana.silva@organizacion.com"
+                        class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label for="new-user-role" class="block font-semibold text-slate-700 mb-1">Puesto Organizacional Asignado</label>
+                      <select
+                        id="new-user-role"
+                        formControlName="roleId"
+                        class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg"
+                      >
+                        @for (r of riskService.organizationalRoles(); track r.id) {
+                          <option [value]="r.id">{{ r.title }} ({{ r.department }})</option>
+                        }
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                    <button
+                      type="button"
+                      (click)="showAddUserForm.set(false)"
+                      class="px-3 py-1.5 text-xs text-slate-600 bg-white border border-slate-300 rounded-lg"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      [disabled]="userForm.invalid"
+                      class="px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm disabled:opacity-50"
+                    >
+                      Dar de Alta Colaborador
+                    </button>
+                  </div>
+                </form>
+              }
+
+              <!-- User Cards Grid -->
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                @for (usr of riskService.userProfiles(); track usr.id) {
+                  <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs hover:shadow-sm transition-all flex flex-col justify-between space-y-3">
+                    
+                    <div class="flex items-start gap-3">
+                      <div class="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                        {{ getUserInitials(usr.name) }}
+                      </div>
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-1.5">
+                          <h4 class="font-bold text-xs text-slate-900 truncate">{{ usr.name }}</h4>
+                          @if (riskService.currentProfile().id === usr.id) {
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Usuario activo en esta sesión"></span>
+                          }
+                        </div>
+                        <p class="text-[11px] text-slate-500 truncate">{{ usr.email }}</p>
+                        <div class="mt-1">
+                          <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            {{ usr.role }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span class="text-[11px] text-slate-400 truncate max-w-[140px]">{{ usr.department }}</span>
+
+                      <div class="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          (click)="promptDeleteUser(usr.id)"
+                          [disabled]="riskService.userProfiles().length <= 1"
+                          class="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                          [title]="riskService.userProfiles().length <= 1 ? 'No se puede eliminar la única cuenta del sistema' : 'Eliminar cuenta de colaborador'"
+                        >
+                          <mat-icon class="text-base leading-none">delete_outline</mat-icon>
+                        </button>
+
+                        <button
+                          type="button"
+                          (click)="riskService.switchProfile(usr.id)"
+                          class="px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
+                          [class]="riskService.currentProfile().id === usr.id
+                            ? 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300'
+                            : 'bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700'"
+                        >
+                          {{ riskService.currentProfile().id === usr.id ? 'Sesión Activa ✓' : 'Conectar' }}
+                        </button>
+                      </div>
+                    </div>
+
+                    @if (userToDeleteId() === usr.id) {
+                      <div class="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs space-y-2">
+                        <div class="flex items-center gap-1.5 text-rose-900 font-bold text-[11px]">
+                          <mat-icon class="text-xs text-rose-600">warning</mat-icon>
+                          <span>¿Eliminar cuenta de {{ usr.name }}?</span>
+                        </div>
+                        @if (riskService.currentProfile().id === usr.id) {
+                          <p class="text-[10px] text-rose-700 leading-tight">
+                            Esta cuenta está activa actualmente. Se migrará la sesión al siguiente usuario disponible.
+                          </p>
+                        } @else {
+                          <p class="text-[10px] text-slate-600 leading-tight">
+                            Esta acción es irreversible y quedará registrada en el ledger de auditoría SHA-256.
+                          </p>
+                        }
+                        <div class="flex items-center justify-end gap-1.5 pt-1">
+                          <button
+                            type="button"
+                            (click)="cancelDeleteUser()"
+                            class="px-2 py-0.5 text-[10px] font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-300 rounded hover:bg-slate-50 cursor-pointer"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            (click)="confirmDeleteUser(usr.id)"
+                            class="px-2.5 py-0.5 text-[10px] font-bold text-white bg-rose-600 hover:bg-rose-700 rounded cursor-pointer"
+                          >
+                            Eliminar Cuenta
+                          </button>
+                        </div>
+                      </div>
+                    }
+
+                  </div>
+                }
+              </div>
+
+            </div>
+          }
+
+          <!-- TAB 3: CREATE NEW ORGANIZATIONAL POSITION (PUESTO) -->
+          @if (activeTab() === 'new-role') {
+            <form [formGroup]="roleForm" (ngSubmit)="onCreateRole()" class="space-y-4 bg-slate-50 p-5 rounded-xl border border-slate-200">
+              <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                <mat-icon class="text-sm text-emerald-600">add_moderator</mat-icon>
+                <span>Definir Puesto Organizacional & Atribuciones de Control</span>
+              </h3>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label for="role-title" class="block font-semibold text-slate-700 mb-1">Título del Puesto</label>
+                  <input
+                    id="role-title"
+                    formControlName="title"
+                    type="text"
+                    placeholder="Ej. Oficial de Seguridad de la Información (CISO)"
+                    class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label for="role-dept" class="block font-semibold text-slate-700 mb-1">Departamento / Área de la Organización</label>
+                  <input
+                    id="role-dept"
+                    formControlName="department"
+                    type="text"
+                    placeholder="Ej. Ciberseguridad & TI, Operaciones, Legal"
+                    class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div class="sm:col-span-2">
+                  <label for="role-desc" class="block font-semibold text-slate-700 mb-1">Descripción de Responsabilidades</label>
+                  <textarea
+                    id="role-desc"
+                    formControlName="description"
+                    rows="2"
+                    placeholder="Describe las funciones normativas y alcance de este puesto en el marco de riesgo operacional..."
+                    class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                  ></textarea>
+                </div>
+              </div>
+
+              <!-- Permission Checkboxes Grid -->
+              <div class="pt-3 border-t border-slate-200">
+                <span class="block text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">
+                  Matriz de Permisos Específicos para este Puesto
+                </span>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canEditRisks" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Gestión de Riesgos 4x4</span>
+                      <span class="text-[11px] text-slate-500">Crear, actualizar y ponderar riesgos en la matriz</span>
+                    </div>
+                  </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canEvaluateControls" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Pruebas de Control & Evidencia</span>
+                      <span class="text-[11px] text-slate-500">Evaluar diseño/operación y adjuntar evidencias</span>
+                    </div>
+                  </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canExecuteAudits" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Auditorías Periódicas</span>
+                      <span class="text-[11px] text-slate-500">Registrar programas y hallazgos de auditoría</span>
+                    </div>
+                  </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canReportFlaws" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Reporte de Incidentes y Pérdidas</span>
+                      <span class="text-[11px] text-slate-500">Registrar fallas operacionales y pérdidas financieras</span>
+                    </div>
+                  </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canConvertFlaws" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Conversión Formal a Riesgo</span>
+                      <span class="text-[11px] text-slate-500">Transformar eventos de pérdida en riesgos formales</span>
+                    </div>
+                  </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canAcknowledgeAlerts" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Gestión de Alertas KRI</span>
+                      <span class="text-[11px] text-slate-500">Investigar y cerrar desviaciones en tiempo real</span>
+                    </div>
+                  </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canConfigureKRIs" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Configurar Umbrales de KRIs</span>
+                      <span class="text-[11px] text-slate-500">Ajustar límites de advertencia y crítico por industria</span>
+                    </div>
+                  </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canManageRoles" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Administrar Puestos y Permisos</span>
+                      <span class="text-[11px] text-slate-500">Alta y modificación de roles organizacionales</span>
+                    </div>
+                  </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canExportReports" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Descargar Reportes & PDF</span>
+                      <span class="text-[11px] text-slate-500">Generar informes membretados ejecutivos</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  (click)="activeTab.set('roles')"
+                  class="px-4 py-2 text-xs text-slate-600 hover:text-slate-900 bg-white border border-slate-300 rounded-lg"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  [disabled]="roleForm.invalid"
+                  class="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm disabled:opacity-50"
+                >
+                  Crear Puesto & Registrar en Estructura
+                </button>
+              </div>
+            </form>
+          }
+
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs">
+          <div class="flex items-center gap-1.5 text-slate-500">
+            <mat-icon class="text-sm text-indigo-600">security</mat-icon>
+            <span>Matriz de Control de Acceso Basada en Roles (RBAC) activa</span>
+          </div>
+
+          <button
+            type="button"
+            (click)="closeModal.emit()"
+            class="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 rounded-lg border border-slate-300 transition-colors"
+          >
+            Cerrar
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `
+})
+export class RolesManagementModal {
+  readonly riskService = inject(RiskDataService);
+  private fb = inject(FormBuilder);
+
+  readonly closeModal = output<void>();
+
+  readonly activeTab = signal<'roles' | 'users' | 'new-role'>('roles');
+  readonly showAddUserForm = signal<boolean>(false);
+  readonly userToDeleteId = signal<string | null>(null);
+  readonly actionToast = signal<string | null>(null);
+
+  readonly roleForm = this.fb.group({
+    title: ['', [Validators.required, Validators.minLength(3)]],
+    department: ['', [Validators.required]],
+    description: ['', [Validators.required]],
+    badge: ['Puesto Especializado'],
+    canEditRisks: [true],
+    canEvaluateControls: [true],
+    canExecuteAudits: [false],
+    canReportFlaws: [true],
+    canConvertFlaws: [false],
+    canAcknowledgeAlerts: [true],
+    canConfigureKRIs: [false],
+    canManageRoles: [false],
+    canExportReports: [true]
+  });
+
+  readonly userForm = this.fb.group({
+    name: ['', [Validators.required, Validators.minLength(3)]],
+    email: ['', [Validators.required, Validators.email]],
+    roleId: ['', [Validators.required]]
+  });
+
+  constructor() {
+    const roles = this.riskService.organizationalRoles();
+    if (roles.length > 0) {
+      this.userForm.patchValue({ roleId: roles[0].id });
+    }
+  }
+
+  activePermissionLabels() {
+    const p = this.riskService.currentProfile().permissions;
+    return [
+      { key: 'risks', label: 'Riesgos 4x4', granted: p.canEditRisks },
+      { key: 'controls', label: 'Controles', granted: p.canEvaluateControls },
+      { key: 'audits', label: 'Auditorías', granted: p.canExecuteAudits },
+      { key: 'flaws', label: 'Incidencias', granted: p.canReportFlaws },
+      { key: 'convert', label: 'Conversión', granted: p.canConvertFlaws },
+      { key: 'alerts', label: 'Alertas', granted: p.canAcknowledgeAlerts },
+      { key: 'kris', label: 'KRIs', granted: p.canConfigureKRIs },
+      { key: 'roles', label: 'Puestos', granted: p.canManageRoles },
+      { key: 'reports', label: 'Reportes PDF', granted: p.canExportReports }
+    ];
+  }
+
+  getUserInitials(name: string): string {
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  }
+
+  togglePermission(role: OrganizationalRole, permKey: keyof UserPermissions) {
+    const currentVal = role.permissions[permKey];
+    const newPermissions = {
+      ...role.permissions,
+      [permKey]: !currentVal
+    };
+
+    this.riskService.updateOrganizationalRole(role.id, {
+      permissions: newPermissions
+    });
+  }
+
+  switchToRole(role: OrganizationalRole) {
+    // Check if there is an existing user with this role, or create a mock session for testing
+    const existing = this.riskService.userProfiles().find(u => u.roleId === role.id || u.role === role.title);
+    if (existing) {
+      this.riskService.switchProfile(existing.id);
+    } else {
+      // Add a simulated user for this new role
+      const newUser = {
+        name: `Responsable ${role.title}`,
+        email: `${role.title.toLowerCase().replace(/[^a-z0-9]/g, '.')}@organizacion.com`,
+        role: role.title,
+        roleId: role.id,
+        department: role.department,
+        badge: role.badge,
+        permissions: role.permissions
+      };
+      this.riskService.addUserProfile(newUser).then(created => {
+        this.riskService.switchProfile(created.id);
+      });
+    }
+  }
+
+  onCreateRole() {
+    if (this.roleForm.invalid) return;
+    const v = this.roleForm.value;
+
+    this.riskService.addOrganizationalRole({
+      title: v.title || 'Nuevo Puesto',
+      department: v.department || 'Operaciones',
+      description: v.description || '',
+      badge: v.badge || 'Puesto Personalizado',
+      permissions: {
+        canEditRisks: !!v.canEditRisks,
+        canEvaluateControls: !!v.canEvaluateControls,
+        canExecuteAudits: !!v.canExecuteAudits,
+        canReportFlaws: !!v.canReportFlaws,
+        canConvertFlaws: !!v.canConvertFlaws,
+        canAcknowledgeAlerts: !!v.canAcknowledgeAlerts,
+        canConfigureKRIs: !!v.canConfigureKRIs,
+        canManageRoles: !!v.canManageRoles,
+        canExportReports: !!v.canExportReports
+      }
+    });
+
+    this.roleForm.reset({
+      title: '',
+      department: '',
+      description: '',
+      badge: 'Puesto Especializado',
+      canEditRisks: true,
+      canEvaluateControls: true,
+      canExecuteAudits: false,
+      canReportFlaws: true,
+      canConvertFlaws: false,
+      canAcknowledgeAlerts: true,
+      canConfigureKRIs: false,
+      canManageRoles: false,
+      canExportReports: true
+    });
+
+    this.activeTab.set('roles');
+  }
+
+  onCreateUser() {
+    if (this.userForm.invalid) return;
+    const v = this.userForm.value;
+    const selectedRole = this.riskService.organizationalRoles().find(r => r.id === v.roleId);
+
+    this.riskService.addUserProfile({
+      name: v.name || '',
+      email: v.email || '',
+      roleId: v.roleId || undefined,
+      role: selectedRole ? selectedRole.title : 'Colaborador',
+      department: selectedRole ? selectedRole.department : 'Operaciones',
+      badge: selectedRole ? selectedRole.badge : 'Colaborador',
+      permissions: selectedRole ? selectedRole.permissions : undefined
+    });
+
+    this.userForm.reset();
+    this.showAddUserForm.set(false);
+  }
+
+  promptDeleteUser(userId: string) {
+    this.userToDeleteId.set(userId);
+  }
+
+  cancelDeleteUser() {
+    this.userToDeleteId.set(null);
+  }
+
+  async confirmDeleteUser(userId: string) {
+    try {
+      const user = this.riskService.userProfiles().find(u => u.id === userId);
+      const name = user ? user.name : 'Colaborador';
+      await this.riskService.deleteUserProfile(userId);
+      this.userToDeleteId.set(null);
+      this.showToast(`Cuenta de "${name}" eliminada correctamente del registro.`);
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message || 'Error al eliminar usuario';
+      this.showToast(msg);
+    }
+  }
+
+  async onDeleteRole(roleId: string) {
+    try {
+      const role = this.riskService.organizationalRoles().find(r => r.id === roleId);
+      const title = role ? role.title : 'Puesto';
+      await this.riskService.deleteOrganizationalRole(roleId);
+      this.showToast(`Puesto personalizado "${title}" eliminado de la organización.`);
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message || 'Error al eliminar puesto';
+      this.showToast(msg);
+    }
+  }
+
+  showToast(msg: string) {
+    this.actionToast.set(msg);
+    setTimeout(() => {
+      if (this.actionToast() === msg) {
+        this.actionToast.set(null);
+      }
+    }, 4500);
+  }
+}

@@ -1,0 +1,1783 @@
+<!-- Global Application Shell -->
+<div class="min-h-screen bg-slate-50 text-slate-900 flex" [class.flex-col]="layoutMode() === 'horizontal'">
+  
+  <!-- Notification Toast -->
+  @if (toastMessage(); as msg) {
+    <div class="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg border border-slate-700 flex items-center gap-2.5 text-xs animate-bounce no-print">
+      <mat-icon class="text-emerald-400 text-sm">info</mat-icon>
+      <span>{{ msg }}</span>
+    </div>
+  }
+
+  <!-- VERTICAL LAYOUT: LEFT SIDEBAR NAVIGATION -->
+  @if (layoutMode() === 'vertical') {
+    <!-- Desktop Left Sidebar -->
+    <div class="hidden lg:block shrink-0 no-print">
+      <app-sidebar-nav
+        [activeTab]="activeTab()"
+        [isCollapsed]="isSidebarCollapsed()"
+        (tabSelected)="setTab($event)"
+        (toggleCollapse)="toggleSidebarCollapse()"
+        (toggleLayout)="toggleLayoutMode()"
+        (openRiskModal)="openCreateRisk()"
+        (openFlawModal)="openCreateFlaw()"
+        (simulateAnomaly)="simulateRealTimeAnomaly()"
+        (openRolesModal)="isRolesModalOpen.set(true)"
+      ></app-sidebar-nav>
+    </div>
+
+    <!-- Mobile Drawer Overlay -->
+    @if (isMobileSidebarOpen()) {
+      <div class="fixed inset-0 z-50 lg:hidden flex no-print">
+        <button
+          type="button"
+          aria-label="Cerrar menú lateral móvil"
+          class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs w-full h-full border-none cursor-pointer"
+          (click)="toggleMobileSidebar()"
+        ></button>
+        <div class="relative z-10">
+          <app-sidebar-nav
+            [activeTab]="activeTab()"
+            [isCollapsed]="false"
+            (tabSelected)="setTab($event); toggleMobileSidebar()"
+            (toggleCollapse)="toggleMobileSidebar()"
+            (toggleLayout)="toggleLayoutMode(); toggleMobileSidebar()"
+            (openRiskModal)="openCreateRisk(); toggleMobileSidebar()"
+            (openFlawModal)="openCreateFlaw(); toggleMobileSidebar()"
+            (simulateAnomaly)="simulateRealTimeAnomaly(); toggleMobileSidebar()"
+            (openRolesModal)="isRolesModalOpen.set(true); toggleMobileSidebar()"
+          ></app-sidebar-nav>
+        </div>
+      </div>
+    }
+  }
+
+  <!-- CONTENT COLUMN -->
+  <div class="flex-1 flex flex-col min-w-0">
+
+    <!-- HORIZONTAL LAYOUT: TOP NAVIGATION BAR -->
+    @if (layoutMode() === 'horizontal') {
+      <app-top-bar
+        [currentLayout]="layoutMode()"
+        (openReportModal)="setTab('reportes-pdf')"
+        (openFlawModal)="openCreateFlaw()"
+        (toggleLayout)="toggleLayoutMode()"
+        (openRolesModal)="isRolesModalOpen.set(true)"
+      ></app-top-bar>
+
+      <!-- Secondary Navigation Bar: Horizontal Tabs -->
+      <nav class="bg-white border-b border-slate-200 sticky top-16 z-30 shadow-2xs no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex items-center justify-between overflow-x-auto py-2 gap-2">
+            
+            <!-- Navigation Tabs -->
+            <div class="flex items-center gap-1 sm:gap-2">
+              
+              <button
+                (click)="setTab('tablero')"
+                [class]="activeTab() === 'tablero'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm">dashboard</mat-icon>
+                <span>Tablero Ejecutivo</span>
+              </button>
+
+              <button
+                (click)="setTab('tableros-departamento')"
+                [class]="activeTab() === 'tableros-departamento'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-indigo-500">corporate_fare</mat-icon>
+                <span>Tableros por Dpto.</span>
+              </button>
+
+              <button
+                (click)="setTab('graficos-analitica')"
+                [class]="activeTab() === 'graficos-analitica'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-emerald-500">analytics</mat-icon>
+                <span>Gráficos & Analítica</span>
+              </button>
+
+              <button
+                (click)="setTab('matriz-riesgos')"
+                [class]="activeTab() === 'matriz-riesgos'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm">grid_view</mat-icon>
+                <span>Matriz de Riesgos</span>
+                <span class="ml-1 px-1.5 py-0.2 bg-slate-200 text-slate-800 rounded-full text-[10px] font-mono" [class.bg-slate-700]="activeTab() === 'matriz-riesgos'" [class.text-white]="activeTab() === 'matriz-riesgos'">
+                  {{ riskService.risks().length }}
+                </span>
+              </button>
+
+              <button
+                (click)="setTab('controles')"
+                [class]="activeTab() === 'controles'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm">verified_user</mat-icon>
+                <span>Controles Internos</span>
+                <span class="ml-1 px-1.5 py-0.2 bg-slate-200 text-slate-800 rounded-full text-[10px] font-mono" [class.bg-slate-700]="activeTab() === 'controles'" [class.text-white]="activeTab() === 'controles'">
+                  {{ riskService.controls().length }}
+                </span>
+              </button>
+
+              <button
+                (click)="setTab('incidentes-perdidas')"
+                [class]="activeTab() === 'incidentes-perdidas' || activeTab() === 'falencias'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-amber-500">report_problem</mat-icon>
+                <span>Incidentes y Pérdidas</span>
+                <span class="ml-1 px-1.5 py-0.2 bg-amber-100 text-amber-900 rounded-full text-[10px] font-mono">
+                  {{ riskService.flaws().length }}
+                </span>
+              </button>
+
+              <button
+                (click)="setTab('alertas-kri')"
+                [class]="activeTab() === 'alertas-kri'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 relative cursor-pointer"
+              >
+                <mat-icon class="text-sm text-rose-500">notification_important</mat-icon>
+                <span>Alertas & KRIs</span>
+                @if (riskService.metrics().activeAlertsCount > 0) {
+                  <span class="ml-1 px-1.5 py-0.2 bg-rose-600 text-white rounded-full text-[10px] font-mono font-bold animate-pulse">
+                    {{ riskService.metrics().activeAlertsCount }}
+                  </span>
+                }
+              </button>
+
+              <button
+                (click)="setTab('auditorias')"
+                [class]="activeTab() === 'auditorias'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm">fact_check</mat-icon>
+                <span>Auditorías Periódicas</span>
+              </button>
+
+              <button
+                (click)="setTab('bitacora')"
+                [class]="activeTab() === 'bitacora'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-emerald-600">lock</mat-icon>
+                <span>Bitácora Inalterable</span>
+              </button>
+
+              <button
+                (click)="setTab('reportes-pdf')"
+                [class]="activeTab() === 'reportes-pdf'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-rose-600">picture_as_pdf</mat-icon>
+                <span>Reportes & PDF</span>
+              </button>
+
+            </div>
+
+            <!-- Quick Live Simulation Action -->
+            <div class="hidden lg:flex items-center gap-2 shrink-0">
+              <button
+                (click)="simulateRealTimeAnomaly()"
+                class="text-xs px-2.5 py-1 text-slate-700 hover:text-rose-700 bg-slate-100 hover:bg-rose-50 border border-slate-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                title="Simula en vivo la detección de una anomalía en un proceso interno"
+              >
+                <mat-icon class="text-xs text-rose-600">flash_on</mat-icon>
+                <span>Simular Anomalía en Vivo</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </nav>
+    } @else {
+      <!-- VERTICAL LAYOUT: TOP HEADER BAR -->
+      <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs no-print">
+        <div class="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+          
+          <!-- Mobile Menu Toggle & Title -->
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              (click)="toggleMobileSidebar()"
+              class="lg:hidden p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
+              title="Abrir menú vertical"
+            >
+              <mat-icon>menu</mat-icon>
+            </button>
+
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center justify-center shrink-0">
+                <mat-icon class="text-lg">{{ activeTabInfo().icon }}</mat-icon>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h1 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                    {{ activeTabInfo().title }}
+                  </h1>
+                  <span class="hidden md:inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    Menú Vertical
+                  </span>
+                </div>
+                <div class="text-[11px] text-slate-500 hidden sm:block">
+                  <span>{{ activeTabInfo().section }}</span>
+                  <span class="mx-1.5">•</span>
+                  <span class="text-emerald-700 font-medium">Custodia Risk Management</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions & Layout Switcher in Vertical Header -->
+          <div class="flex items-center gap-2.5">
+            <!-- Switch back to Horizontal Menu button -->
+            <button
+              type="button"
+              (click)="toggleLayoutMode()"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-300/80 cursor-pointer"
+              title="Cambiar a vista de barra de menú superior horizontal"
+            >
+              <mat-icon class="text-sm text-indigo-600">view_day</mat-icon>
+              <span class="hidden sm:inline">Cambiar a Menú Superior</span>
+              <span class="sm:hidden">Menú Superior</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="isRolesModalOpen.set(true)"
+              class="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 rounded-lg transition-colors border border-slate-300 shadow-2xs cursor-pointer"
+              title="Administrar puestos y roles reales de tu organización y matriz de permisos"
+            >
+              <mat-icon class="text-sm text-indigo-600">manage_accounts</mat-icon>
+              <span>Puestos & Permisos</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="setTab('reportes-pdf')"
+              class="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 rounded-lg transition-colors border border-slate-300 shadow-2xs cursor-pointer"
+              title="Generar y exportar reportes ejecutivos e imprimibles"
+            >
+              <mat-icon class="text-sm text-rose-600">picture_as_pdf</mat-icon>
+              <span>Informes PDF</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="openCreateFlaw()"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors shadow-2xs cursor-pointer"
+              title="Registrar incidencia o evento de pérdida"
+            >
+              <mat-icon class="text-sm">add_alert</mat-icon>
+              <span class="hidden sm:inline">Registrar Incidencia</span>
+              <span class="sm:hidden">Incidencia</span>
+            </button>
+
+            <!-- Role pill in Vertical layout header -->
+            <div class="hidden xl:flex items-center gap-2 pl-2 border-l border-slate-200 text-xs">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span class="font-medium text-slate-700">{{ riskService.currentProfile().name }}</span>
+              <span class="text-[11px] text-slate-400 font-mono">({{ riskService.currentProfile().role }})</span>
+            </div>
+          </div>
+
+        </div>
+      </header>
+    }
+
+    <!-- Main Content Container -->
+    <main
+      class="flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 py-6"
+      [class.max-w-7xl]="layoutMode() === 'horizontal'"
+    >
+    
+    <!-- TAB 1: TABLERO EJECUTIVO (DASHBOARD & HEATMAP) -->
+    @if (activeTab() === 'tablero') {
+      <div class="space-y-6">
+        
+        <!-- Welcome Kicker & Executive Controls -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h1 class="text-xl font-bold tracking-tight text-slate-900">
+              Tablero de Control y Toma de Decisiones Gerenciales
+            </h1>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Monitoreo continuo de exposición operacional, salud de controles y umbrales de apetito de riesgo
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              (click)="openCreateRisk()"
+              class="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+            >
+              <mat-icon class="text-sm">add</mat-icon>
+              <span>Identificar Riesgo</span>
+            </button>
+            <button
+              (click)="riskService.exportToExcel('complete')"
+              class="px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+            >
+              <mat-icon class="text-sm">download</mat-icon>
+              <span>Exportar Excel</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 5 Key Quantitative Indicators -->
+        <app-executive-kpis></app-executive-kpis>
+
+        <!-- Main Heatmap Grid & Critical Alerts Column -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- 4x4 Heatmap Matrix (2 columns) -->
+          <div class="lg:col-span-2">
+            <app-heatmap-matrix (riskSelected)="navigateToRisk($event)"></app-heatmap-matrix>
+          </div>
+
+          <!-- Real-Time Alerts & Process Vulnerabilities (1 column) -->
+          <div class="space-y-4">
+            
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
+                <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <mat-icon class="text-rose-600 text-base">warning</mat-icon>
+                  <span>Anomalías de Proceso Activas</span>
+                </h3>
+                <button
+                  (click)="setTab('alertas-kri')"
+                  class="text-[11px] text-emerald-700 font-medium hover:underline"
+                >
+                  Ver todas
+                </button>
+              </div>
+
+              <div class="space-y-2.5">
+                @for (alert of riskService.alerts().slice(0, 3); track alert.id) {
+                  <div class="p-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-xs">
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="font-mono font-bold text-slate-900">{{ alert.code }}</span>
+                      <span
+                        class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase border"
+                        [class]="severityBadgeClass(alert.severity)"
+                      >
+                        {{ alert.severity }}
+                      </span>
+                    </div>
+                    <div class="font-medium text-slate-800 line-clamp-1">{{ alert.title }}</div>
+                    <div class="mt-1 flex items-center justify-between text-[11px] text-slate-500">
+                      <span>{{ alert.process }}</span>
+                      <span class="font-mono font-bold text-rose-700">{{ alert.currentValue }}</span>
+                    </div>
+                  </div>
+                }
+              </div>
+
+              <div class="mt-3 pt-2 border-t border-slate-100">
+                <button
+                  (click)="simulateRealTimeAnomaly()"
+                  class="w-full py-2 px-3 text-xs text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 flex items-center justify-center gap-1"
+                >
+                  <mat-icon class="text-xs text-rose-600">bolt</mat-icon>
+                  <span>Probar Disparo de Alerta KRI</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Basel Categorization Summary Card -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">
+                Distribución por Categoría de Riesgo
+              </h3>
+              <p class="text-[11px] text-slate-500 mb-3">Eventos conforme al estándar regulatorio Basilea III</p>
+              
+              <div class="space-y-2 text-xs">
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-700">Fallas Tecnológicas</span>
+                  <span class="font-mono font-bold text-slate-900">2 eventos</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div class="bg-indigo-600 h-1.5 rounded-full" style="width: 35%"></div>
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                  <span class="text-slate-700">Fraude Interno / Externo</span>
+                  <span class="font-mono font-bold text-slate-900">2 eventos</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div class="bg-rose-500 h-1.5 rounded-full" style="width: 30%"></div>
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                  <span class="text-slate-700">Ejecución y Procesos</span>
+                  <span class="font-mono font-bold text-slate-900">1 evento</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div class="bg-amber-500 h-1.5 rounded-full" style="width: 20%"></div>
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                  <span class="text-slate-700">Cumplimiento Normativo</span>
+                  <span class="font-mono font-bold text-slate-900">1 evento</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div class="bg-emerald-600 h-1.5 rounded-full" style="width: 15%"></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Dedicated Section: Mapa de Calor por Proceso en el Tablero Ejecutivo -->
+        <app-process-heatmap (riskSelected)="navigateToRisk($event)"></app-process-heatmap>
+
+        <!-- Dedicated Section: Gráficos y Analítica Avanzada en el Tablero -->
+        <app-risk-charts (riskSelected)="navigateToRisk($event)"></app-risk-charts>
+
+        <!-- Quick Prompt / Teaser for Flaws conversion -->
+        <div class="bg-gradient-to-r from-emerald-950 to-slate-900 rounded-2xl p-5 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+              <mat-icon>psychology</mat-icon>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-white">Registrar Incidentes Operacionales</h4>
+              <p class="text-xs text-slate-300">
+                En la pestaña "Incidentes y Pérdidas", puedes reportar o actualizar eventos de pérdida real o fallas de control.
+              </p>
+            </div>
+          </div>
+          <button
+            (click)="openCreateFlaw()"
+            class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition-all whitespace-nowrap flex items-center gap-1.5"
+          >
+            <mat-icon class="text-xs">add_alert</mat-icon>
+            <span>Registrar Incidente Operacional</span>
+          </button>
+        </div>
+
+      </div>
+    }
+
+    <!-- TAB: TABLEROS POR DEPARTAMENTO -->
+    @if (activeTab() === 'tableros-departamento') {
+      <app-department-dashboard
+        (riskSelected)="navigateToRisk($event)"
+        (exportDepartmentPdf)="openDepartmentPdf($event)"
+      ></app-department-dashboard>
+    }
+
+    <!-- TAB: GRÁFICOS Y ANALÍTICA AVANZADA -->
+    @if (activeTab() === 'graficos-analitica') {
+      <app-risk-charts
+        (riskSelected)="navigateToRisk($event)"
+      ></app-risk-charts>
+    }
+
+    <!-- TAB 2: MATRIZ DE RIESGOS (CATÁLOGO COMPLETO) -->
+    @if (activeTab() === 'matriz-riesgos') {
+      <div class="space-y-4">
+        
+        <!-- Header & Action Row -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h1 class="text-xl font-bold tracking-tight text-slate-900">
+              Catálogo y Matriz de Riesgo Operacional
+            </h1>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Evaluación de Riesgo Inherente, asignación de controles y cálculo de Riesgo Residual
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              (click)="openCreateRisk()"
+              class="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+            >
+              <mat-icon class="text-sm">add</mat-icon>
+              <span>Nuevo Riesgo</span>
+            </button>
+            <button
+              (click)="riskService.exportToExcel('risks')"
+              class="px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+            >
+              <mat-icon class="text-sm">download</mat-icon>
+              <span>Exportar Matriz</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter & Search Controls Strip -->
+        <div class="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+          
+          <!-- Search -->
+          <div class="relative">
+            <mat-icon class="text-slate-400 absolute left-2.5 top-2 text-base">search</mat-icon>
+            <input
+              type="text"
+              [value]="riskService.riskSearchTerm()"
+              (input)="riskService.riskSearchTerm.set($any($event.target).value)"
+              placeholder="Buscar por código, título o causa..."
+              class="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-xs"
+            />
+          </div>
+
+          <!-- Process Filter -->
+          <div>
+            <select
+              [value]="riskService.filterProcess()"
+              (change)="riskService.filterProcess.set($any($event.target).value)"
+              class="w-full py-1.5 px-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-xs text-slate-700"
+            >
+              <option value="TODOS">Todos los Procesos</option>
+              <option value="Operaciones de Pago">Operaciones de Pago</option>
+              <option value="Tesorería">Tesorería</option>
+              <option value="Ciberseguridad & TI">Ciberseguridad & TI</option>
+              <option value="Infraestructura Cloud">Infraestructura Cloud</option>
+              <option value="Cumplimiento Legal">Cumplimiento Legal</option>
+              <option value="Gestión Humana">Gestión Humana</option>
+            </select>
+          </div>
+
+          <!-- Basel Category Filter -->
+          <div>
+            <select
+              [value]="riskService.filterCategory()"
+              (change)="riskService.filterCategory.set($any($event.target).value)"
+              class="w-full py-1.5 px-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-xs text-slate-700"
+            >
+              <option value="TODAS">Todas las Categorías Basilea</option>
+              <option value="Fallas Tecnológicas">Fallas Tecnológicas</option>
+              <option value="Fraude Interno">Fraude Interno</option>
+              <option value="Fraude Externo">Fraude Externo</option>
+              <option value="Ejecución y Procesos">Ejecución y Procesos</option>
+              <option value="Cumplimiento Normativo">Cumplimiento Normativo</option>
+              <option value="Prácticas Laborales">Prácticas Laborales</option>
+            </select>
+          </div>
+
+          <!-- Severity Level Filter -->
+          <div class="flex items-center gap-2">
+            <select
+              [value]="riskService.filterLevel()"
+              (change)="riskService.filterLevel.set($any($event.target).value)"
+              class="w-full py-1.5 px-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-xs text-slate-700"
+            >
+              <option value="TODOS">Todos los Niveles</option>
+              <option value="Crítico">Crítico</option>
+              <option value="Alto">Alto</option>
+              <option value="Medio">Medio</option>
+              <option value="Bajo">Bajo</option>
+            </select>
+
+            @if (riskService.matrixSelectedCell()) {
+              <button
+                (click)="riskService.matrixSelectedCell.set(null)"
+                class="px-2 py-1 bg-rose-50 text-rose-700 rounded border border-rose-200 text-[11px] whitespace-nowrap"
+                title="Quitar filtro de cuadrante"
+              >
+                Limpiar celda
+              </button>
+            }
+          </div>
+
+        </div>
+
+        <!-- Risks Table -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 text-[11px] uppercase font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-3 px-4 w-12 text-center">#</th>
+                  <th class="py-3 px-4">Código / Evento de Riesgo</th>
+                  <th class="py-3 px-4">Proceso</th>
+                  <th class="py-3 px-3 text-center">Riesgo Inherente</th>
+                  <th class="py-3 px-3">Controles Mitigantes</th>
+                  <th class="py-3 px-3 text-center">Riesgo Residual</th>
+                  <th class="py-3 px-4 text-right">Exp. Neta USD</th>
+                  <th class="py-3 px-4">Plan Mitigación</th>
+                  <th class="py-3 px-4 text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                @for (risk of riskService.filteredRisks(); track risk.id) {
+                  @let isExpanded = expandedRiskId() === risk.id;
+                  <tr
+                    [id]="'risk-row-' + risk.id"
+                    [class]="highlightedRiskId() === risk.id
+                      ? 'bg-emerald-50/90 ring-2 ring-emerald-500 ring-inset shadow-md transition-all duration-300'
+                      : 'hover:bg-slate-50/80 transition-colors'"
+                  >
+                    
+                    <!-- Expand row toggle -->
+                    <td class="py-3 px-4 text-center">
+                      <button
+                        (click)="toggleExpandRisk(risk.id)"
+                        class="text-slate-400 hover:text-slate-900 transition-colors cursor-pointer"
+                        title="Ver detalles completos del riesgo y controles"
+                      >
+                        <mat-icon class="text-base">{{ isExpanded ? 'expand_less' : 'expand_more' }}</mat-icon>
+                      </button>
+                    </td>
+
+                    <!-- Code & Title -->
+                    <td class="py-3 px-4">
+                      <div class="flex items-center gap-2">
+                        <span class="font-mono font-bold text-slate-900">{{ risk.code }}</span>
+                        <span class="text-[10px] font-medium text-slate-500 uppercase">{{ risk.category }}</span>
+                        @if (highlightedRiskId() === risk.id) {
+                          <span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 animate-pulse">
+                            <mat-icon class="text-[11px]">gps_fixed</mat-icon>
+                            <span>Seleccionado desde la Matriz</span>
+                          </span>
+                        }
+                      </div>
+                      <div class="font-medium text-slate-900 mt-0.5 line-clamp-1" [title]="risk.title">
+                        {{ risk.title }}
+                      </div>
+                    </td>
+
+                    <!-- Process -->
+                    <td class="py-3 px-4 text-slate-700 whitespace-nowrap">
+                      {{ risk.process }}
+                    </td>
+
+                    <!-- Inherent Risk (Prob x Imp) -->
+                    <td class="py-3 px-3 text-center whitespace-nowrap">
+                      <div class="font-mono font-bold text-slate-800">
+                        {{ risk.inherentScore }} pts
+                      </div>
+                      <span
+                        class="inline-block px-1.5 py-0.2 rounded text-[10px] font-semibold border"
+                        [class]="levelBadgeClass(risk.inherentLevel)"
+                      >
+                        {{ risk.inherentLevel }} ({{ risk.inherentLikelihood }}×{{ risk.inherentImpact }})
+                      </span>
+                    </td>
+
+                    <!-- Controls Tags -->
+                    <td class="py-3 px-3">
+                      @if (risk.controlIds.length > 0) {
+                        <div class="flex flex-wrap gap-1">
+                          @for (cid of risk.controlIds; track cid) {
+                            <span class="font-mono text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200">
+                              {{ cid === 'ctr-1' ? 'CTR-101' : cid === 'ctr-2' ? 'CTR-102' : cid === 'ctr-3' ? 'CTR-103' : cid === 'ctr-4' ? 'CTR-104' : cid === 'ctr-5' ? 'CTR-105' : cid === 'ctr-6' ? 'CTR-106' : cid }}
+                            </span>
+                          }
+                        </div>
+                      } @else {
+                        <span class="text-[11px] text-rose-600 font-medium">Sin controles</span>
+                      }
+                    </td>
+
+                    <!-- Residual Risk (Post Controls) -->
+                    <td class="py-3 px-3 text-center whitespace-nowrap">
+                      <div class="font-mono font-bold text-slate-900">
+                        {{ risk.residualScore }} pts
+                      </div>
+                      <span
+                        class="inline-block px-1.5 py-0.2 rounded text-[10px] font-semibold border"
+                        [class]="levelBadgeClass(risk.residualLevel)"
+                      >
+                        {{ risk.residualLevel }} ({{ risk.residualLikelihood }}×{{ risk.residualImpact }})
+                      </span>
+                    </td>
+
+                    <!-- Residual Exposure USD -->
+                    <td class="py-3 px-4 text-right font-mono font-bold text-slate-900 whitespace-nowrap tabular-nums">
+                      \${{ risk.residualExposureUSD | number:'1.0-0' }}
+                    </td>
+
+                    <!-- Mitigation Progress -->
+                    <td class="py-3 px-4">
+                      <div class="flex items-center justify-between text-[11px] mb-1">
+                        <span class="truncate max-w-[140px] text-slate-700" [title]="risk.mitigationPlan.title">
+                          {{ risk.mitigationPlan.title }}
+                        </span>
+                        <span class="font-mono font-semibold text-slate-800">{{ risk.mitigationPlan.progressPct }}%</span>
+                      </div>
+                      <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          class="bg-emerald-600 h-1.5 rounded-full transition-all"
+                          [style.width.%]="risk.mitigationPlan.progressPct"
+                        ></div>
+                      </div>
+                    </td>
+
+                    <!-- Edit / Actions -->
+                    <td class="py-3 px-4 text-center whitespace-nowrap">
+                      <button
+                        (click)="openEditRisk(risk)"
+                        class="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors mr-1"
+                        title="Modificar evaluación o controles"
+                      >
+                        <mat-icon class="text-base">edit</mat-icon>
+                      </button>
+                    </td>
+
+                  </tr>
+
+                  <!-- Expandable Detail Drawer -->
+                  @if (isExpanded) {
+                    <tr class="bg-slate-50/60 border-b border-slate-200">
+                      <td colspan="9" class="p-4 sm:p-6 space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                          
+                          <!-- Column 1: Description & Causes -->
+                          <div class="space-y-2 bg-white p-3 rounded-lg border border-slate-200">
+                            <span class="font-bold text-slate-900 uppercase tracking-wider text-[11px] block">
+                              Mecanismo de Falla & Causa Raíz
+                            </span>
+                            <p class="text-slate-700 leading-relaxed">
+                              {{ risk.description || 'Sin descripción detallada registrada.' }}
+                            </p>
+                            <div class="pt-2 border-t border-slate-100 text-[11px] text-slate-500">
+                              <span>Responsable: <strong class="text-slate-800">{{ risk.responsible }}</strong></span>
+                              <span class="block">Última revisión: {{ risk.lastReviewDate }}</span>
+                            </div>
+                          </div>
+
+                          <!-- Column 2: Controls details -->
+                          <div class="space-y-2 bg-white p-3 rounded-lg border border-slate-200">
+                            <div class="flex items-center justify-between">
+                              <span class="font-bold text-slate-900 uppercase tracking-wider text-[11px]">
+                                Controles Asociados ({{ risk.controlIds.length }})
+                              </span>
+                              <button
+                                (click)="openEditRisk(risk)"
+                                class="text-[11px] text-emerald-700 hover:underline font-medium"
+                              >
+                                Vincular / Desvincular
+                              </button>
+                            </div>
+
+                            @if (risk.controlIds.length > 0) {
+                              <div class="space-y-1.5 max-h-36 overflow-y-auto">
+                                @for (cid of risk.controlIds; track cid) {
+                                  @let ctrl = getControlById(cid);
+                                  @if (ctrl) {
+                                    <div class="p-2 bg-slate-50 rounded border border-slate-200 flex items-center justify-between text-xs">
+                                      <div>
+                                        <span class="font-mono font-bold text-slate-900">{{ ctrl.code }}</span>
+                                        <span class="text-slate-700 ml-1.5">{{ ctrl.name }}</span>
+                                      </div>
+                                      <span class="font-mono text-emerald-700 font-bold">{{ ctrl.totalEffectiveness }}%</span>
+                                    </div>
+                                  }
+                                }
+                              </div>
+                            } @else {
+                              <p class="text-slate-500 italic">No tiene controles asociados. El riesgo residual es idéntico al inherente.</p>
+                            }
+                          </div>
+
+                          <!-- Column 3: Mitigation Plan Actions -->
+                          <div class="space-y-2 bg-white p-3 rounded-lg border border-slate-200">
+                            <div class="flex items-center justify-between">
+                              <span class="font-bold text-slate-900 uppercase tracking-wider text-[11px]">
+                                Acciones del Plan de Mitigación
+                              </span>
+                              <span class="font-mono text-emerald-800 font-semibold">{{ risk.mitigationPlan.dueDate }}</span>
+                            </div>
+
+                            <div class="space-y-1">
+                              @for (act of risk.mitigationPlan.actions; track act) {
+                                <div class="flex items-start gap-1.5 text-slate-700 text-xs">
+                                  <mat-icon class="text-emerald-600 text-xs mt-0.5">check_circle</mat-icon>
+                                  <span>{{ act }}</span>
+                                </div>
+                              }
+                            </div>
+                          </div>
+
+                        </div>
+                      </td>
+                    </tr>
+                  }
+
+                } @empty {
+                  <tr>
+                    <td colspan="9" class="py-8 text-center text-slate-500">
+                      No se encontraron riesgos que coincidan con los filtros seleccionados.
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    }
+
+    <!-- TAB 3: CATÁLOGO DE CONTROLES (EVALUACIÓN Y EFECTIVIDAD) -->
+    @if (activeTab() === 'controles') {
+      <div class="space-y-4">
+        
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h1 class="text-xl font-bold tracking-tight text-slate-900">
+              Catálogo de Controles Internos y Pruebas de Eficacia
+            </h1>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Evaluación periódica de diseño y operatividad de controles preventivos, detectivos y correctivos
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              (click)="openCreateControl()"
+              class="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+            >
+              <mat-icon class="text-sm">add</mat-icon>
+              <span>Nuevo Control</span>
+            </button>
+            <button
+              (click)="riskService.exportToExcel('controls')"
+              class="px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+            >
+              <mat-icon class="text-sm">download</mat-icon>
+              <span>Exportar Controles</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          @for (ctrl of riskService.controls(); track ctrl.id) {
+            <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between space-y-4 hover:border-slate-300 transition-colors">
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <span class="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
+                    {{ ctrl.code }}
+                  </span>
+                  <span
+                    class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase border"
+                    [class]="controlTypeBadgeClass(ctrl.type)"
+                  >
+                    {{ ctrl.type }} · {{ ctrl.automation }}
+                  </span>
+                </div>
+
+                <h3 class="font-bold text-sm text-slate-900 line-clamp-2">{{ ctrl.name }}</h3>
+                <p class="text-xs text-slate-600 mt-1.5 leading-relaxed line-clamp-3">{{ ctrl.description }}</p>
+              </div>
+
+              <!-- Effectiveness Breakdown -->
+              <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2 text-xs">
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-500">Efectividad Total Ponderada</span>
+                  <span class="font-bold font-mono text-sm text-indigo-700">{{ ctrl.totalEffectiveness }}%</span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    class="h-1.5 rounded-full"
+                    [class]="ctrl.totalEffectiveness >= 85 ? 'bg-emerald-600' : ctrl.totalEffectiveness >= 65 ? 'bg-amber-500' : 'bg-rose-500'"
+                    [style.width.%]="ctrl.totalEffectiveness"
+                  ></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                  <div>
+                    <span class="text-slate-400 block">Diseño (40%)</span>
+                    <span class="font-mono font-semibold text-slate-800">{{ ctrl.designEffectiveness }}%</span>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 block">Operación (60%)</span>
+                    <span class="font-mono font-semibold text-slate-800">{{ ctrl.operatingEffectiveness }}%</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Evidence Summary & Attached Evidence Files -->
+              <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2 text-xs">
+                <div>
+                  <div class="flex items-center justify-between text-[11px] mb-1">
+                    <span class="font-bold text-slate-700 flex items-center gap-1">
+                      <mat-icon class="text-xs text-indigo-600">attach_file</mat-icon>
+                      <span>Evidencias Adjuntas ({{ ctrl.attachments?.length || 0 }})</span>
+                    </span>
+                    <span class="text-[10px] text-slate-400 font-mono">Última: {{ ctrl.lastTested }}</span>
+                  </div>
+
+                  <p class="text-[11px] text-slate-600 line-clamp-2 italic" [title]="ctrl.evidence">
+                    "{{ ctrl.evidence }}"
+                  </p>
+                </div>
+
+                <!-- Attached Files Chips / List -->
+                @if (ctrl.attachments && ctrl.attachments.length > 0) {
+                  <div class="space-y-1 pt-1 border-t border-slate-200">
+                    @for (att of ctrl.attachments; track att.id) {
+                      <div class="flex items-center justify-between p-1.5 bg-white rounded border border-slate-200 text-[11px] hover:border-slate-300 transition-colors">
+                        <div class="flex items-center gap-1.5 truncate mr-1.5">
+                          <mat-icon class="text-xs text-slate-500 shrink-0">
+                            {{ att.fileName.endsWith('.pdf') ? 'picture_as_pdf' : att.fileName.endsWith('.xlsx') || att.fileName.endsWith('.csv') ? 'table_view' : 'description' }}
+                          </mat-icon>
+                          <span class="truncate font-medium text-slate-800" [title]="att.fileName">{{ att.fileName }}</span>
+                          <span class="text-[10px] text-slate-400 shrink-0 font-mono">({{ att.fileSize }})</span>
+                        </div>
+                        
+                        <button
+                          type="button"
+                          (click)="riskService.downloadAttachment(att)"
+                          class="text-indigo-600 hover:text-indigo-900 p-0.5 rounded hover:bg-indigo-50 transition-colors shrink-0 flex items-center"
+                          title="Descargar archivo de evidencia de control"
+                        >
+                          <mat-icon class="text-xs">download</mat-icon>
+                        </button>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+
+              <!-- Footer with Evaluator Info and Re-evaluate CTA -->
+              <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                <div class="text-[11px] text-slate-500 truncate max-w-[170px]" [title]="ctrl.sampleDetails || ctrl.evidence">
+                  Auditado: {{ ctrl.lastTestedBy || ctrl.owner }}
+                </div>
+                
+                <button
+                  type="button"
+                  (click)="openEditControl(ctrl)"
+                  class="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold rounded-lg text-xs transition-colors flex items-center gap-1"
+                >
+                  <mat-icon class="text-xs">tune</mat-icon>
+                  <span>Probar y Adjuntar</span>
+                </button>
+              </div>
+
+            </div>
+          }
+        </div>
+
+      </div>
+    }
+
+    <!-- TAB 4: INCIDENTES OPERACIONALES & EVENTOS DE PÉRDIDA -->
+    @if (activeTab() === 'incidentes-perdidas' || activeTab() === 'falencias') {
+      <div class="space-y-4">
+        
+        <!-- Header & Action Row -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="p-1.5 bg-amber-100 text-amber-800 rounded-lg">
+                <mat-icon class="text-lg">report_problem</mat-icon>
+              </span>
+              <h1 class="text-xl font-bold tracking-tight text-slate-900">
+                Registro de Incidentes y Pérdidas Operacionales
+              </h1>
+            </div>
+            <p class="text-xs text-slate-600 mt-1">
+              En la pestaña "Incidentes y Pérdidas", puedes reportar o actualizar eventos de pérdida real o fallas de control.
+            </p>
+          </div>
+
+          <button
+            (click)="openCreateFlaw()"
+            class="px-4 py-2.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-all flex items-center gap-2 shadow-sm shrink-0 cursor-pointer"
+          >
+            <mat-icon class="text-sm">add_alert</mat-icon>
+            <span>Registrar Incidentes Operacionales</span>
+          </button>
+        </div>
+
+        <!-- Metric KPI Cards for Incidents & Real Losses -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+            <span class="text-[11px] font-semibold text-slate-500 block">Total Incidentes Registrados</span>
+            <div class="flex items-baseline justify-between mt-1">
+              <span class="text-2xl font-bold font-mono text-slate-900">{{ riskService.flaws().length }}</span>
+              <span class="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">Eventos en Registro</span>
+            </div>
+          </div>
+
+          <div class="bg-white p-3.5 rounded-xl border border-rose-200 bg-rose-50/20 shadow-2xs">
+            <span class="text-[11px] font-semibold text-rose-800 block">Pérdida Real Cuantificada</span>
+            <div class="flex items-baseline justify-between mt-1">
+              <span class="text-2xl font-bold font-mono text-rose-700">\${{ riskService.totalRealLossesUSD() | number:'1.0-0' }}</span>
+              <span class="text-[10px] text-rose-700 font-semibold bg-rose-100 px-1.5 py-0.5 rounded">USD Directo</span>
+            </div>
+          </div>
+
+          <div class="bg-white p-3.5 rounded-xl border border-amber-200 bg-amber-50/20 shadow-2xs">
+            <span class="text-[11px] font-semibold text-amber-800 block">Fallas de Control Reportadas</span>
+            <div class="flex items-baseline justify-between mt-1">
+              <span class="text-2xl font-bold font-mono text-amber-900">{{ riskService.controlFailuresCount() }}</span>
+              <span class="text-[10px] text-amber-800 font-semibold bg-amber-100 px-1.5 py-0.5 rounded">Deficiencias</span>
+            </div>
+          </div>
+
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+            <span class="text-[11px] font-semibold text-slate-500 block">Pérdida Recuperada</span>
+            <div class="flex items-baseline justify-between mt-1">
+              <span class="text-2xl font-bold font-mono text-emerald-700">\${{ riskService.totalLossesRecoveredUSD() | number:'1.0-0' }}</span>
+              <span class="text-[10px] text-emerald-700 font-semibold bg-emerald-100 px-1.5 py-0.5 rounded">USD Recuperado</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="bg-white p-2.5 rounded-xl border border-slate-200 flex flex-wrap items-center gap-2">
+          <span class="text-xs font-semibold text-slate-600 px-2 flex items-center gap-1">
+            <mat-icon class="text-sm text-slate-400">filter_list</mat-icon>
+            <span>Filtrar por Tipo:</span>
+          </span>
+          <button
+            (click)="incidentTypeFilter.set('todos')"
+            [class]="incidentTypeFilter() === 'todos' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
+            class="px-2.5 py-1 rounded-lg text-xs transition-colors cursor-pointer"
+          >
+            Todos ({{ riskService.flaws().length }})
+          </button>
+          <button
+            (click)="incidentTypeFilter.set('Falla de Control')"
+            [class]="incidentTypeFilter() === 'Falla de Control' ? 'bg-amber-600 text-white font-semibold' : 'bg-amber-50 text-amber-800 hover:bg-amber-100'"
+            class="px-2.5 py-1 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1"
+          >
+            <mat-icon class="text-xs">gpp_maybe</mat-icon>
+            <span>Fallas de Control ({{ riskService.controlFailuresCount() }})</span>
+          </button>
+          <button
+            (click)="incidentTypeFilter.set('Evento de Pérdida Real')"
+            [class]="incidentTypeFilter() === 'Evento de Pérdida Real' ? 'bg-rose-600 text-white font-semibold' : 'bg-rose-50 text-rose-800 hover:bg-rose-100'"
+            class="px-2.5 py-1 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1"
+          >
+            <mat-icon class="text-xs">paid</mat-icon>
+            <span>Pérdidas Reales ({{ riskService.lossEventsCount() }})</span>
+          </button>
+          <button
+            (click)="incidentTypeFilter.set('Casi Pérdida (Near Miss)')"
+            [class]="incidentTypeFilter() === 'Casi Pérdida (Near Miss)' ? 'bg-blue-600 text-white font-semibold' : 'bg-blue-50 text-blue-800 hover:bg-blue-100'"
+            class="px-2.5 py-1 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1"
+          >
+            <mat-icon class="text-xs">shield</mat-icon>
+            <span>Casi Pérdidas</span>
+          </button>
+          <button
+            (click)="incidentTypeFilter.set('Vulnerabilidad Operativa')"
+            [class]="incidentTypeFilter() === 'Vulnerabilidad Operativa' ? 'bg-purple-600 text-white font-semibold' : 'bg-purple-50 text-purple-800 hover:bg-purple-100'"
+            class="px-2.5 py-1 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1"
+          >
+            <mat-icon class="text-xs">warning</mat-icon>
+            <span>Vulnerabilidades</span>
+          </button>
+        </div>
+
+        <!-- Incidents List -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          @for (flaw of filteredIncidents(); track flaw.id) {
+            <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs hover:shadow-sm transition-all flex flex-col justify-between space-y-4">
+              
+              <div>
+                <!-- Header with ID, Type & Severity -->
+                <div class="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                  <span class="font-mono text-xs text-slate-500 font-bold">{{ flaw.id }}</span>
+                  <div class="flex items-center gap-1.5">
+                    @if (flaw.incidentType === 'Evento de Pérdida Real') {
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 flex items-center gap-1">
+                        <mat-icon class="text-xs">paid</mat-icon>
+                        <span>Pérdida Real</span>
+                      </span>
+                    } @else if (flaw.incidentType === 'Falla de Control') {
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                        <mat-icon class="text-xs">gpp_maybe</mat-icon>
+                        <span>Falla de Control</span>
+                      </span>
+                    } @else if (flaw.incidentType === 'Casi Pérdida (Near Miss)') {
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1">
+                        <mat-icon class="text-xs">shield</mat-icon>
+                        <span>Near Miss</span>
+                      </span>
+                    } @else {
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
+                        <mat-icon class="text-xs">warning</mat-icon>
+                        <span>Vulnerabilidad</span>
+                      </span>
+                    }
+
+                    <span
+                      class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase border"
+                      [class]="severityBadgeClass(flaw.severity)"
+                    >
+                      {{ flaw.severity }}
+                    </span>
+                  </div>
+                </div>
+
+                <h3 class="font-bold text-sm text-slate-900 leading-snug">{{ flaw.title }}</h3>
+                <p class="text-xs text-slate-600 mt-2 leading-relaxed">{{ flaw.description }}</p>
+
+                <!-- Real Loss & Financial Details Banner -->
+                @if (flaw.realLossAmountUSD && flaw.realLossAmountUSD > 0) {
+                  <div class="mt-3 p-2 bg-rose-50 border border-rose-200 rounded-lg flex items-center justify-between text-xs">
+                    <div>
+                      <span class="text-[10px] text-rose-700 block font-semibold uppercase">Pérdida Financiera</span>
+                      <span class="font-bold font-mono text-rose-900">\${{ flaw.realLossAmountUSD | number:'1.0-0' }} USD</span>
+                    </div>
+                    @if (flaw.recoveredAmountUSD && flaw.recoveredAmountUSD > 0) {
+                      <div class="text-right">
+                        <span class="text-[10px] text-emerald-700 block font-semibold uppercase">Recuperado</span>
+                        <span class="font-bold font-mono text-emerald-800">\${{ flaw.recoveredAmountUSD | number:'1.0-0' }} USD</span>
+                      </div>
+                    }
+                  </div>
+                }
+
+                @if (flaw.impactedSystemOrAccount) {
+                  <div class="mt-2 text-[11px] text-slate-600 flex items-center gap-1">
+                    <mat-icon class="text-xs text-slate-400">computer</mat-icon>
+                    <span>Activo afectado: <strong class="text-slate-800">{{ flaw.impactedSystemOrAccount }}</strong></span>
+                  </div>
+                }
+                
+                <div class="mt-3 text-[11px] text-slate-500 space-y-0.5 border-t border-slate-100 pt-2">
+                  <div>Proceso: <strong class="text-slate-800">{{ flaw.process }}</strong></div>
+                  <div>Reportado por: <span>{{ flaw.reportedBy }}</span> ({{ flaw.reportedAt }})</div>
+                </div>
+
+                <!-- AI Category & Controls Tag -->
+                @if (flaw.aiSuggestedCategory) {
+                  <div class="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[10px] text-slate-400 font-semibold">Basilea:</span>
+                    <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium font-mono">
+                      {{ flaw.aiSuggestedCategory }}
+                    </span>
+                  </div>
+                }
+              </div>
+
+              <!-- Status, Edit & Convert Actions -->
+              <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                <div>
+                  @if (flaw.status === 'Convertida a Riesgo') {
+                    <span class="text-emerald-700 font-semibold text-xs flex items-center gap-1">
+                      <mat-icon class="text-sm">check_circle</mat-icon>
+                      <span>Convertida a Riesgo</span>
+                    </span>
+                  } @else {
+                    <span class="text-amber-700 font-semibold text-xs flex items-center gap-1">
+                      <mat-icon class="text-sm">schedule</mat-icon>
+                      <span>Pendiente</span>
+                    </span>
+                  }
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                  <!-- Actualizar / Editar Incidente Button -->
+                  <button
+                    (click)="openEditFlaw(flaw)"
+                    class="px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Actualizar detalles o eventos del incidente"
+                  >
+                    <mat-icon class="text-xs">edit</mat-icon>
+                    <span>Editar</span>
+                  </button>
+
+                  <!-- Convertir a Riesgo Button -->
+                  @if (flaw.status !== 'Convertida a Riesgo') {
+                    <button
+                      (click)="convertFlawDirectly(flaw)"
+                      class="px-3 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                      title="Evaluar y transformar formalmente en riesgo mitigable"
+                    >
+                      <mat-icon class="text-xs">bolt</mat-icon>
+                      <span>A Riesgo</span>
+                    </button>
+                  }
+                </div>
+              </div>
+
+            </div>
+          } @empty {
+            <div class="col-span-full bg-white rounded-xl border border-slate-200 p-8 text-center space-y-3">
+              <mat-icon class="text-3xl text-slate-300">search_off</mat-icon>
+              <h3 class="text-sm font-bold text-slate-700">No se encontraron incidentes con el filtro seleccionado</h3>
+              <p class="text-xs text-slate-500">Puedes registrar un nuevo evento de pérdida o falla de control con el botón superior.</p>
+              <button
+                (click)="openCreateFlaw()"
+                class="px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors inline-flex items-center gap-1.5"
+              >
+                <mat-icon class="text-sm">add_alert</mat-icon>
+                <span>Registrar Incidente Operacional</span>
+              </button>
+            </div>
+          }
+        </div>
+
+      </div>
+    }
+
+    <!-- TAB 5: ALERTAS AUTOMATIZADAS & MONITOREO DE KRIs -->
+    @if (activeTab() === 'alertas-kri') {
+      <div class="space-y-6">
+        
+        <!-- Header & Action Controls -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-xl font-bold tracking-tight text-slate-900">
+                Monitoreo en Tiempo Real de Procesos & Alertas KRI
+              </h1>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 uppercase">
+                {{ riskService.currentIndustry() }}
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Detección continua de desviaciones operacionales, apetito de riesgo y umbrales específicos por industria
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              (click)="openAlertSettings()"
+              class="px-3.5 py-2 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors flex items-center gap-1.5 border border-amber-300 shadow-2xs cursor-pointer"
+              title="Configurar canales de notificación (Email, SMS y Webhook) para alertas de KRI"
+            >
+              <mat-icon class="text-sm text-amber-700">notifications_active</mat-icon>
+              <span>Canales & Notificaciones</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="isKriThresholdModalOpen.set(true)"
+              class="px-3.5 py-2 text-xs font-semibold text-slate-800 bg-white hover:bg-slate-50 rounded-lg transition-colors flex items-center gap-1.5 border border-slate-300 shadow-2xs cursor-pointer"
+              title="Seleccionar industria y configurar umbrales de tolerancia de KRIs"
+            >
+              <mat-icon class="text-sm text-indigo-600">tune</mat-icon>
+              <span>Configurar Umbrales & KRIs</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="simulateRealTimeAnomaly()"
+              class="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <mat-icon class="text-sm">flash_on</mat-icon>
+              <span>Simular Anomalía en Vivo</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Industry Configuration Banner & Summary -->
+        <div class="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-5 text-white shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-indigo-600/60 text-indigo-200 border border-indigo-400/30 flex items-center justify-center shrink-0">
+              <mat-icon class="text-2xl">domain</mat-icon>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs uppercase font-bold tracking-wider text-indigo-300">Sector Industrial Activo:</span>
+                <span class="text-sm font-bold text-white">{{ riskService.currentIndustry() }}</span>
+              </div>
+              <p class="text-xs text-slate-300 mt-0.5 max-w-xl">
+                Los umbrales de tolerancia y métricas de riesgo están calibrados para estándares normativos de tu sector. Puedes cambiar de industria o personalizar cada umbral en cualquier momento.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 sm:gap-3 shrink-0 self-end md:self-center flex-wrap">
+            <div class="px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700 text-center">
+              <span class="text-[10px] text-slate-400 uppercase font-semibold block">KRIs Activos</span>
+              <span class="text-base font-bold font-mono text-white">{{ riskService.kriDefinitions().length }}</span>
+            </div>
+
+            <div class="px-3 py-1.5 rounded-xl bg-rose-950/60 border border-rose-800/60 text-center">
+              <span class="text-[10px] text-rose-300 uppercase font-semibold block">Alertas Activas</span>
+              <span class="text-base font-bold font-mono text-rose-400">{{ riskService.metrics().activeAlertsCount }}</span>
+            </div>
+
+            <button
+              type="button"
+              (click)="openAlertSettings()"
+              class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 rounded-xl text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Configurar canales de notificación Email y SMS"
+            >
+              <mat-icon class="text-xs text-amber-400">notifications</mat-icon>
+              <span>Canales Email/SMS</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="isKriThresholdModalOpen.set(true)"
+              class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+            >
+              Cambiar Industria
+            </button>
+          </div>
+        </div>
+
+        <!-- Section: Key Risk Indicators (KRIs) Gauges & Thresholds Grid -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+              <mat-icon class="text-sm text-indigo-600">speed</mat-icon>
+              <span>Indicadores Clave de Riesgo (KRIs) & Tolerancias Operacionales</span>
+            </h2>
+            <span class="text-xs text-slate-500 font-mono">
+              Evaluación en Tiempo Real
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            @for (kri of riskService.kriDefinitions(); track kri.id) {
+              <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between space-y-3">
+                
+                <!-- Card Header -->
+                <div>
+                  <div class="flex items-center justify-between gap-2 mb-1.5">
+                    <span class="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                      {{ kri.code }}
+                    </span>
+
+                    <span
+                      [class]="kri.status === 'Crítico'
+                        ? 'bg-rose-100 text-rose-800 border-rose-200 animate-pulse'
+                        : kri.status === 'Advertencia'
+                        ? 'bg-amber-100 text-amber-800 border-amber-200'
+                        : 'bg-emerald-100 text-emerald-800 border-emerald-200'"
+                      class="text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase flex items-center gap-1"
+                    >
+                      <span
+                        [class]="kri.status === 'Crítico' ? 'bg-rose-600' : kri.status === 'Advertencia' ? 'bg-amber-500' : 'bg-emerald-500'"
+                        class="w-1.5 h-1.5 rounded-full"
+                      ></span>
+                      <span>{{ kri.status }}</span>
+                    </span>
+                  </div>
+
+                  <h3 class="font-bold text-xs sm:text-sm text-slate-900 leading-snug">{{ kri.name }}</h3>
+                  <p class="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">{{ kri.description }}</p>
+
+                  <!-- Reading Metric Gauge -->
+                  <div class="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-baseline justify-between">
+                    <div>
+                      <span class="text-[10px] text-slate-400 uppercase font-semibold block">Valor Actual</span>
+                      <span
+                        class="text-xl font-bold font-mono tracking-tight"
+                        [class.text-rose-700]="kri.status === 'Crítico'"
+                        [class.text-amber-700]="kri.status === 'Advertencia'"
+                        [class.text-slate-900]="kri.status === 'Normal'"
+                      >
+                        {{ kri.currentValue }} <span class="text-xs font-sans font-normal text-slate-500">{{ kri.unit }}</span>
+                      </span>
+                    </div>
+
+                    <div class="text-right text-[11px] space-y-0.5 font-mono">
+                      <div>
+                        <span class="text-amber-700 font-semibold">Adv: </span>
+                        <span>{{ kri.direction === 'superior' ? '>=' : '<=' }} {{ kri.warningThreshold }} {{ kri.unit }}</span>
+                      </div>
+                      <div>
+                        <span class="text-rose-700 font-semibold">Crítico: </span>
+                        <span>{{ kri.direction === 'superior' ? '>=' : '<=' }} {{ kri.criticalThreshold }} {{ kri.unit }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Metadata Tags -->
+                  <div class="mt-2.5 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+                    <span class="bg-slate-100 px-2 py-0.5 rounded">Proceso: <strong class="text-slate-700">{{ kri.process }}</strong></span>
+                    <span class="bg-slate-100 px-2 py-0.5 rounded">Frecuencia: {{ kri.frequency }}</span>
+                  </div>
+                </div>
+
+                <!-- Card Footer Actions -->
+                <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <span class="text-[10px] text-slate-400 truncate">Resp: {{ kri.responsible }}</span>
+
+                  <div class="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      (click)="openAlertSettings(kri)"
+                      class="px-2 py-1 text-xs font-semibold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
+                      title="Configurar preferencias de notificación por Email y SMS para este KRI"
+                    >
+                      <mat-icon class="text-xs text-amber-700">notifications</mat-icon>
+                      <span>Alertas</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      (click)="isKriThresholdModalOpen.set(true)"
+                      class="px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
+                      title="Calibrar umbrales preventivos y críticos de este KRI"
+                    >
+                      <mat-icon class="text-xs">tune</mat-icon>
+                      <span>Calibrar</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Section: Active Anomaly Alerts Log -->
+        <div class="space-y-3 pt-4 border-t border-slate-200">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+              <mat-icon class="text-sm text-rose-600">notification_important</mat-icon>
+              <span>Bitácora de Alertas Operacionales Disparadas ({{ riskService.alerts().length }})</span>
+            </h2>
+            <span class="text-xs text-slate-500 font-mono">
+              {{ riskService.metrics().activeAlertsCount }} Alertas Pendientes de Resolución
+            </span>
+          </div>
+
+          <div class="space-y-3">
+            @for (alert of riskService.alerts(); track alert.id) {
+              <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                
+                <div class="flex items-start gap-3">
+                  <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                       [class]="alert.severity === 'Crítico' ? 'bg-rose-100 text-rose-700' : alert.severity === 'Alto' ? 'bg-orange-100 text-orange-700' : 'bg-amber-100 text-amber-700'">
+                    <mat-icon class="text-lg">notification_important</mat-icon>
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <span class="font-mono font-bold text-xs text-slate-900">{{ alert.code }}</span>
+                      <span
+                        class="px-2 py-0.2 rounded text-[10px] font-semibold uppercase border"
+                        [class]="severityBadgeClass(alert.severity)"
+                      >
+                        {{ alert.severity }}
+                      </span>
+                      <span class="text-xs text-slate-500">· Proceso: <strong>{{ alert.process }}</strong></span>
+                      <span class="text-xs text-slate-400">· Escalado a: {{ alert.escalatedTo }}</span>
+                    </div>
+                    <h3 class="text-sm font-bold text-slate-900">{{ alert.title }}</h3>
+                    <p class="text-xs text-slate-600 mt-1">{{ alert.description }}</p>
+                    
+                    <div class="mt-2 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                      <span>Métrica: <strong class="text-slate-800">{{ alert.kriMetric }}</strong></span>
+                      <span>Umbral de Disparo: <span class="font-mono">{{ alert.threshold }}</span></span>
+                      <span>Valor Registrado: <strong class="font-mono text-rose-700">{{ alert.currentValue }}</strong></span>
+                      <span>Fecha/Hora: {{ alert.triggeredAt }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Action Status Buttons -->
+                <div class="flex items-center gap-2 shrink-0 self-end md:self-center">
+                  @if (alert.status === 'Activa') {
+                    <button
+                      (click)="riskService.updateAlertStatus(alert.id, 'En Investigación')"
+                      class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Investigar
+                    </button>
+                    <button
+                      (click)="riskService.updateAlertStatus(alert.id, 'Mitigada')"
+                      class="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Resolver
+                    </button>
+                  } @else if (alert.status === 'En Investigación') {
+                    <button
+                      (click)="riskService.updateAlertStatus(alert.id, 'Mitigada')"
+                      class="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Cerrar Mitigación
+                    </button>
+                  } @else {
+                    <span class="text-xs font-semibold text-emerald-700 flex items-center gap-1">
+                      <mat-icon class="text-sm">check_circle</mat-icon>
+                      <span>Mitigada y Archivada</span>
+                    </span>
+                  }
+                </div>
+
+              </div>
+            }
+          </div>
+        </div>
+
+      </div>
+    }
+
+    <!-- TAB 6: AUDITORÍAS PERIÓDICAS & CUMPLIMIENTO -->
+    @if (activeTab() === 'auditorias') {
+      <div class="space-y-5">
+        
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h1 class="text-xl font-bold tracking-tight text-slate-900">
+              Auditorías Periódicas & Pruebas de Cumplimiento
+            </h1>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Revisión programada de controles operacionales, registro de hallazgos y dictamen de no conformidad
+            </p>
+          </div>
+
+          <div class="text-right">
+            <span class="text-xs text-slate-500 block">Puntaje Global de Cumplimiento</span>
+            <span class="font-mono text-xl font-bold text-emerald-600">88% (Conforme)</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          @for (audit of riskService.audits(); track audit.id) {
+            <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
+              
+              <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <span class="font-mono text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
+                    {{ audit.code }}
+                  </span>
+                  <h3 class="text-sm font-bold text-slate-900 mt-1">{{ audit.title }}</h3>
+                  <div class="text-[11px] text-slate-500 mt-0.5">
+                    Auditor Líder: {{ audit.leadAuditor }} · {{ audit.period }}
+                  </div>
+                </div>
+
+                <div class="text-right">
+                  <span class="font-mono text-lg font-bold text-indigo-700">{{ audit.complianceScore }}%</span>
+                  <span class="block text-[10px] text-slate-500">Score de Cumplimiento</span>
+                </div>
+              </div>
+
+              <!-- Scope -->
+              <div class="text-xs">
+                <span class="font-semibold text-slate-700 block mb-1">Alcance Auditado:</span>
+                <div class="flex flex-wrap gap-1.5">
+                  @for (sc of audit.scope; track sc) {
+                    <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
+                      {{ sc }}
+                    </span>
+                  }
+                </div>
+              </div>
+
+              <!-- Findings List -->
+              <div class="space-y-2 pt-2 border-t border-slate-100">
+                <span class="text-xs font-bold text-slate-900 block">Hallazgos Registrados:</span>
+                @for (finding of audit.findings; track finding.id) {
+                  <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-xs space-y-1">
+                    <div class="flex items-center justify-between">
+                      <span
+                        class="px-2 py-0.2 rounded text-[10px] font-semibold uppercase"
+                        [class]="finding.type === 'Conforme' ? 'bg-emerald-100 text-emerald-800' : finding.type === 'Observación' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'"
+                      >
+                        {{ finding.type }}
+                      </span>
+                      <span class="text-[11px] text-slate-500">Resp: {{ finding.responsible }}</span>
+                    </div>
+                    <div class="font-medium text-slate-800">{{ finding.description }}</div>
+                    <div class="text-[11px] text-slate-600">
+                      <strong>Acción Correctiva:</strong> {{ finding.correctiveAction }} (Plazo: {{ finding.deadline }})
+                    </div>
+                  </div>
+                }
+              </div>
+
+            </div>
+          }
+        </div>
+
+      </div>
+    }
+
+    <!-- TAB 7: BITÁCORA INALTERABLE (TRAZABILIDAD TOTAL & LEDGER) -->
+    @if (activeTab() === 'bitacora') {
+      <div class="space-y-4">
+        
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h1 class="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+              <mat-icon class="text-emerald-600">lock</mat-icon>
+              <span>Bitácora Inalterable de Auditoría & Trazabilidad Total</span>
+            </h1>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Registro inmutable tipo libro mayor (ledger) con encadenamiento criptográfico SHA-256 de cada movimiento
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              (click)="verifyChainIntegrity()"
+              [disabled]="integrityStatus().verifying"
+              class="px-3.5 py-1.5 text-xs font-semibold text-slate-900 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+            >
+              <mat-icon class="text-sm">verified</mat-icon>
+              <span>{{ integrityStatus().verifying ? 'Comprobando Hash...' : 'Verificar Integridad de Cadena' }}</span>
+            </button>
+
+            <button
+              (click)="riskService.exportToExcel('audit_trail')"
+              class="px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+            >
+              <mat-icon class="text-sm">download</mat-icon>
+              <span>Exportar Bitácora</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Verification Banner if verified -->
+        @if (integrityStatus().verified) {
+          <div class="p-3.5 rounded-xl border bg-emerald-50 border-emerald-300 text-emerald-950 flex items-center justify-between text-xs">
+            <div class="flex items-center gap-2.5">
+              <mat-icon class="text-emerald-600">verified</mat-icon>
+              <div>
+                <strong class="font-semibold block">Certificación de Integridad Criptográfica Válida</strong>
+                <span>Todos los bloques encadenados ({{ integrityStatus().totalBlocks }} transacciones) coinciden con sus firmas SHA-256 sin alteración.</span>
+              </div>
+            </div>
+            <span class="font-mono text-emerald-800 font-bold uppercase text-[11px]">100% INMUTABLE</span>
+          </div>
+        }
+
+        <!-- Ledger Table -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 text-[11px] uppercase font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-3 px-3 w-16 text-center">Bloque</th>
+                  <th class="py-3 px-3">Fecha / Hora (UTC)</th>
+                  <th class="py-3 px-3">Usuario & Rol</th>
+                  <th class="py-3 px-3">Acción Registrada</th>
+                  <th class="py-3 px-3">Entidad</th>
+                  <th class="py-3 px-4">Detalle Operacional</th>
+                  <th class="py-3 px-3">Hash SHA-256</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200 font-sans">
+                @for (log of riskService.auditTrail(); track log.id) {
+                  <tr class="hover:bg-slate-50/80 transition-colors">
+                    
+                    <td class="py-3 px-3 text-center font-mono font-bold text-slate-700">
+                      #{{ log.blockNumber }}
+                    </td>
+
+                    <td class="py-3 px-3 font-mono text-slate-600 whitespace-nowrap text-[11px]">
+                      {{ log.timestamp }}
+                    </td>
+
+                    <td class="py-3 px-3 whitespace-nowrap">
+                      <div class="font-semibold text-slate-900">{{ log.userName }}</div>
+                      <div class="text-[10px] text-slate-500">{{ log.userRole }}</div>
+                    </td>
+
+                    <td class="py-3 px-3 whitespace-nowrap">
+                      <span class="font-mono text-[10px] bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-semibold border border-slate-200">
+                        {{ log.action }}
+                      </span>
+                    </td>
+
+                    <td class="py-3 px-3 font-mono text-slate-700 whitespace-nowrap">
+                      {{ log.entityType }}: {{ log.entityCode }}
+                    </td>
+
+                    <td class="py-3 px-4 text-slate-700 max-w-xs">
+                      {{ log.details }}
+                    </td>
+
+                    <td class="py-3 px-3 font-mono text-[10px] text-slate-500 whitespace-nowrap" [title]="log.hash">
+                      <div class="flex items-center gap-1">
+                        <span class="text-emerald-700 font-bold">sha256:</span>
+                        <span>{{ log.hash.slice(0, 16) }}...</span>
+                      </div>
+                    </td>
+
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    }
+
+    <!-- TAB: CENTRO DE REPORTES & EXPORTACIÓN PDF -->
+    @if (activeTab() === 'reportes-pdf') {
+      <app-reports-center></app-reports-center>
+    }
+
+  </main>
+
+  </div>
+
+  <!-- Interactive Modals -->
+  @if (isRiskModalOpen()) {
+    <app-risk-modal
+      [existingRisk]="editingRisk()"
+      (closeModal)="isRiskModalOpen.set(false)"
+      (riskSaved)="showToast('Riesgo operacional guardado con éxito'); isRiskModalOpen.set(false)"
+    ></app-risk-modal>
+  }
+
+  @if (isFlawModalOpen()) {
+    <app-flaw-modal
+      [incidentToEdit]="editingFlaw()"
+      (closeModal)="isFlawModalOpen.set(false); showToast('Registro de incidencia procesado exitosamente')"
+    ></app-flaw-modal>
+  }
+
+  @if (isControlModalOpen()) {
+    <app-control-modal
+      [existingControl]="editingControl()"
+      (closeModal)="isControlModalOpen.set(false); showToast('Control interno evaluado satisfactoriamente')"
+    ></app-control-modal>
+  }
+
+  @if (isReportModalOpen()) {
+    <app-executive-report-modal
+      (closeModal)="isReportModalOpen.set(false)"
+    ></app-executive-report-modal>
+  }
+
+  @if (isKriThresholdModalOpen()) {
+    <app-kri-threshold-modal
+      (closeModal)="isKriThresholdModalOpen.set(false)"
+      (openNotificationSettings)="openAlertSettings($event)"
+    ></app-kri-threshold-modal>
+  }
+
+  @if (isRolesModalOpen()) {
+    <app-roles-management-modal
+      (closeModal)="isRolesModalOpen.set(false)"
+    ></app-roles-management-modal>
+  }
+
+  @if (isAlertSettingsModalOpen()) {
+    <app-alert-settings-modal
+      [initialKri]="configuringKri()"
+      (closeModal)="closeAlertSettings()"
+      (preferencesSaved)="showToast('Preferencias de notificación guardadas y selladas en el ledger')"
+    ></app-alert-settings-modal>
+  }
+
+</div>

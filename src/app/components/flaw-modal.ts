@@ -1,0 +1,544 @@
+import { ChangeDetectionStrategy, Component, effect, inject, input, output, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
+import { MatIconModule } from '@angular/material/icon';
+import { RiskDataService } from '../services/risk-data.service';
+import { AiRiskService, AIAnalysisResult } from '../services/ai-risk.service';
+import { BaselCategory, IncidentType, OperationalFlaw } from '../models/risk.model';
+
+@Component({
+  selector: 'app-flaw-modal',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule],
+  template: `
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
+      <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden my-6">
+        
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+          <div>
+            <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <mat-icon class="text-amber-600">report_problem</mat-icon>
+              <span>{{ incidentToEdit() ? 'Actualizar Incidente / Evento Operacional' : 'Registrar Incidente Operacional' }}</span>
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">
+              En la pestaña "Incidentes y Pérdidas", puedes reportar o actualizar eventos de pérdida real o fallas de control.
+            </p>
+          </div>
+          <button
+            type="button"
+            (click)="closeModal.emit()"
+            class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200/50 transition-colors"
+          >
+            <mat-icon class="text-lg">close</mat-icon>
+          </button>
+        </div>
+
+        <!-- Body -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-4">
+          
+          <form [formGroup]="form" class="space-y-4">
+            
+            <!-- Tipo de Incidente / Evento -->
+            <div>
+              <label for="incident-type" class="block text-xs font-semibold text-slate-700 mb-1">
+                Tipo de Incidencia / Evento Operacional *
+              </label>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  (click)="setIncidentType('Falla de Control')"
+                  [class]="form.get('incidentType')?.value === 'Falla de Control'
+                    ? 'border-amber-500 bg-amber-50 text-amber-900 ring-1 ring-amber-500'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'"
+                  class="p-2.5 rounded-xl border text-left flex items-start gap-2 transition-all cursor-pointer"
+                >
+                  <mat-icon class="text-amber-600 text-sm mt-0.5">gpp_maybe</mat-icon>
+                  <div>
+                    <div class="text-xs font-bold leading-tight">Falla de Control</div>
+                    <div class="text-[11px] text-slate-500 leading-snug">Ruptura, ausencia o ineficacia de un control existente</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  (click)="setIncidentType('Evento de Pérdida Real')"
+                  [class]="form.get('incidentType')?.value === 'Evento de Pérdida Real'
+                    ? 'border-rose-500 bg-rose-50 text-rose-900 ring-1 ring-rose-500'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'"
+                  class="p-2.5 rounded-xl border text-left flex items-start gap-2 transition-all cursor-pointer"
+                >
+                  <mat-icon class="text-rose-600 text-sm mt-0.5">paid</mat-icon>
+                  <div>
+                    <div class="text-xs font-bold leading-tight">Evento de Pérdida Real</div>
+                    <div class="text-[11px] text-slate-500 leading-snug">Impacto financiero o contable cuantificado en USD</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  (click)="setIncidentType('Casi Pérdida (Near Miss)')"
+                  [class]="form.get('incidentType')?.value === 'Casi Pérdida (Near Miss)'
+                    ? 'border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-500'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'"
+                  class="p-2.5 rounded-xl border text-left flex items-start gap-2 transition-all cursor-pointer"
+                >
+                  <mat-icon class="text-blue-600 text-sm mt-0.5">shield</mat-icon>
+                  <div>
+                    <div class="text-xs font-bold leading-tight">Casi Pérdida (Near Miss)</div>
+                    <div class="text-[11px] text-slate-500 leading-snug">Evento contenido que pudo derivar en pérdida</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  (click)="setIncidentType('Vulnerabilidad Operativa')"
+                  [class]="form.get('incidentType')?.value === 'Vulnerabilidad Operativa'
+                    ? 'border-purple-500 bg-purple-50 text-purple-900 ring-1 ring-purple-500'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'"
+                  class="p-2.5 rounded-xl border text-left flex items-start gap-2 transition-all cursor-pointer"
+                >
+                  <mat-icon class="text-purple-600 text-sm mt-0.5">warning</mat-icon>
+                  <div>
+                    <div class="text-xs font-bold leading-tight">Vulnerabilidad Operativa</div>
+                    <div class="text-[11px] text-slate-500 leading-snug">Debilidad estructural en procesos o tecnología</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Quick Title -->
+            <div>
+              <label for="flaw-title" class="block text-xs font-semibold text-slate-700 mb-1">
+                Título de la Incidencia o Evento *
+              </label>
+              <input
+                id="flaw-title"
+                type="text"
+                formControlName="title"
+                placeholder="Ej. Liquidación duplicada en pasarela de pagos o clave maestra compartida"
+                class="w-full text-xs rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <!-- Process & Severity -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label for="flaw-process" class="block text-xs font-semibold text-slate-700 mb-1">
+                  Proceso Afectado
+                </label>
+                <select
+                  id="flaw-process"
+                  formControlName="process"
+                  class="w-full text-xs rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="Tesorería">Tesorería</option>
+                  <option value="Operaciones de Pago">Operaciones de Pago</option>
+                  <option value="Ciberseguridad & TI">Ciberseguridad & TI</option>
+                  <option value="Infraestructura Cloud">Infraestructura Cloud</option>
+                  <option value="Gestión Humana">Gestión Humana</option>
+                  <option value="Cumplimiento Legal">Cumplimiento Legal</option>
+                  <option value="Cadena de Suministro">Cadena de Suministro</option>
+                </select>
+              </div>
+
+              <div>
+                <label for="flaw-severity" class="block text-xs font-semibold text-slate-700 mb-1">
+                  Severidad Percibida
+                </label>
+                <select
+                  id="flaw-severity"
+                  formControlName="severity"
+                  class="w-full text-xs rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="Crítica">Crítica (Interrupción severa o pérdida grave)</option>
+                  <option value="Alta">Alta (Pérdida relevante o falla de control clave)</option>
+                  <option value="Media">Media (Desviación operativa moderada)</option>
+                  <option value="Baja">Baja (Incidencia menor con bajo impacto)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Financial Impact Section (especially for Evento de Pérdida Real) -->
+            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <mat-icon class="text-sm text-emerald-600">attach_money</mat-icon>
+                  <span>Impacto Financiero de la Incidencia (USD)</span>
+                </span>
+                @if (form.get('incidentType')?.value === 'Evento de Pérdida Real') {
+                  <span class="text-[10px] bg-rose-100 text-rose-800 font-semibold px-2 py-0.5 rounded">
+                    Requerido para Pérdida Real
+                  </span>
+                }
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label for="loss-amount" class="block text-[11px] font-medium text-slate-600 mb-1">
+                    Monto de Pérdida Real ($ USD)
+                  </label>
+                  <input
+                    id="loss-amount"
+                    type="number"
+                    min="0"
+                    step="100"
+                    formControlName="realLossAmountUSD"
+                    placeholder="0"
+                    class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label for="recovered-amount" class="block text-[11px] font-medium text-slate-600 mb-1">
+                    Pérdida Recuperada ($ USD)
+                  </label>
+                  <input
+                    id="recovered-amount"
+                    type="number"
+                    min="0"
+                    step="100"
+                    formControlName="recoveredAmountUSD"
+                    placeholder="0"
+                    class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label for="impacted-system" class="block text-[11px] font-medium text-slate-600 mb-1">
+                    Sistema / Cuenta Afectada
+                  </label>
+                  <input
+                    id="impacted-system"
+                    type="text"
+                    formControlName="impactedSystemOrAccount"
+                    placeholder="Ej. Switch Bancario, SWIFT, AWS"
+                    class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Detailed Description -->
+            <div>
+              <label for="flaw-description" class="block text-xs font-semibold text-slate-700 mb-1">
+                Descripción detallada del evento o falla de control *
+              </label>
+              <textarea
+                id="flaw-description"
+                formControlName="description"
+                rows="3"
+                placeholder="Explica qué ocurrió, qué control falló, monto estimado de pérdida o debilidad detectada..."
+                class="w-full text-xs rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              ></textarea>
+            </div>
+
+            <!-- AI Risk Advisor Button -->
+            <div class="pt-1">
+              <button
+                type="button"
+                (click)="analyzeWithAI()"
+                [disabled]="isAnalyzing() || !form.get('description')?.value"
+                class="w-full py-2.5 px-4 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-300 text-emerald-900 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
+              >
+                @if (isAnalyzing()) {
+                  <mat-icon class="animate-spin text-sm">autorenew</mat-icon>
+                  <span>Analizando taxonomía de riesgo y recomendando controles mitigantes...</span>
+                } @else {
+                  <mat-icon class="text-sm text-emerald-700">psychology</mat-icon>
+                  <span>Categorizar con Asistente de Riesgo (Gemini AI)</span>
+                }
+              </button>
+            </div>
+
+          </form>
+
+          <!-- AI Analysis Result Card -->
+          @if (aiResult(); as ai) {
+            <div class="bg-slate-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+              <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <mat-icon class="text-emerald-600 text-sm">verified</mat-icon>
+                  <span>Evaluación Inteligente Sugerida</span>
+                </span>
+                <span class="text-[11px] font-mono text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded font-semibold">
+                  {{ ai.category }}
+                </span>
+              </div>
+
+              <div class="text-xs text-slate-700 leading-relaxed">
+                {{ ai.technicalDescription }}
+              </div>
+
+              <!-- Suggested Metrics (4x4 scale) -->
+              <div class="grid grid-cols-3 gap-2 bg-white p-2.5 rounded-lg border border-slate-200 text-xs">
+                <div>
+                  <span class="text-slate-400 block text-[10px] uppercase">Probabilidad</span>
+                  <span class="font-bold font-mono text-slate-800">{{ ai.inherentLikelihood }} / 4</span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block text-[10px] uppercase">Impacto</span>
+                  <span class="font-bold font-mono text-slate-800">{{ ai.inherentImpact }} / 4</span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block text-[10px] uppercase">Exposición Est.</span>
+                  <span class="font-bold font-mono text-emerald-700">\${{ ai.financialExposureEstUSD | number:'1.0-0' }}</span>
+                </div>
+              </div>
+
+              <!-- Suggested Controls -->
+              @if (ai.suggestedControls && ai.suggestedControls.length > 0) {
+                <div>
+                  <span class="text-[11px] font-bold text-slate-700 block mb-1">
+                    Controles Proactivos Recomendados:
+                  </span>
+                  <div class="space-y-1.5">
+                    @for (ctrl of ai.suggestedControls; track ctrl.name) {
+                      <div class="text-xs bg-white p-2 rounded border border-slate-200 flex items-center justify-between">
+                        <div>
+                          <span class="font-semibold text-slate-800">{{ ctrl.name }}</span>
+                          <span class="text-[11px] text-slate-500 block">{{ ctrl.description }}</span>
+                        </div>
+                        <span class="text-[11px] font-mono text-emerald-700 font-semibold px-2">
+                          ~{{ ctrl.effectivenessPct }}% mitigación
+                        </span>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              <!-- Mitigation Plan Actions -->
+              @if (ai.mitigationPlan.recommendedActions.length > 0) {
+                <div class="text-xs text-slate-600 bg-emerald-50/50 p-2.5 rounded border border-emerald-100">
+                  <span class="font-bold text-emerald-950 block mb-1">
+                    Pasos sugeridos para el Plan de Mitigación:
+                  </span>
+                  <ul class="list-disc pl-4 space-y-0.5">
+                    @for (act of ai.mitigationPlan.recommendedActions; track act) {
+                      <li>{{ act }}</li>
+                    }
+                  </ul>
+                </div>
+              }
+            </div>
+          }
+
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            (click)="closeModal.emit()"
+            class="px-4 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            Cancelar
+          </button>
+
+          <div class="flex items-center gap-2">
+            <!-- Save as Incident only -->
+            <button
+              type="button"
+              (click)="saveIncidentOnly()"
+              [disabled]="form.invalid || isSaving()"
+              class="px-3.5 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+            >
+              <mat-icon class="text-sm text-slate-500">save</mat-icon>
+              <span>{{ incidentToEdit() ? 'Actualizar Incidente' : 'Registrar Incidente' }}</span>
+            </button>
+
+            <!-- Direct Convert to Risk -->
+            <button
+              type="button"
+              (click)="saveAndConvertToRisk()"
+              [disabled]="form.invalid || isSaving()"
+              class="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+            >
+              <mat-icon class="text-sm">bolt</mat-icon>
+              <span>Convertir en Riesgo Operacional</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `
+})
+export class FlawModal {
+  readonly riskService = inject(RiskDataService);
+  readonly aiService = inject(AiRiskService);
+
+  readonly incidentToEdit = input<OperationalFlaw | null>(null);
+  readonly closeModal = output<void>();
+
+  readonly isAnalyzing = signal<boolean>(false);
+  readonly isSaving = signal<boolean>(false);
+  readonly aiResult = signal<AIAnalysisResult | null>(null);
+
+  form = new FormGroup({
+    incidentType: new FormControl<IncidentType>('Falla de Control', [Validators.required]),
+    title: new FormControl('', [Validators.required, Validators.minLength(5)]),
+    process: new FormControl('Tesorería', [Validators.required]),
+    severity: new FormControl<'Crítica' | 'Alta' | 'Media' | 'Baja'>('Alta', [Validators.required]),
+    description: new FormControl('', [Validators.required, Validators.minLength(10)]),
+    realLossAmountUSD: new FormControl<number>(0),
+    recoveredAmountUSD: new FormControl<number>(0),
+    impactedSystemOrAccount: new FormControl<string>('')
+  });
+
+  constructor() {
+    effect(() => {
+      const inc = this.incidentToEdit();
+      if (inc) {
+        this.form.patchValue({
+          incidentType: inc.incidentType || 'Falla de Control',
+          title: inc.title,
+          process: inc.process,
+          severity: inc.severity,
+          description: inc.description,
+          realLossAmountUSD: inc.realLossAmountUSD || 0,
+          recoveredAmountUSD: inc.recoveredAmountUSD || 0,
+          impactedSystemOrAccount: inc.impactedSystemOrAccount || ''
+        });
+        if (inc.aiAnalysis) {
+          this.aiResult.set(inc.aiAnalysis as unknown as AIAnalysisResult);
+        }
+      } else {
+        this.form.reset({
+          incidentType: 'Falla de Control',
+          title: '',
+          process: 'Tesorería',
+          severity: 'Alta',
+          description: '',
+          realLossAmountUSD: 0,
+          recoveredAmountUSD: 0,
+          impactedSystemOrAccount: ''
+        });
+        this.aiResult.set(null);
+      }
+    });
+  }
+
+  setIncidentType(type: IncidentType) {
+    this.form.patchValue({ incidentType: type });
+  }
+
+  async analyzeWithAI() {
+    const desc = this.form.get('description')?.value;
+    const process = this.form.get('process')?.value;
+    const incidentType = this.form.get('incidentType')?.value;
+    if (!desc) return;
+
+    this.isAnalyzing.set(true);
+    try {
+      const res = await this.aiService.analyzeIncidencia(desc, process || undefined, incidentType || undefined);
+      this.aiResult.set(res);
+      if (res.title && !this.form.get('title')?.value) {
+        this.form.patchValue({ title: res.title });
+      }
+    } finally {
+      this.isAnalyzing.set(false);
+    }
+  }
+
+  async saveIncidentOnly() {
+    if (this.form.invalid) return;
+    this.isSaving.set(true);
+    try {
+      const val = this.form.value;
+      const ai = this.aiResult();
+      const existing = this.incidentToEdit();
+
+      if (existing) {
+        await this.riskService.updateFlaw(existing.id, {
+          title: val.title || '',
+          description: val.description || '',
+          process: val.process || 'Operaciones',
+          severity: val.severity || 'Alta',
+          incidentType: val.incidentType || 'Falla de Control',
+          realLossAmountUSD: Number(val.realLossAmountUSD) || 0,
+          recoveredAmountUSD: Number(val.recoveredAmountUSD) || 0,
+          impactedSystemOrAccount: val.impactedSystemOrAccount || '',
+          aiSuggestedCategory: (ai?.category as BaselCategory) || existing.aiSuggestedCategory,
+          aiSuggestedControls: ai?.suggestedControls?.map(c => c.name) || existing.aiSuggestedControls,
+          aiAnalysis: ai ? (ai as unknown as Record<string, unknown>) : existing.aiAnalysis
+        });
+      } else {
+        await this.riskService.reportFlaw({
+          title: val.title || '',
+          description: val.description || '',
+          process: val.process || 'Operaciones',
+          severity: val.severity || 'Alta',
+          incidentType: val.incidentType || 'Falla de Control',
+          realLossAmountUSD: Number(val.realLossAmountUSD) || 0,
+          recoveredAmountUSD: Number(val.recoveredAmountUSD) || 0,
+          impactedSystemOrAccount: val.impactedSystemOrAccount || '',
+          aiSuggestedCategory: (ai?.category as BaselCategory) || undefined,
+          aiSuggestedControls: ai?.suggestedControls?.map(c => c.name),
+          aiAnalysis: ai ? (ai as unknown as Record<string, unknown>) : undefined
+        });
+      }
+
+      this.closeModal.emit();
+    } finally {
+      this.isSaving.set(false);
+    }
+  }
+
+  async saveAndConvertToRisk() {
+    if (this.form.invalid) return;
+    this.isSaving.set(true);
+    try {
+      const val = this.form.value;
+      const ai = this.aiResult();
+      const existing = this.incidentToEdit();
+
+      let targetId = existing?.id;
+      if (existing) {
+        await this.riskService.updateFlaw(existing.id, {
+          title: val.title || '',
+          description: val.description || '',
+          process: val.process || 'Operaciones',
+          severity: val.severity || 'Alta',
+          incidentType: val.incidentType || 'Falla de Control',
+          realLossAmountUSD: Number(val.realLossAmountUSD) || 0,
+          recoveredAmountUSD: Number(val.recoveredAmountUSD) || 0,
+          impactedSystemOrAccount: val.impactedSystemOrAccount || ''
+        });
+      } else {
+        const reported = await this.riskService.reportFlaw({
+          title: val.title || '',
+          description: val.description || '',
+          process: val.process || 'Operaciones',
+          severity: val.severity || 'Alta',
+          incidentType: val.incidentType || 'Falla de Control',
+          realLossAmountUSD: Number(val.realLossAmountUSD) || 0,
+          recoveredAmountUSD: Number(val.recoveredAmountUSD) || 0,
+          impactedSystemOrAccount: val.impactedSystemOrAccount || '',
+          aiSuggestedCategory: (ai?.category as BaselCategory) || undefined,
+          aiSuggestedControls: ai?.suggestedControls?.map(c => c.name),
+          aiAnalysis: ai ? (ai as unknown as Record<string, unknown>) : undefined
+        });
+        targetId = reported.id;
+      }
+
+      if (targetId) {
+        const lossAmount = Number(val.realLossAmountUSD) || 0;
+        await this.riskService.convertFlawToRisk(targetId, {
+          title: ai?.title || val.title || 'Riesgo operacional derivado de incidencia',
+          process: ai?.process || val.process || 'Operaciones',
+          category: (ai?.category as BaselCategory) || 'Ejecución y Procesos',
+          inherentLikelihood: ai?.inherentLikelihood || (val.severity === 'Crítica' ? 4 : 3),
+          inherentImpact: ai?.inherentImpact || (val.severity === 'Crítica' ? 4 : 3),
+          financialExposureUSD: lossAmount > 0 ? lossAmount * 2 : (ai?.financialExposureEstUSD || 120000),
+          description: `${val.description}\n\n[Tipo de Evento]: ${val.incidentType || 'Incidencia Operativa'}\n[Impacto Registrado]: $${lossAmount} USD\n[Análisis Técnico]: ${ai?.technicalDescription || 'Identificado y registrado en Incidentes y Pérdidas.'}`
+        });
+      }
+
+      this.closeModal.emit();
+    } finally {
+      this.isSaving.set(false);
+    }
+  }
+}
