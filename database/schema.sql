@@ -439,10 +439,11 @@ FOR EACH ROW EXECUTE FUNCTION fn_calculate_risk_matrix();
 CREATE OR REPLACE FUNCTION fn_calculate_control_effectiveness()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.total_effectiveness := ROUND((NEW.design_effectiveness * 0.40 + NEW.operating_effectiveness * 0.60)::numeric, 2);
-    IF NEW.total_effectiveness >= 80 THEN
+    -- Misma regla que la aplicación: total redondeado; Efectivo >= 85, Parcial >= 65.
+    NEW.total_effectiveness := ROUND((NEW.design_effectiveness * 0.40 + NEW.operating_effectiveness * 0.60)::numeric, 0);
+    IF NEW.total_effectiveness >= 85 THEN
         NEW.status := 'Efectivo';
-    ELSIF NEW.total_effectiveness >= 50 THEN
+    ELSIF NEW.total_effectiveness >= 65 THEN
         NEW.status := 'Parcialmente Efectivo';
     ELSE
         NEW.status := 'Deficiente';

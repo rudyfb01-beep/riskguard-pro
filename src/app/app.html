@@ -9,6 +9,39 @@
     </div>
   }
 
+  <!-- Carga inicial desde la base de datos -->
+  @if (persistence.mode() === 'loading') {
+    <div class="fixed inset-0 z-[60] bg-slate-50 flex items-center justify-center no-print">
+      <div class="flex flex-col items-center gap-3 text-slate-600">
+        <div class="w-10 h-10 rounded-full border-4 border-slate-200 border-t-emerald-600 animate-spin"></div>
+        <span class="text-sm font-medium">Cargando datos…</span>
+      </div>
+    </div>
+  }
+
+  <!-- Estado de guardado -->
+  @if (persistence.mode() === 'database') {
+    <div class="fixed bottom-6 left-6 z-40 no-print">
+      @if (persistence.saveError(); as err) {
+        <div class="bg-rose-600 text-white pl-3 pr-1.5 py-1.5 rounded-xl shadow-lg flex items-center gap-2 text-xs max-w-sm" role="alert">
+          <mat-icon class="text-sm">cloud_off</mat-icon>
+          <span class="truncate" [title]="err">No se pudo guardar: {{ err }}</span>
+          <button type="button" (click)="persistence.retryFailed()" class="px-2 py-1 rounded-lg bg-white/20 hover:bg-white/30 font-semibold cursor-pointer shrink-0">Reintentar</button>
+        </div>
+      } @else if (persistence.pending() > 0) {
+        <div class="bg-white text-slate-700 px-3 py-1.5 rounded-xl shadow border border-slate-200 flex items-center gap-1.5 text-[11px]">
+          <div class="w-3 h-3 rounded-full border-2 border-slate-200 border-t-emerald-600 animate-spin"></div>
+          <span>Guardando…</span>
+        </div>
+      } @else if (persistence.lastSavedAt()) {
+        <div class="bg-white/90 text-emerald-700 px-3 py-1.5 rounded-xl shadow-sm border border-emerald-200 flex items-center gap-1.5 text-[11px]">
+          <mat-icon class="text-sm">cloud_done</mat-icon>
+          <span>Guardado {{ persistence.lastSavedAt() | date:'HH:mm:ss' }}</span>
+        </div>
+      }
+    </div>
+  }
+
   <!-- VERTICAL LAYOUT: LEFT SIDEBAR NAVIGATION -->
   @if (layoutMode() === 'vertical') {
     <!-- Desktop Left Sidebar -->
@@ -348,7 +381,21 @@
       class="flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 py-6"
       [class.max-w-7xl]="layoutMode() === 'horizontal'"
     >
-    
+
+    @if (persistence.mode() === 'demo') {
+      <div class="mb-4 p-3 rounded-xl border border-amber-300 bg-amber-50 text-xs text-amber-900 flex items-start gap-2 no-print">
+        <mat-icon class="text-sm text-amber-600 shrink-0">science</mat-icon>
+        <span><strong>Modo demostración:</strong> no hay base de datos configurada (DATABASE_URL), así que los cambios se pierden al recargar la página.</span>
+      </div>
+    }
+    @if (persistence.mode() === 'error') {
+      <div class="mb-4 p-3 rounded-xl border border-rose-300 bg-rose-50 text-xs text-rose-900 flex items-center gap-2 no-print" role="alert">
+        <mat-icon class="text-sm text-rose-600 shrink-0">error</mat-icon>
+        <span class="flex-1"><strong>No se pudo cargar la base de datos:</strong> {{ persistence.loadError() }}. Se muestran datos de ejemplo y los cambios no se guardarán.</span>
+        <button type="button" (click)="persistence.init()" class="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-semibold hover:bg-rose-500 cursor-pointer shrink-0">Reintentar</button>
+      </div>
+    }
+
     <!-- TAB 1: TABLERO EJECUTIVO (DASHBOARD & HEATMAP) -->
     @if (activeTab() === 'tablero') {
       <div class="space-y-6">
@@ -450,37 +497,17 @@
               <p class="text-[11px] text-slate-500 mb-3">Eventos conforme al estándar regulatorio Basilea III</p>
               
               <div class="space-y-2 text-xs">
-                <div class="flex items-center justify-between">
-                  <span class="text-slate-700">Fallas Tecnológicas</span>
-                  <span class="font-mono font-bold text-slate-900">2 eventos</span>
-                </div>
-                <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                  <div class="bg-indigo-600 h-1.5 rounded-full" style="width: 35%"></div>
-                </div>
-
-                <div class="flex items-center justify-between pt-1">
-                  <span class="text-slate-700">Fraude Interno / Externo</span>
-                  <span class="font-mono font-bold text-slate-900">2 eventos</span>
-                </div>
-                <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                  <div class="bg-rose-500 h-1.5 rounded-full" style="width: 30%"></div>
-                </div>
-
-                <div class="flex items-center justify-between pt-1">
-                  <span class="text-slate-700">Ejecución y Procesos</span>
-                  <span class="font-mono font-bold text-slate-900">1 evento</span>
-                </div>
-                <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                  <div class="bg-amber-500 h-1.5 rounded-full" style="width: 20%"></div>
-                </div>
-
-                <div class="flex items-center justify-between pt-1">
-                  <span class="text-slate-700">Cumplimiento Normativo</span>
-                  <span class="font-mono font-bold text-slate-900">1 evento</span>
-                </div>
-                <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                  <div class="bg-emerald-600 h-1.5 rounded-full" style="width: 15%"></div>
-                </div>
+                @for (c of incidentsByCategory(); track c.category) {
+                  <div class="flex items-center justify-between" [class.pt-1]="!$first">
+                    <span class="text-slate-700">{{ c.category }}</span>
+                    <span class="font-mono font-bold text-slate-900">{{ c.count }} {{ c.count === 1 ? 'evento' : 'eventos' }}</span>
+                  </div>
+                  <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div class="h-1.5 rounded-full" [class]="c.color" [style.width.%]="c.pct"></div>
+                  </div>
+                } @empty {
+                  <p class="text-[11px] text-slate-400">Aún no hay incidentes registrados.</p>
+                }
               </div>
             </div>
 
