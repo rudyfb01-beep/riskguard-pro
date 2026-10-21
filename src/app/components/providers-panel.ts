@@ -41,14 +41,20 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 tex
             <mat-icon class="text-sm text-emerald-600">download</mat-icon><span>Exportar registro</span>
           </button>
         }
-        @if (canManage()) {
-          <button type="button" (click)="openNew()"
-            class="px-4 py-2.5 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-600 rounded-xl flex items-center gap-2 shrink-0 cursor-pointer">
-            <mat-icon class="text-sm">add_business</mat-icon><span>Nuevo proveedor</span>
+          <button type="button" (click)="openNew()" [disabled]="!canManage()"
+            [title]="canManage() ? 'Registrar un nuevo proveedor o servicio externalizado' : noPermissionText()"
+            class="px-4 py-2.5 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-600 rounded-xl flex items-center gap-2 shrink-0 cursor-pointer disabled:bg-slate-300 disabled:text-slate-600 disabled:cursor-not-allowed">
+            <mat-icon class="text-sm">{{ canManage() ? 'add_business' : 'lock' }}</mat-icon><span>Nuevo proveedor</span>
           </button>
-        }
         </div>
       </div>
+
+      @if (!canManage()) {
+        <div class="p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700 flex items-start gap-2">
+          <mat-icon class="text-sm text-slate-500 shrink-0">lock</mat-icon>
+          <span>{{ noPermissionText() }}</span>
+        </div>
+      }
 
       <!-- KPIs -->
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -163,7 +169,12 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 tex
                 </td>
               </tr>
             } @empty {
-              <tr><td colspan="9" class="py-8 text-center text-slate-500">No hay proveedores que coincidan con el filtro.</td></tr>
+              <tr><td colspan="9" class="py-8 text-center text-slate-500">
+                {{ res.providers().length ? 'No hay proveedores que coincidan con el filtro.' : 'Aún no hay proveedores registrados.' }}
+                @if (canManage() && !res.providers().length) {
+                  <button type="button" (click)="openNew()" class="ml-2 font-semibold text-sky-700 hover:underline cursor-pointer">Agregar el primero</button>
+                }
+              </td></tr>
             }
           </tbody>
         </table>
@@ -336,6 +347,14 @@ export class ProvidersPanel {
 
   readonly kpis = this.res.providerKpis;
   readonly canManage = computed(() => !!this.rs.currentProfile().permissions.canManageProviders);
+  /** Explica por qué el cargo actual no puede agregar proveedores y qué cargos sí pueden. */
+  readonly noPermissionText = computed(() => {
+    const me = this.rs.currentProfile();
+    const allowed = [...new Set(this.rs.userProfiles().filter(u => u.active !== false && u.permissions.canManageProviders).map(u => u.role))];
+    return `Tu cargo (${me.role}) puede consultar el registro, pero no agregar ni editar proveedores.`
+      + (allowed.length ? ` Pueden hacerlo: ${allowed.join(', ')}.` : '')
+      + ' El permiso se asigna en Puestos & Permisos ("Gestionar Proveedores").';
+  });
   readonly canExport = computed(() => !!this.rs.currentProfile().permissions.canExportReports);
 
   /** Registro de servicios externalizados con cláusulas, nube, evaluación y dependencias. */
