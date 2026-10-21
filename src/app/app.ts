@@ -22,6 +22,7 @@ import { AlertSettingsModal } from './components/alert-settings-modal';
 import { RegulatoryReporting } from './components/regulatory-reporting';
 import { ProvidersPanel } from './components/providers-panel';
 import { ContinuityPanel } from './components/continuity-panel';
+import { SecurityPanel } from './components/security-panel';
 import { Control, KriDefinition, OperationalFlaw, Risk } from './models/risk.model';
 
 export type ActiveTab =
@@ -35,6 +36,7 @@ export type ActiveTab =
   | 'reportes-regulatorios'
   | 'proveedores'
   | 'continuidad'
+  | 'seguridad-informacion'
   | 'alertas-kri'
   | 'auditorias'
   | 'bitacora'
@@ -64,6 +66,7 @@ export type ActiveTab =
     RegulatoryReporting,
     ProvidersPanel,
     ContinuityPanel,
+    SecurityPanel,
     LoginScreen,
   ],
   templateUrl: './app.html',
@@ -124,6 +127,8 @@ export class App {
         return { title: 'Proveedores y Externalización', section: 'Resiliencia & Terceros', icon: 'handshake' };
       case 'continuidad':
         return { title: 'Continuidad del Negocio', section: 'Resiliencia & Terceros', icon: 'restart_alt' };
+      case 'seguridad-informacion':
+        return { title: 'Seguridad de la Información', section: 'Resiliencia & Terceros', icon: 'security' };
       case 'alertas-kri':
         return { title: 'Alertas & KRIs en Tiempo Real', section: 'Supervisión & Auditoría', icon: 'notification_important' };
       case 'auditorias':

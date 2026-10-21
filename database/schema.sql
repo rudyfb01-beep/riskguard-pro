@@ -741,3 +741,79 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
     user_agent VARCHAR(300)
 );
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
+
+-- ==============================================================================
+-- 21. SEGURIDAD DE LA INFORMACIÓN Y CIBERSEGURIDAD
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS info_assets (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    type VARCHAR(60) NOT NULL,
+    owner VARCHAR(255) NOT NULL,
+    custodian VARCHAR(255),
+    classification VARCHAR(20) NOT NULL CHECK (classification IN ('Pública', 'Interna', 'Confidencial', 'Restringida')),
+    confidentiality SMALLINT NOT NULL CHECK (confidentiality BETWEEN 1 AND 4),
+    integrity SMALLINT NOT NULL CHECK (integrity BETWEEN 1 AND 4),
+    availability SMALLINT NOT NULL CHECK (availability BETWEEN 1 AND 4),
+    handles_personal_data BOOLEAN NOT NULL DEFAULT FALSE,
+    location VARCHAR(40) NOT NULL,
+    provider_id VARCHAR(64) REFERENCES service_providers(id) ON DELETE SET NULL,
+    bia_process_ids TEXT[] NOT NULL DEFAULT '{}',
+    last_review_date DATE NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS vulnerabilities (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    asset_id VARCHAR(64) NOT NULL REFERENCES info_assets(id) ON DELETE CASCADE,
+    source VARCHAR(40) NOT NULL,
+    severity VARCHAR(10) NOT NULL CHECK (severity IN ('Crítica', 'Alta', 'Media', 'Baja')),
+    cvss_score NUMERIC(3,1) CHECK (cvss_score BETWEEN 0 AND 10),
+    detected_date DATE NOT NULL,
+    due_date DATE NOT NULL,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('Abierta', 'En remediación', 'Mitigada', 'Riesgo aceptado', 'Cerrada')),
+    owner VARCHAR(255),
+    remediation TEXT,
+    closed_date DATE,
+    acceptance JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_vuln_dates CHECK (due_date >= detected_date),
+    CONSTRAINT chk_vuln_acceptance CHECK (status <> 'Riesgo aceptado' OR acceptance IS NOT NULL)
+);
+CREATE INDEX IF NOT EXISTS idx_vulnerabilities_asset ON vulnerabilities(asset_id);
+CREATE INDEX IF NOT EXISTS idx_vulnerabilities_status ON vulnerabilities(status, due_date);
+
+CREATE TABLE IF NOT EXISTS security_assessment_items (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    domain VARCHAR(40) NOT NULL,
+    requirement TEXT NOT NULL,
+    guidance TEXT,
+    status VARCHAR(30) NOT NULL DEFAULT 'Sin evaluar'
+        CHECK (status IN ('Sin evaluar', 'Cumple', 'Cumple parcialmente', 'No cumple', 'No aplica')),
+    evidence TEXT,
+    owner VARCHAR(255),
+    action_plan TEXT,
+    due_date DATE,
+    assessed_by VARCHAR(255),
+    assessed_date DATE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS affected_asset_ids TEXT[] NOT NULL DEFAULT '{}';
+
+-- Vista: vulnerabilidades abiertas fuera de plazo
+CREATE OR REPLACE VIEW v_overdue_vulnerabilities AS
+SELECT v.code, v.title, v.severity, v.due_date, (CURRENT_DATE - v.due_date) AS days_overdue,
+       a.code AS asset_code, a.name AS asset, v.owner
+FROM vulnerabilities v JOIN info_assets a ON a.id = v.asset_id
+WHERE v.status IN ('Abierta', 'En remediación') AND v.due_date < CURRENT_DATE
+ORDER BY v.due_date;

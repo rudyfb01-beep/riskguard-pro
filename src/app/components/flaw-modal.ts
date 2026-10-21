@@ -5,6 +5,7 @@ import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angula
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { ResilienceService } from '../services/resilience.service';
+import { SecurityService } from '../services/security.service';
 import { AiRiskService, AIAnalysisResult } from '../services/ai-risk.service';
 import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine, IncidentType, OperationalFlaw } from '../models/risk.model';
 
@@ -311,6 +312,20 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
                 </select>
               </div>
 
+              @if (security.assets().length > 0) {
+                <div>
+                  <span class="block text-[11px] font-medium text-slate-600 mb-1">Activos de información afectados</span>
+                  <div class="max-h-28 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1 p-2 rounded-lg border border-slate-200">
+                    @for (a of security.assets(); track a.id) {
+                      <label class="flex items-center gap-1.5 text-[11px] text-slate-700 cursor-pointer">
+                        <input type="checkbox" [checked]="affectedAssetIds().includes(a.id)" (change)="toggleAsset(a.id, $any($event.target).checked)" class="rounded" />
+                        <span class="truncate">{{ a.code }} · {{ a.name }}</span>
+                      </label>
+                    }
+                  </div>
+                </div>
+              }
+
               <label class="flex items-start gap-2 text-[11px] text-slate-700 cursor-pointer">
                 <input type="checkbox" formControlName="creditRiskBoundary" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
                 <span><strong>Frontera con riesgo de crédito:</strong> la pérdida se origina en una falla operacional pero se materializa en la cartera de créditos (p. ej., error en la constitución de garantías).</span>
@@ -507,6 +522,9 @@ export class FlawModal {
   readonly riskService = inject(RiskDataService);
   readonly aiService = inject(AiRiskService);
   readonly resilience = inject(ResilienceService);
+  readonly security = inject(SecurityService);
+  /** Activos de información afectados (fuera del formulario reactivo por ser una lista). */
+  readonly affectedAssetIds = signal<string[]>([]);
 
   readonly incidentToEdit = input<OperationalFlaw | null>(null);
   readonly closeModal = output<void>();
@@ -572,6 +590,7 @@ export class FlawModal {
           reportANCI: !!rr?.reportableToANCI,
           awarenessAt: toLocalInput(rr?.awarenessAt ?? new Date().toISOString()),
         });
+        this.affectedAssetIds.set([...(inc.affectedAssetIds ?? [])]);
         if (inc.aiAnalysis) {
           this.aiResult.set(inc.aiAnalysis as unknown as AIAnalysisResult);
         }
@@ -600,6 +619,7 @@ export class FlawModal {
           awarenessAt: toLocalInput(new Date().toISOString()),
         });
         this.aiResult.set(null);
+        this.affectedAssetIds.set([]);
       }
     });
   }
@@ -623,6 +643,10 @@ export class FlawModal {
       return 'La fecha de contabilización es anterior a la de descubrimiento.';
     }
     return null;
+  }
+
+  toggleAsset(id: string, on: boolean) {
+    this.affectedAssetIds.update(l => (on ? [...l, id] : l.filter(x => x !== id)));
   }
 
   setIncidentType(type: IncidentType) {
@@ -676,6 +700,7 @@ export class FlawModal {
       accountingAccount: val.accountingAccount || undefined,
       creditRiskBoundary: !!val.creditRiskBoundary,
       providerId: val.providerId || undefined,
+      affectedAssetIds: this.affectedAssetIds(),
     };
   }
 

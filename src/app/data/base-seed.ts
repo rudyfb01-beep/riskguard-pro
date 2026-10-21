@@ -17,6 +17,7 @@ function grant(...keys: (keyof UserPermissions)[]): UserPermissions {
     canManageRegulatoryReports: false,
     canManageProviders: false,
     canManageContinuity: false,
+    canManageInfoSecurity: false,
   };
   for (const k of keys) base[k] = true;
   return base;
@@ -25,7 +26,7 @@ function grant(...keys: (keyof UserPermissions)[]): UserPermissions {
 const ALL_PERMISSIONS: (keyof UserPermissions)[] = [
   'canEditRisks', 'canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canConvertFlaws',
   'canAcknowledgeAlerts', 'canConfigureKRIs', 'canManageRoles', 'canExportReports', 'canManageRegulatoryReports',
-  'canManageProviders', 'canManageContinuity',
+  'canManageProviders', 'canManageContinuity', 'canManageInfoSecurity',
 ];
 
 /**
@@ -49,7 +50,7 @@ export const DEFAULT_ORGANIZATIONAL_ROLES: OrganizationalRole[] = [
     description: 'Responsable ante el Consejo de la implementación del marco de riesgos; toma conocimiento y autoriza los reportes de incidentes al regulador.',
     badge: 'Alta Administración',
     isSystemRole: true,
-    permissions: grant('canEditRisks', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canExportReports', 'canManageRegulatoryReports', 'canManageProviders', 'canManageContinuity'),
+    permissions: grant('canEditRisks', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canExportReports', 'canManageRegulatoryReports', 'canManageProviders', 'canManageContinuity', 'canManageInfoSecurity'),
   },
   {
     id: 'role-auditoria-interna',
@@ -76,7 +77,7 @@ export const DEFAULT_ORGANIZATIONAL_ROLES: OrganizationalRole[] = [
     description: 'Gestiona controles de ciberseguridad y la notificación de ciberincidentes a la ANCI y a la CMF.',
     badge: 'Ciberseguridad',
     isSystemRole: false,
-    permissions: grant('canEditRisks', 'canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canConfigureKRIs', 'canExportReports', 'canManageRegulatoryReports', 'canManageProviders', 'canManageContinuity'),
+    permissions: grant('canEditRisks', 'canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canConfigureKRIs', 'canExportReports', 'canManageRegulatoryReports', 'canManageProviders', 'canManageContinuity', 'canManageInfoSecurity'),
   },
   {
     id: 'role-cumplimiento',

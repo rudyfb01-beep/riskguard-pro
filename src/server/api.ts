@@ -37,6 +37,9 @@ const WRITE_PERMISSIONS: Record<EntityName, (keyof UserPermissions)[]> = {
   bia: ['canManageContinuity'],
   plans: ['canManageContinuity'],
   'continuity-tests': ['canManageContinuity'],
+  'info-assets': ['canManageInfoSecurity'],
+  vulnerabilities: ['canManageInfoSecurity'],
+  'security-assessment': ['canManageInfoSecurity'],
 };
 
 const SETTING_PERMISSIONS: Record<SettingKey, (keyof UserPermissions)[]> = {

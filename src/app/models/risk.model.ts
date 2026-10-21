@@ -228,6 +228,9 @@ export interface OperationalFlaw {
 
   /** Proveedor externo involucrado en el incidente (si aplica). */
   providerId?: string;
+
+  /** Activos de información afectados (ciberincidentes). */
+  affectedAssetIds?: string[];
 }
 
 export type OperationalIncident = OperationalFlaw;
@@ -313,8 +316,13 @@ export interface AuditLogEntry {
     | 'MODIFICACIÓN_PLAN_CONTINUIDAD'
     | 'PRUEBA_CONTINUIDAD'
     | 'INICIO_SESIÓN'
-    | 'CIERRE_SESIÓN';
-  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad';
+    | 'CIERRE_SESIÓN'
+    | 'ALTA_ACTIVO_INFORMACION'
+    | 'MODIFICACIÓN_ACTIVO_INFORMACION'
+    | 'REGISTRO_VULNERABILIDAD'
+    | 'ACTUALIZACIÓN_VULNERABILIDAD'
+    | 'AUTOEVALUACIÓN_SEGURIDAD';
+  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad';
   entityCode: string;
   details: string;
   ipAddress: string;
@@ -381,6 +389,8 @@ export interface UserPermissions {
   canManageProviders?: boolean;
   /** Mantener BIA, planes de continuidad y registrar pruebas. */
   canManageContinuity?: boolean;
+  /** Mantener activos de información, vulnerabilidades y la autoevaluación de seguridad. */
+  canManageInfoSecurity?: boolean;
 }
 
 export interface OrganizationalRole {

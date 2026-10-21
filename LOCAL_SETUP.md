@@ -191,7 +191,8 @@ enviar la cabecera `X-Requested-With: RiskGuard` (protección CSRF).
 | `POST /api/db/init` | Vuelve a aplicar el esquema y los datos base. |
 
 Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-milestones`, `flaws`,
-`alerts`, `audits`, `kris`, `bia`, `plans`, `continuity-tests`.
+`alerts`, `audits`, `kris`, `bia`, `plans`, `continuity-tests`, `info-assets`, `vulnerabilities`,
+`security-assessment`.
 
 ## Limitaciones conocidas
 
@@ -213,7 +214,8 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 | Auditoría | `periodic_audits`, `audit_findings`, `crypto_audit_ledger` |
 | Terceros | `service_providers` |
 | Continuidad | `bia_processes`, `bia_process_providers`, `continuity_plans`, `continuity_plan_processes`, `continuity_tests` |
+| Seguridad de la información | `info_assets`, `vulnerabilities`, `security_assessment_items` |
 | Ajustes | `system_settings` |
 
 Vistas de apoyo a reportes: `v_loss_database`, `v_regulatory_deadlines`, `v_provider_rto_gaps`,
-`v_provider_contract_expiry`, `v_process_risk_summary`, `v_kri_breaches`.
+`v_provider_contract_expiry`, `v_overdue_vulnerabilities`, `v_process_risk_summary`, `v_kri_breaches`.
