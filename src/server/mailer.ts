@@ -13,6 +13,9 @@ function getTransporter(): Transporter {
   transporter = nodemailer.createTransport({
     host: process.env['SMTP_HOST'],
     port,
+    // Nombre que se presenta en HELO/EHLO. El relay SMTP de Google Workspace pide
+    // un identificador propio (p. ej. el dominio), no 'localhost'.
+    name: process.env['SMTP_HELO_NAME'] || undefined,
     // 465 = TLS directo; 587/25 = STARTTLS si el servidor lo ofrece.
     secure: process.env['SMTP_SECURE'] ? process.env['SMTP_SECURE'] === 'true' : port === 465,
     auth: process.env['SMTP_USER'] ? { user: process.env['SMTP_USER'], pass: process.env['SMTP_PASS'] || '' } : undefined,

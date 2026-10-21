@@ -42,12 +42,13 @@ services:
       # En producción usar false: se crean solo cargos, plazos y un administrador.
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
-      # Correo para enviar los códigos de acceso (servidor SMTP de la organización).
+      # Correo para enviar los códigos de acceso (Google Workspace: ver LOCAL_SETUP.md).
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_HELO_NAME: ${SMTP_HELO_NAME:-}
       # Solo para evaluar sin SMTP: los códigos se muestran en `docker compose logs app`.
       # En producción debe ser false.
       AUTH_DEV_LOG_CODES: ${AUTH_DEV_LOG_CODES:-true}

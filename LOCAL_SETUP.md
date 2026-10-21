@@ -94,14 +94,50 @@ por email (no hay contraseñas).
   sistema sin ningún administrador.
 - En la base de datos solo se guardan hashes de los códigos y de los tokens de sesión.
 
-### Configurar el envío de correo (SMTP)
+### Configurar el envío de correo con Google Workspace (Gmail)
 
-Se puede usar el servidor de correo de la organización. Dos configuraciones habituales:
+Desde el 14 de marzo de 2025, Google no acepta la contraseña normal de una cuenta para SMTP. Hay
+dos opciones que funcionan con la aplicación:
 
-| Escenario | Variables |
-| :--- | :--- |
-| Microsoft 365 (buzón con SMTP AUTH habilitado) | `SMTP_HOST=smtp.office365.com`, `SMTP_PORT=587`, `SMTP_USER` y `SMTP_PASS` del buzón; `SMTP_FROM` igual a ese buzón |
-| Exchange local o relay interno que acepta la IP del servidor | `SMTP_HOST=<servidor de correo>`, `SMTP_PORT=25`, sin `SMTP_USER` |
+**Opción A — Servicio de relay SMTP de Google Workspace (recomendada).** No depende de la
+contraseña de ninguna persona.
+
+1. En la Consola de administración: *Aplicaciones → Google Workspace → Gmail → Enrutamiento →
+   Servicio de relay SMTP*.
+2. Agrega una regla que permita **solo direcciones de tus dominios**, autentique por **dirección
+   IP** (la IP pública fija del servidor de RiskGuard) y **exija cifrado TLS**.
+3. Configura la aplicación:
+
+   ```env
+   SMTP_HOST=smtp-relay.gmail.com
+   SMTP_PORT=587
+   SMTP_SECURE=false            # 587 usa STARTTLS
+   SMTP_FROM="RiskGuard Pro <riskguard@tudominio.cl>"
+   SMTP_HELO_NAME=tudominio.cl  # Google pide un nombre propio en HELO, no 'localhost'
+   # Sin SMTP_USER: la autenticación es por IP
+   ```
+
+   Conviene que `riskguard@tudominio.cl` exista como usuario o grupo del dominio, para recibir
+   rebotes.
+
+**Opción B — Cuenta dedicada con contraseña de aplicación.** Sirve si el servidor no tiene una IP
+pública fija.
+
+1. Crea una cuenta, por ejemplo `riskguard@tudominio.cl`, activa la **verificación en dos pasos** y
+   genera una **contraseña de aplicación** (el administrador debe permitir su uso).
+2. Configura:
+
+   ```env
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_SECURE=false
+   SMTP_USER=riskguard@tudominio.cl
+   SMTP_PASS=<contraseña de aplicación de 16 caracteres>
+   SMTP_FROM="RiskGuard Pro <riskguard@tudominio.cl>"
+   ```
+
+Con cualquier otro servidor de correo (Microsoft 365, Exchange, relay interno) basta con ajustar
+`SMTP_HOST`, `SMTP_PORT` y, si corresponde, `SMTP_USER` y `SMTP_PASS`.
 
 El primer administrador se define con `ADMIN_EMAIL` (por ejemplo, el correo del Jefe de Riesgo
 Operacional). Ese usuario se crea al iniciar una base vacía sin datos de ejemplo, y su correo se
@@ -129,7 +165,7 @@ con una cadena aleatoria larga.
 | `ADMIN_EMAIL` | Correo del administrador inicial cuando no se cargan datos de ejemplo. |
 | `DATABASE_SSL` | `true` para conectarse con SSL (bases administradas en la nube). |
 | `DATABASE_SSL_REJECT_UNAUTHORIZED` | `false` solo si el certificado del servidor no es verificable. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Servidor de correo para enviar los códigos de acceso. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_HELO_NAME` | Servidor de correo para enviar los códigos de acceso (ver Google Workspace). |
 | `AUTH_DEV_LOG_CODES` | `true` muestra los códigos en el log (solo para evaluar sin SMTP). |
 | `AUTH_SECRET` | Clave para firmar los códigos. Recomendada; obligatoria con varias instancias. |
 | `SESSION_IDLE_MINUTES`, `SESSION_MAX_HOURS` | Vigencia de la sesión (60 minutos de inactividad y 10 horas en total por defecto). |
