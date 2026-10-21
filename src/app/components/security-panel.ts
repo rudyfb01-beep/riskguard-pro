@@ -4,6 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { ResilienceService } from '../services/resilience.service';
 import { SecurityService } from '../services/security.service';
+import { downloadCsv } from '../utils/csv';
 import {
   ASSET_TYPES,
   AssessmentStatus,
@@ -41,12 +42,19 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion';
             autoevaluación del marco de seguridad.
           </p>
         </div>
+        <div class="flex gap-2 shrink-0">
+        @if (canExport()) {
+          <button type="button" (click)="exportReport()" class="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl flex items-center gap-1.5 cursor-pointer">
+            <mat-icon class="text-sm text-emerald-600">download</mat-icon>Exportar informe
+          </button>
+        }
         @if (canManage()) {
           @switch (tab()) {
             @case ('activos') { <button type="button" (click)="newAsset()" class="px-3.5 py-2 text-xs font-semibold text-white bg-violet-700 hover:bg-violet-600 rounded-xl flex items-center gap-1.5 shrink-0 cursor-pointer"><mat-icon class="text-sm">add</mat-icon>Nuevo activo</button> }
             @case ('vulnerabilidades') { <button type="button" (click)="newVuln()" class="px-3.5 py-2 text-xs font-semibold text-white bg-violet-700 hover:bg-violet-600 rounded-xl flex items-center gap-1.5 shrink-0 cursor-pointer"><mat-icon class="text-sm">add</mat-icon>Registrar vulnerabilidad</button> }
           }
         }
+        </div>
       </div>
 
       <!-- KPIs -->
@@ -492,6 +500,34 @@ export class SecurityPanel {
 
   readonly k = this.sec.kpis;
   readonly canManage = computed(() => !!this.rs.currentProfile().permissions.canManageInfoSecurity);
+  readonly canExport = computed(() => !!this.rs.currentProfile().permissions.canExportReports);
+
+  /** Informe de seguridad: autoevaluación por dominio, vulnerabilidades y activos. */
+  exportReport() {
+    const s = this.sec.assessmentSummary();
+    const rows: (string | number | undefined)[][] = [
+      ['Informe de seguridad de la información y ciberseguridad', `Generado ${new Date().toISOString().slice(0, 16)}`, this.rs.currentProfile().name],
+      ['Cumplimiento total', s.pct === null ? 'sin evaluar' : `${s.pct}%`, 'Requisitos evaluados', s.rated, 'Brechas', s.gaps],
+      [],
+      ['AUTOEVALUACIÓN'],
+      ['Código', 'Dominio', 'Requisito', 'Estado', 'Evidencia', 'Evidencia automática', 'Plan de acción', 'Responsable', 'Fecha compromiso', 'Evaluado por', 'Fecha evaluación'],
+      ...this.sec.assessment().map(i => [i.code, i.domain, i.requirement, i.status, i.evidence, this.sec.autoEvidence(i.code)?.text ?? '',
+        i.actionPlan, i.owner, i.dueDate ?? '', i.assessedBy ?? '', i.assessedDate ?? '']),
+      [],
+      ['VULNERABILIDADES'],
+      ['Código', 'Título', 'Activo', 'Severidad', 'CVSS', 'Origen', 'Detectada', 'Plazo', 'Estado', 'Fuera de plazo', 'Responsable', 'Cierre', 'Aceptación aprobada por', 'Revisión aceptación'],
+      ...this.sec.vulnerabilities().map(v => [v.code, v.title, this.sec.assetById(v.assetId)?.name ?? v.assetId, v.severity, v.cvssScore, v.source,
+        v.detectedDate, v.dueDate, v.status, this.sec.isVulnOverdue(v) ? 'Sí' : 'No', v.owner, v.closedDate ?? '',
+        v.acceptance?.approvedBy ?? '', v.acceptance?.reviewDate ?? '']),
+      [],
+      ['ACTIVOS DE INFORMACIÓN'],
+      ['Código', 'Activo', 'Tipo', 'Clasificación', 'C', 'I', 'D', 'Criticidad', 'Datos personales', 'Ubicación', 'Proveedor', 'Dueño', 'Custodio', 'Última revisión'],
+      ...this.sec.assets().map(a => [a.code, a.name, a.type, a.classification, a.cia.confidentiality, a.cia.integrity, a.cia.availability,
+        this.sec.assetCriticality(a), a.handlesPersonalData ? 'Sí' : 'No', a.location, a.providerId ? this.res.providerById(a.providerId)?.name : '',
+        a.owner, a.custodian, a.lastReviewDate]),
+    ];
+    downloadCsv(`Informe_seguridad_${new Date().toISOString().slice(0, 10)}.csv`, rows);
+  }
   readonly visibleAlerts = computed(() => (this.showAllAlerts() ? this.sec.alerts() : this.sec.alerts().slice(0, 6)));
 
   readonly sortedAssets = computed(() => {

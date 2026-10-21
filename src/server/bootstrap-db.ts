@@ -7,6 +7,7 @@ import {
 import { SEED_BIA, SEED_PLANS, SEED_PROVIDERS, SEED_TESTS } from '../app/data/resilience-seed';
 import { BASE_ASSESSMENT_ITEMS, DEMO_ASSESSMENT, DEMO_ASSETS, DEMO_VULNERABILITIES } from '../app/data/security-seed';
 import { UserPermissions } from '../app/models/risk.model';
+import { DEMO_APR_INPUTS, EMPTY_APR_INPUTS } from '../app/models/apr.model';
 
 /**
  * Permisos agregados en versiones posteriores: en bases existentes se completan
@@ -51,10 +52,23 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
     }
     if ((await c.query('SELECT 1 FROM regulatory_milestone_templates LIMIT 1')).rowCount === 0) {
       for (const m of DEFAULT_REGULATORY_MILESTONES) await saveEntity('regulatory-milestones', m, c);
+      await c.query(`INSERT INTO system_settings (key, value) VALUES ('migration_ran208_v1', 'true') ON CONFLICT (key) DO NOTHING`);
+    } else if ((await c.query(`SELECT 1 FROM system_settings WHERE key = 'migration_ran208_v1'`)).rowCount === 0) {
+      // Bases anteriores: el aviso inicial CMF se cuenta desde la ocurrencia (RAN 20-8 §1.1)
+      // y se agrega el reporte de cierre. Se aplica una sola vez para respetar ajustes posteriores.
+      const initial = DEFAULT_REGULATORY_MILESTONES.find(m => m.id === 'cmf-aviso-inicial')!;
+      await c.query(`UPDATE regulatory_milestone_templates SET basis = 'ocurrencia', name = $1 WHERE id = 'cmf-aviso-inicial'`, [initial.name]);
+      for (const m of DEFAULT_REGULATORY_MILESTONES) {
+        const exists = (await c.query('SELECT 1 FROM regulatory_milestone_templates WHERE id = $1', [m.id])).rowCount;
+        if (!exists) await saveEntity('regulatory-milestones', m, c);
+      }
+      await c.query(`UPDATE regulatory_milestone_templates SET basis = 'conocimiento' WHERE authority = 'ANCI'`);
+      await c.query(`INSERT INTO system_settings (key, value) VALUES ('migration_ran208_v1', 'true') ON CONFLICT (key) DO NOTHING`);
     }
     for (const [key, value] of [
       ['current_industry', 'Banca & Servicios Financieros'],
       ['loss_registration_threshold_usd', 1000],
+      ['apr_operational_inputs', wantDemo ? DEMO_APR_INPUTS : EMPTY_APR_INPUTS],
     ] as const) {
       await c.query('INSERT INTO system_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [key, JSON.stringify(value)]);
     }

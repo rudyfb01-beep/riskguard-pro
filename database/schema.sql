@@ -817,3 +817,17 @@ SELECT v.code, v.title, v.severity, v.due_date, (CURRENT_DATE - v.due_date) AS d
 FROM vulnerabilities v JOIN info_assets a ON a.id = v.asset_id
 WHERE v.status IN ('Abierta', 'En remediación') AND v.due_date < CURRENT_DATE
 ORDER BY v.due_date;
+
+-- ==============================================================================
+-- 22. REPORTE DE INCIDENTES SEGÚN RAN 20-8 (CAC-3 §5.2) Y PREPARACIÓN APR
+-- ==============================================================================
+
+ALTER TABLE regulatory_reports ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ;
+ALTER TABLE regulatory_reports ADD COLUMN IF NOT EXISTS details JSONB;
+ALTER TABLE regulatory_milestone_templates ADD COLUMN IF NOT EXISTS basis VARCHAR(20) NOT NULL DEFAULT 'conocimiento';
+ALTER TABLE regulatory_milestone_templates ADD COLUMN IF NOT EXISTS due_on_close BOOLEAN NOT NULL DEFAULT FALSE;
+DO $$
+BEGIN
+    ALTER TABLE regulatory_milestone_templates ADD CONSTRAINT chk_milestone_basis CHECK (basis IN ('ocurrencia', 'conocimiento'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

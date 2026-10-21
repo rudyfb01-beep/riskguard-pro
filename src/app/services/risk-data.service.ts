@@ -20,7 +20,8 @@ import {
   UserPermissions,
   RegulatoryMilestoneTemplate,
   RegulatoryReport,
-  MilestoneStatus
+  MilestoneStatus,
+  Ran208Details
 } from '../models/risk.model';
 import { computeBlockHash } from '../utils/crypto-ledger';
 import { DEFAULT_ORGANIZATIONAL_ROLES, DEFAULT_REGULATORY_MILESTONES, formatMinutes } from '../data/base-seed';
@@ -1686,15 +1687,39 @@ export class RiskDataService {
     );
   }
 
+  /** Momento desde el que corre el plazo del hito: ocurrencia del incidente o toma de conocimiento. */
+  milestoneBaseTime(report: RegulatoryReport, m: RegulatoryMilestoneTemplate): Date {
+    const base = m.basis === 'ocurrencia' && report.occurredAt ? report.occurredAt : report.awarenessAt;
+    return new Date(base);
+  }
+
   milestoneDeadline(report: RegulatoryReport, m: RegulatoryMilestoneTemplate): Date {
-    return new Date(new Date(report.awarenessAt).getTime() + m.deadlineMinutes * 60_000);
+    return new Date(this.milestoneBaseTime(report, m).getTime() + m.deadlineMinutes * 60_000);
   }
 
   milestoneStatus(report: RegulatoryReport, m: RegulatoryMilestoneTemplate, nowMs: number): MilestoneStatus {
-    const deadline = this.milestoneDeadline(report, m).getTime();
     const sub = report.submissions.find(s => s.milestoneId === m.id);
+    // Los hitos "al cierre" (p. ej. reporte de cierre RAN 20-8) no vencen por tiempo.
+    if (m.dueOnClose) return sub ? 'Enviado a tiempo' : 'Pendiente';
+    const deadline = this.milestoneDeadline(report, m).getTime();
     if (sub) return new Date(sub.submittedAt).getTime() <= deadline ? 'Enviado a tiempo' : 'Enviado fuera de plazo';
     return nowMs > deadline ? 'Vencido' : 'Pendiente';
+  }
+
+  /** Hitos "al cierre" aún sin enviar (impiden cerrar el reporte). */
+  pendingClosingMilestones(report: RegulatoryReport): RegulatoryMilestoneTemplate[] {
+    return this.milestonesFor(report).filter(m => m.dueOnClose && !report.submissions.some(s => s.milestoneId === m.id));
+  }
+
+  async updateRegulatoryDetails(flawId: string, changes: { occurredAt?: string; details: Ran208Details }) {
+    const flaw = this.flaws().find(f => f.id === flawId);
+    const report = flaw?.regulatoryReport;
+    if (!flaw || !report) return;
+    this.patchFlaw(flawId, {
+      regulatoryReport: { ...report, occurredAt: changes.occurredAt ?? report.occurredAt, details: { ...changes.details } },
+    });
+    await this.appendAuditLog('ACTUALIZACIÓN_REPORTE_REGULATORIO', 'Reporte Regulatorio', flawId,
+      `Ficha RAN 20-8 actualizada para "${flaw.title}".`);
   }
 
   /** Resumen agregado de cumplimiento de plazos. */
@@ -1719,12 +1744,14 @@ export class RiskDataService {
     };
   }
 
-  async startRegulatoryReport(flawId: string, opts: { awarenessAt: string; cmf: boolean; anci: boolean }) {
+  async startRegulatoryReport(flawId: string, opts: { awarenessAt: string; occurredAt?: string; cmf: boolean; anci: boolean }) {
     const flaw = this.flaws().find(f => f.id === flawId);
     if (!flaw) throw new Error('Incidencia no encontrada');
     if (!opts.cmf && !opts.anci) throw new Error('Debe seleccionar al menos una autoridad');
     const report: RegulatoryReport = {
       awarenessAt: new Date(opts.awarenessAt).toISOString(),
+      occurredAt: opts.occurredAt ? new Date(opts.occurredAt).toISOString() : (flaw.regulatoryReport?.occurredAt ?? new Date(opts.awarenessAt).toISOString()),
+      details: flaw.regulatoryReport?.details,
       reportableToCMF: opts.cmf,
       reportableToANCI: opts.anci,
       submissions: flaw.regulatoryReport?.submissions ?? [],
@@ -1785,6 +1812,8 @@ export class RiskDataService {
     const flaw = this.flaws().find(f => f.id === flawId);
     const report = flaw?.regulatoryReport;
     if (!flaw || !report) return;
+    const pending = this.pendingClosingMilestones(report);
+    if (pending.length) throw new Error(`Antes de cerrar registre: ${pending.map(m => m.name).join(', ')}.`);
     this.patchFlaw(flawId, { regulatoryReport: { ...report, status: 'Cerrado', closedAt: new Date().toISOString() } });
     await this.appendAuditLog('CIERRE_REPORTE_REGULATORIO', 'Reporte Regulatorio', flawId, `Reporte regulatorio de "${flaw.title}" cerrado.`);
   }

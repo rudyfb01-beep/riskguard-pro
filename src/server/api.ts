@@ -46,6 +46,7 @@ const SETTING_PERMISSIONS: Record<SettingKey, (keyof UserPermissions)[]> = {
   current_industry: ['canConfigureKRIs'],
   global_notification_preferences: ['canConfigureKRIs'],
   loss_registration_threshold_usd: ['canManageRegulatoryReports'],
+  apr_operational_inputs: ['canManageRegulatoryReports'],
 };
 
 /** Mensajes comprensibles para errores de PostgreSQL frecuentes. */

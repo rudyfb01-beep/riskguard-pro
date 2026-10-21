@@ -1,7 +1,13 @@
 import {
   ApplicationConfig,
+  LOCALE_ID,
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
+import {registerLocaleData} from '@angular/common';
+import localeEsCl from '@angular/common/locales/es-CL';
+
+// Formato chileno para números y fechas (miles con punto, decimales con coma).
+registerLocaleData(localeEsCl);
 import {provideRouter} from '@angular/router';
 import {HttpInterceptorFn, provideHttpClient, withInterceptors} from '@angular/common/http';
 import {API_HEADERS} from './services/persistence.service';
@@ -15,6 +21,7 @@ import {routes} from './app.routes';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    {provide: LOCALE_ID, useValue: 'es-CL'},
     provideRouter(routes),
     provideHttpClient(withInterceptors([apiHeadersInterceptor]))
   ],
