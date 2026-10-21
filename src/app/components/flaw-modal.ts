@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
+import { ResilienceService } from '../services/resilience.service';
 import { AiRiskService, AIAnalysisResult } from '../services/ai-risk.service';
 import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine, IncidentType, OperationalFlaw } from '../models/risk.model';
 
@@ -299,6 +300,17 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
                 </p>
               }
 
+              <div>
+                <label for="provider-id" class="block text-[11px] font-medium text-slate-600 mb-1">Proveedor involucrado (servicio externalizado)</label>
+                <select id="provider-id" formControlName="providerId"
+                  class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option value="">— Ninguno —</option>
+                  @for (p of resilience.providers(); track p.id) {
+                    <option [value]="p.id">{{ p.code }} · {{ p.name }}</option>
+                  }
+                </select>
+              </div>
+
               <label class="flex items-start gap-2 text-[11px] text-slate-700 cursor-pointer">
                 <input type="checkbox" formControlName="creditRiskBoundary" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
                 <span><strong>Frontera con riesgo de crédito:</strong> la pérdida se origina en una falla operacional pero se materializa en la cartera de créditos (p. ej., error en la constitución de garantías).</span>
@@ -494,6 +506,7 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
 export class FlawModal {
   readonly riskService = inject(RiskDataService);
   readonly aiService = inject(AiRiskService);
+  readonly resilience = inject(ResilienceService);
 
   readonly incidentToEdit = input<OperationalFlaw | null>(null);
   readonly closeModal = output<void>();
@@ -523,6 +536,7 @@ export class FlawModal {
     accountingDate: new FormControl<string>(''),
     accountingAccount: new FormControl<string>(''),
     creditRiskBoundary: new FormControl<boolean>(false),
+    providerId: new FormControl<string>(''),
     // Reporte regulatorio
     reportCMF: new FormControl<boolean>(false),
     reportANCI: new FormControl<boolean>(false),
@@ -553,6 +567,7 @@ export class FlawModal {
           accountingDate: inc.accountingDate || '',
           accountingAccount: inc.accountingAccount || '',
           creditRiskBoundary: !!inc.creditRiskBoundary,
+          providerId: inc.providerId || '',
           reportCMF: !!rr?.reportableToCMF,
           reportANCI: !!rr?.reportableToANCI,
           awarenessAt: toLocalInput(rr?.awarenessAt ?? new Date().toISOString()),
@@ -579,6 +594,7 @@ export class FlawModal {
           accountingDate: '',
           accountingAccount: '',
           creditRiskBoundary: false,
+          providerId: '',
           reportCMF: false,
           reportANCI: false,
           awarenessAt: toLocalInput(new Date().toISOString()),
@@ -659,6 +675,7 @@ export class FlawModal {
       accountingDate: val.accountingDate || undefined,
       accountingAccount: val.accountingAccount || undefined,
       creditRiskBoundary: !!val.creditRiskBoundary,
+      providerId: val.providerId || undefined,
     };
   }
 

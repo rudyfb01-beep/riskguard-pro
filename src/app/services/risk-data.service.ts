@@ -508,6 +508,8 @@ function grant(...keys: (keyof UserPermissions)[]): UserPermissions {
     canManageRoles: false,
     canExportReports: false,
     canManageRegulatoryReports: false,
+    canManageProviders: false,
+    canManageContinuity: false,
   };
   for (const k of keys) base[k] = true;
   return base;
@@ -516,6 +518,7 @@ function grant(...keys: (keyof UserPermissions)[]): UserPermissions {
 const ALL_PERMISSIONS: (keyof UserPermissions)[] = [
   'canEditRisks', 'canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canConvertFlaws',
   'canAcknowledgeAlerts', 'canConfigureKRIs', 'canManageRoles', 'canExportReports', 'canManageRegulatoryReports',
+  'canManageProviders', 'canManageContinuity',
 ];
 
 /**
@@ -539,7 +542,7 @@ export const DEFAULT_ORGANIZATIONAL_ROLES: OrganizationalRole[] = [
     description: 'Responsable ante el Consejo de la implementación del marco de riesgos; toma conocimiento y autoriza los reportes de incidentes al regulador.',
     badge: 'Alta Administración',
     isSystemRole: true,
-    permissions: grant('canEditRisks', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canExportReports', 'canManageRegulatoryReports'),
+    permissions: grant('canEditRisks', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canExportReports', 'canManageRegulatoryReports', 'canManageProviders', 'canManageContinuity'),
   },
   {
     id: 'role-auditoria-interna',
@@ -557,7 +560,7 @@ export const DEFAULT_ORGANIZATIONAL_ROLES: OrganizationalRole[] = [
     description: 'Dueño de procesos operativos (créditos, captaciones, pagos y sucursales); mitiga riesgos de primera línea y reporta eventos de pérdida.',
     badge: 'Dueño de Proceso',
     isSystemRole: true,
-    permissions: grant('canEditRisks', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canConfigureKRIs', 'canExportReports'),
+    permissions: grant('canEditRisks', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canConfigureKRIs', 'canExportReports', 'canManageProviders', 'canManageContinuity'),
   },
   {
     id: 'role-ciso',
@@ -566,7 +569,7 @@ export const DEFAULT_ORGANIZATIONAL_ROLES: OrganizationalRole[] = [
     description: 'Gestiona controles de ciberseguridad y la notificación de ciberincidentes a la ANCI y a la CMF.',
     badge: 'Ciberseguridad',
     isSystemRole: false,
-    permissions: grant('canEditRisks', 'canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canConfigureKRIs', 'canExportReports', 'canManageRegulatoryReports'),
+    permissions: grant('canEditRisks', 'canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canConfigureKRIs', 'canExportReports', 'canManageRegulatoryReports', 'canManageProviders', 'canManageContinuity'),
   },
   {
     id: 'role-cumplimiento',
@@ -1328,6 +1331,7 @@ export class RiskDataService {
       realLossAmountUSD: 0,
       recoveredAmountUSD: 0,
       impactedSystemOrAccount: 'Portal web y app de socios',
+      providerId: 'prv-2',
       aiSuggestedCategory: 'Fallas Tecnológicas',
       businessLine: 'Medios y Canales de Pago',
       baselCategory: 'Fallas Tecnológicas',
@@ -1442,6 +1446,7 @@ export class RiskDataService {
       realLossAmountUSD: 18450,
       recoveredAmountUSD: 4200,
       impactedSystemOrAccount: 'Recaudación de cuotas / PAC',
+      providerId: 'prv-3',
       aiSuggestedCategory: 'Ejecución y Procesos',
       aiSuggestedControls: ['API directa de conciliación continua', 'Penalización por SLA en contrato'],
       businessLine: 'Créditos de Consumo',
@@ -2936,7 +2941,8 @@ export class RiskDataService {
       discoveryDate: flawData.discoveryDate,
       accountingDate: flawData.accountingDate,
       accountingAccount: flawData.accountingAccount,
-      creditRiskBoundary: flawData.creditRiskBoundary
+      creditRiskBoundary: flawData.creditRiskBoundary,
+      providerId: flawData.providerId
     };
 
     this.flaws.update(list => [newFlaw, ...list]);

@@ -176,6 +176,28 @@
               </button>
 
               <button
+                (click)="setTab('proveedores')"
+                [class]="activeTab() === 'proveedores'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-sky-600">handshake</mat-icon>
+                <span>Proveedores</span>
+              </button>
+
+              <button
+                (click)="setTab('continuidad')"
+                [class]="activeTab() === 'continuidad'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-teal-600">restart_alt</mat-icon>
+                <span>Continuidad</span>
+              </button>
+
+              <button
                 (click)="setTab('auditorias')"
                 [class]="activeTab() === 'auditorias'
                   ? 'bg-slate-900 text-white font-semibold'
@@ -991,6 +1013,16 @@
         </div>
 
       </div>
+    }
+
+    <!-- TAB: PROVEEDORES Y EXTERNALIZACIÓN -->
+    @if (activeTab() === 'proveedores') {
+      <app-providers-panel (notify)="showToast($event)" />
+    }
+
+    <!-- TAB: CONTINUIDAD DEL NEGOCIO -->
+    @if (activeTab() === 'continuidad') {
+      <app-continuity-panel (notify)="showToast($event)" />
     }
 
     <!-- TAB: REPORTE REGULATORIO CMF / ANCI -->

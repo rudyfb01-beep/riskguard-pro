@@ -147,6 +147,8 @@ import { OrganizationalRole, UserPermissions } from '../models/risk.model';
                       <th class="py-3 px-3 text-center" title="Administrar puestos y permisos">Roles</th>
                       <th class="py-3 px-3 text-center" title="Exportar reportes PDF y Excel">Reportes</th>
                       <th class="py-3 px-3 text-center" title="Registrar envíos a CMF/ANCI y configurar plazos regulatorios">CMF/ANCI</th>
+                      <th class="py-3 px-3 text-center" title="Registrar y evaluar proveedores">Proveed.</th>
+                      <th class="py-3 px-3 text-center" title="Mantener BIA, planes y pruebas de continuidad">BCP</th>
                       <th class="py-3 px-4 text-right">Acción</th>
                     </tr>
                   </thead>
@@ -283,6 +285,30 @@ import { OrganizationalRole, UserPermissions } from '../models/risk.model';
                             title="Alternar permiso de reporte regulatorio CMF/ANCI"
                           >
                             <mat-icon class="text-sm">{{ role.permissions.canManageRegulatoryReports ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canManageProviders')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canManageProviders ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de gestión de proveedores"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canManageProviders ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canManageContinuity')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canManageContinuity ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de continuidad del negocio"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canManageContinuity ? 'check' : 'remove' }}</mat-icon>
                           </button>
                         </td>
 
@@ -625,6 +651,22 @@ import { OrganizationalRole, UserPermissions } from '../models/risk.model';
                       <span class="text-[11px] text-slate-500">Registrar envíos al regulador y configurar plazos</span>
                     </div>
                   </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canManageProviders" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Gestionar Proveedores</span>
+                      <span class="text-[11px] text-slate-500">Registrar, evaluar y actualizar servicios externalizados</span>
+                    </div>
+                  </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canManageContinuity" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Continuidad del Negocio</span>
+                      <span class="text-[11px] text-slate-500">Mantener BIA, planes y registrar pruebas</span>
+                    </div>
+                  </label>
                 </div>
               </div>
 
@@ -694,7 +736,9 @@ export class RolesManagementModal {
     canConfigureKRIs: [false],
     canManageRoles: [false],
     canExportReports: [true],
-    canManageRegulatoryReports: [false]
+    canManageRegulatoryReports: [false],
+    canManageProviders: [false],
+    canManageContinuity: [false]
   });
 
   readonly userForm = this.fb.group({
@@ -722,7 +766,9 @@ export class RolesManagementModal {
       { key: 'kris', label: 'KRIs', granted: p.canConfigureKRIs },
       { key: 'roles', label: 'Puestos', granted: p.canManageRoles },
       { key: 'reports', label: 'Reportes PDF', granted: p.canExportReports },
-      { key: 'regulatory', label: 'CMF/ANCI', granted: !!p.canManageRegulatoryReports }
+      { key: 'regulatory', label: 'CMF/ANCI', granted: !!p.canManageRegulatoryReports },
+      { key: 'providers', label: 'Proveedores', granted: !!p.canManageProviders },
+      { key: 'continuity', label: 'Continuidad', granted: !!p.canManageContinuity }
     ];
   }
 
@@ -787,7 +833,9 @@ export class RolesManagementModal {
         canConfigureKRIs: !!v.canConfigureKRIs,
         canManageRoles: !!v.canManageRoles,
         canExportReports: !!v.canExportReports,
-        canManageRegulatoryReports: !!v.canManageRegulatoryReports
+        canManageRegulatoryReports: !!v.canManageRegulatoryReports,
+        canManageProviders: !!v.canManageProviders,
+        canManageContinuity: !!v.canManageContinuity
       }
     });
 
@@ -805,7 +853,9 @@ export class RolesManagementModal {
       canConfigureKRIs: false,
       canManageRoles: false,
       canExportReports: true,
-      canManageRegulatoryReports: false
+      canManageRegulatoryReports: false,
+      canManageProviders: false,
+      canManageContinuity: false
     });
 
     this.activeTab.set('roles');

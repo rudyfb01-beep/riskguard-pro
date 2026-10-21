@@ -225,6 +225,9 @@ export interface OperationalFlaw {
 
   // ---- Reporte regulatorio CMF / ANCI ----
   regulatoryReport?: RegulatoryReport;
+
+  /** Proveedor externo involucrado en el incidente (si aplica). */
+  providerId?: string;
 }
 
 export type OperationalIncident = OperationalFlaw;
@@ -301,8 +304,15 @@ export interface AuditLogEntry {
     | 'ENVÍO_REPORTE_REGULATORIO'
     | 'ACTUALIZACIÓN_REPORTE_REGULATORIO'
     | 'CIERRE_REPORTE_REGULATORIO'
-    | 'CONFIGURACIÓN_PLAZOS_REGULATORIOS';
-  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio';
+    | 'CONFIGURACIÓN_PLAZOS_REGULATORIOS'
+    | 'ALTA_PROVEEDOR'
+    | 'MODIFICACIÓN_PROVEEDOR'
+    | 'EVALUACIÓN_PROVEEDOR'
+    | 'ACTUALIZACIÓN_BIA'
+    | 'ALTA_PLAN_CONTINUIDAD'
+    | 'MODIFICACIÓN_PLAN_CONTINUIDAD'
+    | 'PRUEBA_CONTINUIDAD';
+  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad';
   entityCode: string;
   details: string;
   ipAddress: string;
@@ -365,6 +375,10 @@ export interface UserPermissions {
   canExportReports: boolean;
   /** Registrar envíos a CMF/ANCI y configurar plazos regulatorios. */
   canManageRegulatoryReports?: boolean;
+  /** Registrar y evaluar proveedores y servicios externalizados. */
+  canManageProviders?: boolean;
+  /** Mantener BIA, planes de continuidad y registrar pruebas. */
+  canManageContinuity?: boolean;
 }
 
 export interface OrganizationalRole {
