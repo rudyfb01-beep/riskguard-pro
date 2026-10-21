@@ -113,6 +113,86 @@ export type IncidentType =
   | 'Casi Pérdida (Near Miss)'
   | 'Vulnerabilidad Operativa';
 
+/**
+ * Líneas de negocio de una Cooperativa de Ahorro y Crédito (CAC) para
+ * clasificar eventos en la base de pérdidas operacionales.
+ */
+export const CAC_BUSINESS_LINES = [
+  'Créditos de Consumo',
+  'Créditos Comerciales',
+  'Créditos Hipotecarios',
+  'Captaciones y Ahorro',
+  'Cuotas de Participación',
+  'Medios y Canales de Pago',
+  'Tesorería e Inversiones',
+  'Soporte Corporativo',
+] as const;
+export type CacBusinessLine = typeof CAC_BUSINESS_LINES[number];
+
+/**
+ * Subcategorías (nivel 2) de eventos de pérdida según Basilea, agrupadas por
+ * la categoría de nivel 1 que usa la aplicación.
+ */
+export const BASEL_SUBCATEGORIES: Record<BaselCategory, string[]> = {
+  'Fraude Interno': ['Actividades no autorizadas', 'Hurto y fraude interno'],
+  'Fraude Externo': ['Hurto y fraude externo', 'Seguridad de los sistemas'],
+  'Prácticas Laborales': ['Relaciones laborales', 'Higiene y seguridad en el trabajo', 'Diversidad y discriminación'],
+  'Cumplimiento Normativo': [
+    'Adecuación, divulgación de información y deber fiduciario',
+    'Prácticas empresariales o de mercado improcedentes',
+    'Productos defectuosos',
+    'Selección, patrocinio y riesgos',
+    'Actividades de asesoramiento',
+  ],
+  'Daño a Activos Físicos': ['Desastres y otros acontecimientos'],
+  'Fallas Tecnológicas': ['Interrupción del negocio y fallas de sistemas'],
+  'Ejecución y Procesos': [
+    'Recepción, ejecución y mantenimiento de operaciones',
+    'Seguimiento y presentación de informes',
+    'Aceptación de socios y documentación',
+    'Gestión de cuentas de socios',
+    'Contrapartes comerciales',
+    'Proveedores y servicios externalizados',
+  ],
+};
+
+export type RegulatoryAuthority = 'CMF' | 'ANCI';
+
+/** Hito de reporte configurable (plazo contado desde la toma de conocimiento). */
+export interface RegulatoryMilestoneTemplate {
+  id: string;
+  authority: RegulatoryAuthority;
+  name: string;
+  deadlineMinutes: number;
+  enabled: boolean;
+}
+
+export interface RegulatorySubmission {
+  milestoneId: string;
+  submittedAt: string; // ISO
+  submittedBy: string;
+  folio?: string;
+}
+
+export interface RegulatoryReportUpdate {
+  at: string; // ISO
+  by: string;
+  note: string;
+}
+
+/** Seguimiento del reporte de un incidente a la CMF y/o a la ANCI. */
+export interface RegulatoryReport {
+  awarenessAt: string; // ISO: momento en que la administración toma conocimiento
+  reportableToCMF: boolean;
+  reportableToANCI: boolean;
+  submissions: RegulatorySubmission[];
+  updates: RegulatoryReportUpdate[];
+  status: 'Abierto' | 'Cerrado';
+  closedAt?: string;
+}
+
+export type MilestoneStatus = 'Pendiente' | 'Vencido' | 'Enviado a tiempo' | 'Enviado fuera de plazo';
+
 export interface OperationalFlaw {
   id: string;
   title: string;
@@ -123,6 +203,7 @@ export interface OperationalFlaw {
   reportedAt: string;
   status: 'Pendiente de Evaluación' | 'Convertida a Riesgo' | 'Descartada';
   incidentType?: IncidentType;
+  /** Pérdida bruta (antes de recuperaciones). */
   realLossAmountUSD?: number;
   recoveredAmountUSD?: number;
   impactedSystemOrAccount?: string;
@@ -130,6 +211,20 @@ export interface OperationalFlaw {
   aiSuggestedCategory?: BaselCategory;
   aiSuggestedControls?: string[];
   aiAnalysis?: Record<string, unknown> | null;
+
+  // ---- Base de pérdidas operacionales (RAN CACs / Basilea) ----
+  businessLine?: CacBusinessLine;
+  baselCategory?: BaselCategory;
+  baselSubcategory?: string;
+  occurrenceDate?: string;   // YYYY-MM-DD
+  discoveryDate?: string;    // YYYY-MM-DD
+  accountingDate?: string;   // YYYY-MM-DD
+  accountingAccount?: string;
+  /** Pérdida operacional en frontera con riesgo de crédito. */
+  creditRiskBoundary?: boolean;
+
+  // ---- Reporte regulatorio CMF / ANCI ----
+  regulatoryReport?: RegulatoryReport;
 }
 
 export type OperationalIncident = OperationalFlaw;
@@ -201,8 +296,13 @@ export interface AuditLogEntry {
     | 'MODIFICACIÓN_PERMISOS'
     | 'ALTA_USUARIO'
     | 'BAJA_USUARIO'
-    | 'CAMBIO_SESIÓN';
-  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario';
+    | 'CAMBIO_SESIÓN'
+    | 'INICIO_REPORTE_REGULATORIO'
+    | 'ENVÍO_REPORTE_REGULATORIO'
+    | 'ACTUALIZACIÓN_REPORTE_REGULATORIO'
+    | 'CIERRE_REPORTE_REGULATORIO'
+    | 'CONFIGURACIÓN_PLAZOS_REGULATORIOS';
+  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio';
   entityCode: string;
   details: string;
   ipAddress: string;
@@ -263,6 +363,8 @@ export interface UserPermissions {
   canConfigureKRIs: boolean;
   canManageRoles: boolean;
   canExportReports: boolean;
+  /** Registrar envíos a CMF/ANCI y configurar plazos regulatorios. */
+  canManageRegulatoryReports?: boolean;
 }
 
 export interface OrganizationalRole {

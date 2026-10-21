@@ -183,7 +183,7 @@ Escribe un resumen en español de 2 párrafos concisos y de alto nivel gerencial
 
     res.json({
       success: true,
-      summary: `Durante el periodo actual se observa una mitigación efectiva del riesgo neto promedio del 68% gracias al fortalecimiento de los controles automáticos en los procesos de Ciberseguridad y Tesorería. No obstante, se requiere atención prioritaria sobre las alertas de KRI vigentes en Ejecución de Procesos para mantener la exposición total dentro del umbral de apetito de riesgo aprobado por el Directorio.`
+      summary: `Durante el periodo actual se observa una mitigación efectiva del riesgo neto promedio del 68% gracias al fortalecimiento de los controles automáticos en los procesos de Ciberseguridad y Tesorería. No obstante, se requiere atención prioritaria sobre las alertas de KRI vigentes en Ejecución de Procesos para mantener la exposición total dentro del umbral de apetito de riesgo aprobado por el Consejo de Administración.`
     });
   } catch {
     res.status(500).json({ error: 'Error generando resumen ejecutivo' });

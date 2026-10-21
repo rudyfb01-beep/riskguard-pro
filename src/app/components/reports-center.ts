@@ -68,7 +68,7 @@ export type ReportType =
               (change)="onTemplateChange($event)"
               class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer font-medium"
             >
-              <option value="dictamen-directorio">Dictamen Ejecutivo para Directorio</option>
+              <option value="dictamen-directorio">Dictamen Ejecutivo para el Consejo de Administración</option>
               <option value="informe-departamental">Informe por Departamento / Macroproceso</option>
               <option value="registro-perdidas">Registro Oficial de Pérdidas e Incidentes</option>
               <option value="controles-auditoria">Informe de Aseguramiento de Controles</option>
@@ -452,8 +452,8 @@ export type ReportType =
               <div class="flex flex-col items-center">
                 <div class="w-48 border-b-2 border-slate-400 pb-1 mb-2"></div>
                 <strong class="text-slate-900">Dr. Roberto Valenzuela</strong>
-                <span class="text-slate-500 text-[11px]">Oficial de Riesgo Operacional (CRO)</span>
-                <span class="text-[10px] text-slate-400 font-mono">Reg. Colegiado: CRO-2026-884</span>
+                <span class="text-slate-500 text-[11px]">Jefe de Riesgo Operacional</span>
+                <span class="text-[10px] text-slate-400 font-mono">Gerencia de Riesgos</span>
               </div>
 
               <!-- Signature 2 -->
@@ -469,7 +469,7 @@ export type ReportType =
                 <div class="w-48 border-b-2 border-slate-400 pb-1 mb-2"></div>
                 <strong class="text-slate-900">Ing. Andrés Mendoza</strong>
                 <span class="text-slate-500 text-[11px]">Presidente del Comité de Auditoría</span>
-                <span class="text-[10px] text-slate-400 font-mono">Directorio Corporativo</span>
+                <span class="text-[10px] text-slate-400 font-mono">Consejo de Administración</span>
               </div>
 
             </div>
@@ -523,7 +523,7 @@ export class ReportsCenter {
   readonly executiveStatement = signal<string>(
     `Durante el periodo evaluado, la organización mantiene una exposición residual neta controlada frente a la exposición bruta inherente, logrando una tasa global de mitigación del 85% gracias a la efectividad promedio del 85% en el catálogo de controles operacionales.
 
-Se certifica que no existen desviaciones no mitigadas que comprometan el apetito de riesgo corporativo fijado por el Directorio conforme a Basilea III y la norma ISO 31000:2018.`
+Se certifica que no existen desviaciones no mitigadas que comprometan el apetito de riesgo corporativo fijado por el Consejo de Administración conforme a Basilea III y la norma ISO 31000:2018.`
   );
 
   readonly documentTitle = computed(() => {
@@ -538,7 +538,7 @@ Se certifica que no existen desviaciones no mitigadas que comprometan el apetito
     if (t === 'controles-auditoria') {
       return 'Informe de Aseguramiento y Evaluación de Eficacia de Controles Internos';
     }
-    return 'Dictamen Ejecutivo de Riesgo Operacional y Resiliencia para Directorio';
+    return 'Dictamen Ejecutivo de Riesgo Operacional y Resiliencia para el Consejo de Administración';
   });
 
   readonly targetRisks = computed(() => {

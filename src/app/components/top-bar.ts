@@ -51,7 +51,7 @@ import { RiskDataService } from '../services/risk-data.service';
               type="button"
               (click)="openReportModal.emit()"
               class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors border border-slate-700 whitespace-nowrap"
-              title="Generar informe para el Directorio y exportar PDF/Excel"
+              title="Generar informe para el Consejo de Administración y exportar PDF/Excel"
             >
               <mat-icon class="text-sm text-emerald-400">picture_as_pdf</mat-icon>
               <span>Informes Ejecutivos</span>

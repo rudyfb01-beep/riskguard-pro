@@ -18,7 +18,7 @@ import { AiRiskService } from '../services/ai-risk.service';
             <mat-icon class="text-emerald-400">assessment</mat-icon>
             <div>
               <h2 class="text-base font-bold tracking-tight">Centro de Reportes Gerenciales & Cumplimiento</h2>
-              <p class="text-xs text-slate-400">Exportación oficial en PDF y Excel para Comité de Riesgos y Directorio</p>
+              <p class="text-xs text-slate-400">Exportación oficial en PDF y Excel para Comité de Riesgos y Consejo de Administración</p>
             </div>
           </div>
 
@@ -82,7 +82,7 @@ import { AiRiskService } from '../services/ai-risk.service';
             <div class="flex items-center justify-between mb-2">
               <span class="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                 <mat-icon class="text-emerald-600 text-sm">gavel</mat-icon>
-                <span>Dictamen para el Comité de Auditoría y Directorio</span>
+                <span>Dictamen para el Comité de Auditoría y Consejo de Administración</span>
               </span>
               <button
                 (click)="regenerateSummary()"

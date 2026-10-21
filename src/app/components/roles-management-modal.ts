@@ -146,6 +146,7 @@ import { OrganizationalRole, UserPermissions } from '../models/risk.model';
                       <th class="py-3 px-3 text-center" title="Configurar umbrales de KRIs por industria">KRIs</th>
                       <th class="py-3 px-3 text-center" title="Administrar puestos y permisos">Roles</th>
                       <th class="py-3 px-3 text-center" title="Exportar reportes PDF y Excel">Reportes</th>
+                      <th class="py-3 px-3 text-center" title="Registrar envíos a CMF/ANCI y configurar plazos regulatorios">CMF/ANCI</th>
                       <th class="py-3 px-4 text-right">Acción</th>
                     </tr>
                   </thead>
@@ -270,6 +271,18 @@ import { OrganizationalRole, UserPermissions } from '../models/risk.model';
                             title="Alternar permiso de exportación de informes"
                           >
                             <mat-icon class="text-sm">{{ role.permissions.canExportReports ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canManageRegulatoryReports')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canManageRegulatoryReports ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de reporte regulatorio CMF/ANCI"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canManageRegulatoryReports ? 'check' : 'remove' }}</mat-icon>
                           </button>
                         </td>
 
@@ -604,6 +617,14 @@ import { OrganizationalRole, UserPermissions } from '../models/risk.model';
                       <span class="text-[11px] text-slate-500">Generar informes membretados ejecutivos</span>
                     </div>
                   </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canManageRegulatoryReports" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Reporte Regulatorio CMF / ANCI</span>
+                      <span class="text-[11px] text-slate-500">Registrar envíos al regulador y configurar plazos</span>
+                    </div>
+                  </label>
                 </div>
               </div>
 
@@ -672,7 +693,8 @@ export class RolesManagementModal {
     canAcknowledgeAlerts: [true],
     canConfigureKRIs: [false],
     canManageRoles: [false],
-    canExportReports: [true]
+    canExportReports: [true],
+    canManageRegulatoryReports: [false]
   });
 
   readonly userForm = this.fb.group({
@@ -699,7 +721,8 @@ export class RolesManagementModal {
       { key: 'alerts', label: 'Alertas', granted: p.canAcknowledgeAlerts },
       { key: 'kris', label: 'KRIs', granted: p.canConfigureKRIs },
       { key: 'roles', label: 'Puestos', granted: p.canManageRoles },
-      { key: 'reports', label: 'Reportes PDF', granted: p.canExportReports }
+      { key: 'reports', label: 'Reportes PDF', granted: p.canExportReports },
+      { key: 'regulatory', label: 'CMF/ANCI', granted: !!p.canManageRegulatoryReports }
     ];
   }
 
@@ -763,7 +786,8 @@ export class RolesManagementModal {
         canAcknowledgeAlerts: !!v.canAcknowledgeAlerts,
         canConfigureKRIs: !!v.canConfigureKRIs,
         canManageRoles: !!v.canManageRoles,
-        canExportReports: !!v.canExportReports
+        canExportReports: !!v.canExportReports,
+        canManageRegulatoryReports: !!v.canManageRegulatoryReports
       }
     });
 
@@ -780,7 +804,8 @@ export class RolesManagementModal {
       canAcknowledgeAlerts: true,
       canConfigureKRIs: false,
       canManageRoles: false,
-      canExportReports: true
+      canExportReports: true,
+      canManageRegulatoryReports: false
     });
 
     this.activeTab.set('roles');

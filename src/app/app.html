@@ -149,6 +149,17 @@
               </button>
 
               <button
+                (click)="setTab('reportes-regulatorios')"
+                [class]="activeTab() === 'reportes-regulatorios'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-indigo-500">gavel</mat-icon>
+                <span>Reporte CMF / ANCI</span>
+              </button>
+
+              <button
                 (click)="setTab('alertas-kri')"
                 [class]="activeTab() === 'alertas-kri'
                   ? 'bg-slate-900 text-white font-semibold'
@@ -713,7 +724,7 @@
 
                     <!-- Residual Exposure USD -->
                     <td class="py-3 px-4 text-right font-mono font-bold text-slate-900 whitespace-nowrap tabular-nums">
-                      \${{ risk.residualExposureUSD | number:'1.0-0' }}
+                      ${{ risk.residualExposureUSD | number:'1.0-0' }}
                     </td>
 
                     <!-- Mitigation Progress -->
@@ -982,6 +993,11 @@
       </div>
     }
 
+    <!-- TAB: REPORTE REGULATORIO CMF / ANCI -->
+    @if (activeTab() === 'reportes-regulatorios') {
+      <app-regulatory-reporting (notify)="showToast($event)" />
+    }
+
     <!-- TAB 4: INCIDENTES OPERACIONALES & EVENTOS DE PÉRDIDA -->
     @if (activeTab() === 'incidentes-perdidas' || activeTab() === 'falencias') {
       <div class="space-y-4">
@@ -1012,7 +1028,7 @@
         </div>
 
         <!-- Metric KPI Cards for Incidents & Real Losses -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
             <span class="text-[11px] font-semibold text-slate-500 block">Total Incidentes Registrados</span>
             <div class="flex items-baseline justify-between mt-1">
@@ -1022,9 +1038,9 @@
           </div>
 
           <div class="bg-white p-3.5 rounded-xl border border-rose-200 bg-rose-50/20 shadow-2xs">
-            <span class="text-[11px] font-semibold text-rose-800 block">Pérdida Real Cuantificada</span>
+            <span class="text-[11px] font-semibold text-rose-800 block">Pérdida Bruta Cuantificada</span>
             <div class="flex items-baseline justify-between mt-1">
-              <span class="text-2xl font-bold font-mono text-rose-700">\${{ riskService.totalRealLossesUSD() | number:'1.0-0' }}</span>
+              <span class="text-2xl font-bold font-mono text-rose-700">${{ riskService.totalRealLossesUSD() | number:'1.0-0' }}</span>
               <span class="text-[10px] text-rose-700 font-semibold bg-rose-100 px-1.5 py-0.5 rounded">USD Directo</span>
             </div>
           </div>
@@ -1040,8 +1056,16 @@
           <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
             <span class="text-[11px] font-semibold text-slate-500 block">Pérdida Recuperada</span>
             <div class="flex items-baseline justify-between mt-1">
-              <span class="text-2xl font-bold font-mono text-emerald-700">\${{ riskService.totalLossesRecoveredUSD() | number:'1.0-0' }}</span>
+              <span class="text-2xl font-bold font-mono text-emerald-700">${{ riskService.totalLossesRecoveredUSD() | number:'1.0-0' }}</span>
               <span class="text-[10px] text-emerald-700 font-semibold bg-emerald-100 px-1.5 py-0.5 rounded">USD Recuperado</span>
+            </div>
+          </div>
+
+          <div class="bg-white p-3.5 rounded-xl border border-slate-300 shadow-2xs col-span-2 lg:col-span-1">
+            <span class="text-[11px] font-semibold text-slate-700 block">Pérdida Neta</span>
+            <div class="flex items-baseline justify-between mt-1">
+              <span class="text-2xl font-bold font-mono text-slate-900">${{ riskService.totalNetLossesUSD() | number:'1.0-0' }}</span>
+              <span class="text-[10px] text-slate-700 font-semibold bg-slate-100 px-1.5 py-0.5 rounded">Bruta − Recup.</span>
             </div>
           </div>
         </div>
@@ -1093,6 +1117,21 @@
           </button>
         </div>
 
+        <!-- View toggle: tarjetas / base de pérdidas -->
+        <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+          <button (click)="incidentView.set('tarjetas')"
+            [class]="incidentView() === 'tarjetas' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'"
+            class="px-3 py-1.5 text-xs rounded-lg flex items-center gap-1.5 cursor-pointer">
+            <mat-icon class="text-sm">view_module</mat-icon><span>Incidentes</span>
+          </button>
+          <button (click)="incidentView.set('base-perdidas')"
+            [class]="incidentView() === 'base-perdidas' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'"
+            class="px-3 py-1.5 text-xs rounded-lg flex items-center gap-1.5 cursor-pointer">
+            <mat-icon class="text-sm">table_chart</mat-icon><span>Base de pérdidas ({{ riskService.lossDatabase().length }})</span>
+          </button>
+        </div>
+
+        @if (incidentView() === 'tarjetas') {
         <!-- Incidents List -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           @for (flaw of filteredIncidents(); track flaw.id) {
@@ -1142,12 +1181,12 @@
                   <div class="mt-3 p-2 bg-rose-50 border border-rose-200 rounded-lg flex items-center justify-between text-xs">
                     <div>
                       <span class="text-[10px] text-rose-700 block font-semibold uppercase">Pérdida Financiera</span>
-                      <span class="font-bold font-mono text-rose-900">\${{ flaw.realLossAmountUSD | number:'1.0-0' }} USD</span>
+                      <span class="font-bold font-mono text-rose-900">${{ flaw.realLossAmountUSD | number:'1.0-0' }} USD</span>
                     </div>
                     @if (flaw.recoveredAmountUSD && flaw.recoveredAmountUSD > 0) {
                       <div class="text-right">
                         <span class="text-[10px] text-emerald-700 block font-semibold uppercase">Recuperado</span>
-                        <span class="font-bold font-mono text-emerald-800">\${{ flaw.recoveredAmountUSD | number:'1.0-0' }} USD</span>
+                        <span class="font-bold font-mono text-emerald-800">${{ flaw.recoveredAmountUSD | number:'1.0-0' }} USD</span>
                       </div>
                     }
                   </div>
@@ -1160,17 +1199,33 @@
                   </div>
                 }
                 
+                @if (flaw.regulatoryReport; as rr) {
+                  <button (click)="setTab('reportes-regulatorios')"
+                    class="mt-2 w-full text-left p-2 rounded-lg border text-[11px] flex items-center gap-1.5 cursor-pointer"
+                    [class]="rr.status === 'Abierto' ? 'bg-indigo-50 border-indigo-200 text-indigo-900 hover:bg-indigo-100' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'">
+                    <mat-icon class="text-sm">gavel</mat-icon>
+                    <span>Reporte {{ rr.reportableToCMF ? 'CMF' : '' }}{{ rr.reportableToCMF && rr.reportableToANCI ? ' + ' : '' }}{{ rr.reportableToANCI ? 'ANCI' : '' }} · <strong>{{ rr.status }}</strong></span>
+                    <mat-icon class="text-sm ml-auto">chevron_right</mat-icon>
+                  </button>
+                }
+
                 <div class="mt-3 text-[11px] text-slate-500 space-y-0.5 border-t border-slate-100 pt-2">
                   <div>Proceso: <strong class="text-slate-800">{{ flaw.process }}</strong></div>
+                  @if (flaw.businessLine) {
+                    <div>Línea de negocio: <strong class="text-slate-800">{{ flaw.businessLine }}</strong></div>
+                  }
+                  @if (flaw.occurrenceDate) {
+                    <div>Ocurrencia: <span class="font-mono">{{ flaw.occurrenceDate }}</span>@if (flaw.discoveryDate) { · Descubrimiento: <span class="font-mono">{{ flaw.discoveryDate }}</span> }</div>
+                  }
                   <div>Reportado por: <span>{{ flaw.reportedBy }}</span> ({{ flaw.reportedAt }})</div>
                 </div>
 
                 <!-- AI Category & Controls Tag -->
-                @if (flaw.aiSuggestedCategory) {
+                @if (flaw.baselCategory || flaw.aiSuggestedCategory) {
                   <div class="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
                     <span class="text-[10px] text-slate-400 font-semibold">Basilea:</span>
                     <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium font-mono">
-                      {{ flaw.aiSuggestedCategory }}
+                      {{ flaw.baselCategory || flaw.aiSuggestedCategory }}{{ flaw.baselSubcategory ? ' › ' + flaw.baselSubcategory : '' }}
                     </span>
                   </div>
                 }
@@ -1233,6 +1288,120 @@
             </div>
           }
         </div>
+        } @else {
+          <!-- Base de Pérdidas Operacionales (vista tabular) -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div>
+                <h2 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <mat-icon class="text-base text-indigo-600">table_chart</mat-icon>
+                  <span>Base de Pérdidas Operacionales</span>
+                </h2>
+                <p class="text-[11px] text-slate-500 mt-0.5">
+                  Eventos con pérdida bruta mayor a cero, con sus fechas, clasificación Basilea y línea de negocio. Las filas en ámbar tienen datos incompletos.
+                </p>
+              </div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <label class="text-[11px] text-slate-600 flex items-center gap-1.5">
+                  <span>Umbral de registro (USD)</span>
+                  <input type="number" min="0" step="100" [value]="riskService.lossRegistrationThresholdUSD()"
+                    [disabled]="!riskService.hasPermission('canManageRegulatoryReports')"
+                    (change)="riskService.setLossThreshold(+$any($event.target).value)"
+                    class="w-24 text-xs rounded-lg border border-slate-300 px-2 py-1 font-mono disabled:bg-slate-100" />
+                </label>
+                @if (riskService.hasPermission('canExportReports')) {
+                  <button (click)="riskService.exportToExcel('loss_database')"
+                    class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white hover:bg-slate-50 flex items-center gap-1 cursor-pointer">
+                    <mat-icon class="text-sm text-emerald-600">download</mat-icon><span>Exportar CSV</span>
+                  </button>
+                }
+              </div>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs min-w-[1100px]">
+                <thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th class="text-left py-2.5 px-3">ID</th>
+                    <th class="text-left py-2.5 px-3">Evento</th>
+                    <th class="text-left py-2.5 px-3">Línea de negocio</th>
+                    <th class="text-left py-2.5 px-3">Basilea N1 / N2</th>
+                    <th class="text-left py-2.5 px-3">Ocurrencia</th>
+                    <th class="text-left py-2.5 px-3">Descubrim.</th>
+                    <th class="text-left py-2.5 px-3">Contabiliz.</th>
+                    <th class="text-right py-2.5 px-3">Bruta USD</th>
+                    <th class="text-right py-2.5 px-3">Recup. USD</th>
+                    <th class="text-right py-2.5 px-3">Neta USD</th>
+                    <th class="text-center py-2.5 px-3">Umbral</th>
+                    <th class="text-center py-2.5 px-3">Regulador</th>
+                    <th class="py-2.5 px-3"></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  @for (f of riskService.lossDatabase(); track f.id) {
+                    @let missing = riskService.missingLossFields(f);
+                    <tr [class]="missing.length > 0 ? 'bg-amber-50/50' : 'hover:bg-slate-50'">
+                      <td class="py-2.5 px-3 font-mono text-slate-500 font-bold">{{ f.id }}</td>
+                      <td class="py-2.5 px-3 max-w-[260px]">
+                        <div class="font-semibold text-slate-900 line-clamp-2">{{ f.title }}</div>
+                        <div class="text-[10px] text-slate-500">{{ f.process }}@if (f.accountingAccount) { · {{ f.accountingAccount }} }</div>
+                        @if (missing.length > 0) {
+                          <div class="text-[10px] text-amber-700 mt-0.5 flex items-center gap-0.5" [title]="missing.join(', ')">
+                            <mat-icon class="text-[12px] w-3 h-3">warning</mat-icon>
+                            <span>Falta: {{ missing.join(', ') }}</span>
+                          </div>
+                        }
+                        @if (f.creditRiskBoundary) {
+                          <span class="inline-block mt-0.5 text-[9px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-semibold">Frontera riesgo de crédito</span>
+                        }
+                      </td>
+                      <td class="py-2.5 px-3 text-slate-700">{{ f.businessLine || '—' }}</td>
+                      <td class="py-2.5 px-3 text-slate-700">
+                        <div class="font-medium">{{ f.baselCategory || f.aiSuggestedCategory || '—' }}</div>
+                        <div class="text-[10px] text-slate-500">{{ f.baselSubcategory || '' }}</div>
+                      </td>
+                      <td class="py-2.5 px-3 font-mono text-slate-700 whitespace-nowrap">{{ f.occurrenceDate || '—' }}</td>
+                      <td class="py-2.5 px-3 font-mono text-slate-700 whitespace-nowrap">{{ f.discoveryDate || '—' }}</td>
+                      <td class="py-2.5 px-3 font-mono text-slate-700 whitespace-nowrap">{{ f.accountingDate || '—' }}</td>
+                      <td class="py-2.5 px-3 font-mono text-right text-rose-700">{{ f.realLossAmountUSD | number:'1.0-0' }}</td>
+                      <td class="py-2.5 px-3 font-mono text-right text-emerald-700">{{ (f.recoveredAmountUSD || 0) | number:'1.0-0' }}</td>
+                      <td class="py-2.5 px-3 font-mono text-right font-bold text-slate-900">{{ riskService.netLoss(f) | number:'1.0-0' }}</td>
+                      <td class="py-2.5 px-3 text-center">
+                        @if (riskService.isAboveLossThreshold(f)) {
+                          <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-white font-semibold">Sobre</span>
+                        } @else {
+                          <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">Bajo</span>
+                        }
+                      </td>
+                      <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                        @if (f.regulatoryReport?.reportableToCMF) { <span class="text-[9px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-bold">CMF</span> }
+                        @if (f.regulatoryReport?.reportableToANCI) { <span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-800 font-bold ml-0.5">ANCI</span> }
+                        @if (!f.regulatoryReport) { <span class="text-slate-400">—</span> }
+                      </td>
+                      <td class="py-2.5 px-3 text-right">
+                        <button (click)="openEditFlaw(f)" class="p-1 rounded hover:bg-slate-200 text-slate-600 cursor-pointer" title="Completar o editar evento">
+                          <mat-icon class="text-sm">edit</mat-icon>
+                        </button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="13" class="py-8 text-center text-slate-500">No hay eventos con pérdida registrada.</td></tr>
+                  }
+                </tbody>
+                @if (riskService.lossDatabase().length > 0) {
+                  <tfoot class="bg-slate-50 border-t border-slate-200 font-bold text-slate-900">
+                    <tr>
+                      <td colspan="7" class="py-2.5 px-3 text-right text-[11px] uppercase text-slate-500">Totales</td>
+                      <td class="py-2.5 px-3 font-mono text-right text-rose-700">{{ riskService.totalRealLossesUSD() | number:'1.0-0' }}</td>
+                      <td class="py-2.5 px-3 font-mono text-right text-emerald-700">{{ riskService.totalLossesRecoveredUSD() | number:'1.0-0' }}</td>
+                      <td class="py-2.5 px-3 font-mono text-right">{{ riskService.totalNetLossesUSD() | number:'1.0-0' }}</td>
+                      <td colspan="3"></td>
+                    </tr>
+                  </tfoot>
+                }
+              </table>
+            </div>
+          </div>
+        }
 
       </div>
     }

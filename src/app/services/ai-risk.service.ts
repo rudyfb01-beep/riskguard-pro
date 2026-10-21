@@ -112,7 +112,7 @@ export class AiRiskService {
       );
       return response?.summary || 'Resumen generado con éxito.';
     } catch {
-      return `El portafolio de riesgo operacional refleja un nivel de resiliencia favorable con una tasa de mitigación neta de exposición del ${metrics.mitigationEfficiencyPct ?? 85}%. Los controles preventivos implementados han contenido efectivamente la severidad en los procesos de Tesorería y Pagos. Se recomienda al Comité focalizar recursos en la resolución de las ${metrics.activeAlertsCount ?? 3} alertas de KRI activas para evitar desviaciones sobre el Apetito de Riesgo aprobado por el Directorio.`;
+      return `El portafolio de riesgo operacional refleja un nivel de resiliencia favorable con una tasa de mitigación neta de exposición del ${metrics.mitigationEfficiencyPct ?? 85}%. Los controles preventivos implementados han contenido efectivamente la severidad en los procesos de Tesorería y Pagos. Se recomienda al Comité focalizar recursos en la resolución de las ${metrics.activeAlertsCount ?? 3} alertas de KRI activas para evitar desviaciones sobre el Apetito de Riesgo aprobado por el Consejo de Administración.`;
     }
   }
 }

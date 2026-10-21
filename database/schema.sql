@@ -496,3 +496,96 @@ SELECT
 FROM kri_definitions k
 WHERE k.status IN ('Advertencia', 'Crítico')
 ORDER BY CASE WHEN k.status = 'Crítico' THEN 1 ELSE 2 END, k.last_updated DESC;
+
+
+-- ==============================================================================
+-- 18. BASE DE PÉRDIDAS OPERACIONALES Y REPORTE REGULATORIO (NORMATIVA CMF PARA CACs)
+-- Idempotente: puede ejecutarse sobre una base existente.
+-- ==============================================================================
+
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS business_line VARCHAR(100);
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS basel_category VARCHAR(100);
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS basel_subcategory VARCHAR(150);
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS occurrence_date DATE;
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS discovery_date DATE;
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS accounting_date DATE;
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS accounting_account VARCHAR(150);
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS credit_risk_boundary BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_flaws_business_line ON operational_flaws(business_line);
+CREATE INDEX IF NOT EXISTS idx_flaws_occurrence_date ON operational_flaws(occurrence_date);
+
+-- Hitos de reporte configurables (plazo en minutos desde la toma de conocimiento)
+CREATE TABLE IF NOT EXISTS regulatory_milestone_templates (
+    id VARCHAR(64) PRIMARY KEY,
+    authority VARCHAR(10) NOT NULL CHECK (authority IN ('CMF', 'ANCI')),
+    name VARCHAR(255) NOT NULL,
+    deadline_minutes INTEGER NOT NULL CHECK (deadline_minutes > 0),
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Reporte regulatorio de un incidente (uno por incidente)
+CREATE TABLE IF NOT EXISTS regulatory_reports (
+    flaw_id VARCHAR(64) PRIMARY KEY REFERENCES operational_flaws(id) ON DELETE CASCADE,
+    awareness_at TIMESTAMPTZ NOT NULL,
+    reportable_to_cmf BOOLEAN NOT NULL DEFAULT FALSE,
+    reportable_to_anci BOOLEAN NOT NULL DEFAULT FALSE,
+    status VARCHAR(20) NOT NULL DEFAULT 'Abierto' CHECK (status IN ('Abierto', 'Cerrado')),
+    closed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_regulatory_authority CHECK (reportable_to_cmf OR reportable_to_anci)
+);
+
+-- Envíos realizados al regulador por hito
+CREATE TABLE IF NOT EXISTS regulatory_submissions (
+    id SERIAL PRIMARY KEY,
+    flaw_id VARCHAR(64) NOT NULL REFERENCES regulatory_reports(flaw_id) ON DELETE CASCADE,
+    milestone_id VARCHAR(64) NOT NULL REFERENCES regulatory_milestone_templates(id),
+    submitted_at TIMESTAMPTZ NOT NULL,
+    submitted_by VARCHAR(255) NOT NULL,
+    folio VARCHAR(100),
+    UNIQUE (flaw_id, milestone_id)
+);
+
+-- Actualizaciones informadas al regulador
+CREATE TABLE IF NOT EXISTS regulatory_report_updates (
+    id SERIAL PRIMARY KEY,
+    flaw_id VARCHAR(64) NOT NULL REFERENCES regulatory_reports(flaw_id) ON DELETE CASCADE,
+    at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    author VARCHAR(255) NOT NULL,
+    note TEXT NOT NULL
+);
+
+-- Vista: base de pérdidas operacionales
+CREATE OR REPLACE VIEW v_loss_database AS
+SELECT
+    f.id, f.title, f.process, f.business_line,
+    COALESCE(f.basel_category, f.ai_suggested_category) AS basel_category,
+    f.basel_subcategory, f.occurrence_date, f.discovery_date, f.accounting_date, f.accounting_account,
+    f.real_loss_amount_usd AS gross_loss_usd,
+    f.recovered_amount_usd AS recoveries_usd,
+    GREATEST(f.real_loss_amount_usd - f.recovered_amount_usd, 0) AS net_loss_usd,
+    f.credit_risk_boundary,
+    COALESCE(r.reportable_to_cmf, FALSE) AS reported_to_cmf,
+    COALESCE(r.reportable_to_anci, FALSE) AS reported_to_anci
+FROM operational_flaws f
+LEFT JOIN regulatory_reports r ON r.flaw_id = f.id
+WHERE f.real_loss_amount_usd > 0;
+
+-- Vista: estado de plazos regulatorios por hito
+CREATE OR REPLACE VIEW v_regulatory_deadlines AS
+SELECT
+    r.flaw_id, t.authority, t.name AS milestone,
+    r.awareness_at + make_interval(mins => t.deadline_minutes) AS deadline_at,
+    s.submitted_at, s.folio,
+    CASE
+        WHEN s.submitted_at IS NOT NULL AND s.submitted_at <= r.awareness_at + make_interval(mins => t.deadline_minutes) THEN 'Enviado a tiempo'
+        WHEN s.submitted_at IS NOT NULL THEN 'Enviado fuera de plazo'
+        WHEN now() > r.awareness_at + make_interval(mins => t.deadline_minutes) THEN 'Vencido'
+        ELSE 'Pendiente'
+    END AS status
+FROM regulatory_reports r
+JOIN regulatory_milestone_templates t
+  ON t.enabled AND ((t.authority = 'CMF' AND r.reportable_to_cmf) OR (t.authority = 'ANCI' AND r.reportable_to_anci))
+LEFT JOIN regulatory_submissions s ON s.flaw_id = r.flaw_id AND s.milestone_id = t.id;

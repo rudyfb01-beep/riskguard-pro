@@ -17,9 +17,44 @@ import {
   KriDefinition,
   KriNotificationPreferences,
   OrganizationalRole,
-  UserPermissions
+  UserPermissions,
+  RegulatoryMilestoneTemplate,
+  RegulatoryReport,
+  MilestoneStatus
 } from '../models/risk.model';
 import { computeBlockHash } from '../utils/crypto-ledger';
+
+/** Fecha ISO de hace N minutos (para datos de demostración con plazos en curso). */
+function minutesAgo(m: number): string {
+  return new Date(Date.now() - m * 60_000).toISOString();
+}
+
+/** Convierte un ISO a 'YYYY-MM-DD HH:mm' en hora local. */
+function localStamp(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * Plazos de reporte por defecto, contados desde la toma de conocimiento.
+ * Son valores referenciales y configurables: deben validarse con Cumplimiento
+ * contra el texto vigente de la RAN CACs (CMF) y la Ley 21.663 (ANCI).
+ */
+/** Formatea minutos como "30 min", "3 h", "15 días". */
+export function formatMinutes(min: number): string {
+  if (min % (24 * 60) === 0) return `${min / (24 * 60)} día${min === 24 * 60 ? '' : 's'}`;
+  if (min % 60 === 0) return `${min / 60} h`;
+  if (min > 60) return `${Math.floor(min / 60)} h ${min % 60} min`;
+  return `${min} min`;
+}
+
+export const DEFAULT_REGULATORY_MILESTONES: RegulatoryMilestoneTemplate[] = [
+  { id: 'cmf-aviso-inicial', authority: 'CMF', name: 'Aviso inicial a la CMF', deadlineMinutes: 30, enabled: true },
+  { id: 'anci-alerta-temprana', authority: 'ANCI', name: 'Alerta temprana a la ANCI (CSIRT Nacional)', deadlineMinutes: 3 * 60, enabled: true },
+  { id: 'anci-segundo-informe', authority: 'ANCI', name: 'Segundo informe a la ANCI', deadlineMinutes: 72 * 60, enabled: true },
+  { id: 'anci-informe-final', authority: 'ANCI', name: 'Informe final a la ANCI', deadlineMinutes: 15 * 24 * 60, enabled: true },
+];
 
 export const INDUSTRY_KRI_PRESETS: Record<IndustryType, Omit<KriDefinition, 'id' | 'lastUpdated'>[]> = {
   'Fintech & Pagos Digitales': [
@@ -460,121 +495,115 @@ export const INDUSTRY_KRI_PRESETS: Record<IndustryType, Omit<KriDefinition, 'id'
   'Personalizada': []
 };
 
+/** Construye una matriz de permisos a partir de la lista de permisos concedidos. */
+function grant(...keys: (keyof UserPermissions)[]): UserPermissions {
+  const base: UserPermissions = {
+    canEditRisks: false,
+    canEvaluateControls: false,
+    canExecuteAudits: false,
+    canReportFlaws: false,
+    canConvertFlaws: false,
+    canAcknowledgeAlerts: false,
+    canConfigureKRIs: false,
+    canManageRoles: false,
+    canExportReports: false,
+    canManageRegulatoryReports: false,
+  };
+  for (const k of keys) base[k] = true;
+  return base;
+}
+
+const ALL_PERMISSIONS: (keyof UserPermissions)[] = [
+  'canEditRisks', 'canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canConvertFlaws',
+  'canAcknowledgeAlerts', 'canConfigureKRIs', 'canManageRoles', 'canExportReports', 'canManageRegulatoryReports',
+];
+
+/**
+ * Cargos de gobierno corporativo de una Cooperativa de Ahorro y Crédito
+ * (Consejo de Administración, Junta de Vigilancia, Comité de Riesgos, etc.).
+ */
 export const DEFAULT_ORGANIZATIONAL_ROLES: OrganizationalRole[] = [
   {
-    id: 'role-cro',
-    title: 'Oficial de Riesgo (CRO)',
-    department: 'Gerencia General de Riesgos y Cumplimiento',
-    description: 'Máxima autoridad ejecutiva en apetito de riesgo, gobierno de control interno y supervisión de KRIs.',
+    id: 'role-riesgo-op',
+    title: 'Jefe de Riesgo Operacional',
+    department: 'Gerencia de Riesgos',
+    description: 'Administra el marco de gestión de riesgo operacional, la base de pérdidas y el reporte de incidentes a la CMF y la ANCI.',
     badge: 'Super Administrador',
     isSystemRole: true,
-    permissions: {
-      canEditRisks: true,
-      canEvaluateControls: true,
-      canExecuteAudits: true,
-      canReportFlaws: true,
-      canConvertFlaws: true,
-      canAcknowledgeAlerts: true,
-      canConfigureKRIs: true,
-      canManageRoles: true,
-      canExportReports: true,
-    }
+    permissions: grant(...ALL_PERMISSIONS),
   },
   {
-    id: 'role-auditor',
-    title: 'Auditor de Control Interno',
-    department: 'Unidad de Auditoría Continua',
-    description: 'Responsable de verificar pruebas de efectividad de diseño y operativa, muestreos y hallazgos.',
-    badge: 'Auditor Líder ISO 31000',
+    id: 'role-gerencia-general',
+    title: 'Gerente General',
+    department: 'Gerencia General',
+    description: 'Responsable ante el Consejo de la implementación del marco de riesgos; toma conocimiento y autoriza los reportes de incidentes al regulador.',
+    badge: 'Alta Administración',
     isSystemRole: true,
-    permissions: {
-      canEditRisks: false,
-      canEvaluateControls: true,
-      canExecuteAudits: true,
-      canReportFlaws: true,
-      canConvertFlaws: false,
-      canAcknowledgeAlerts: true,
-      canConfigureKRIs: false,
-      canManageRoles: false,
-      canExportReports: true,
-    }
+    permissions: grant('canEditRisks', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canExportReports', 'canManageRegulatoryReports'),
+  },
+  {
+    id: 'role-auditoria-interna',
+    title: 'Auditor Interno',
+    department: 'Auditoría Interna',
+    description: 'Evalúa de forma independiente la efectividad de controles y del marco de gestión; reporta al Comité de Auditoría y al Consejo.',
+    badge: 'Tercera Línea',
+    isSystemRole: true,
+    permissions: grant('canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canAcknowledgeAlerts', 'canExportReports'),
   },
   {
     id: 'role-ops',
     title: 'Gerente de Operaciones',
-    department: 'Dirección de Operaciones y Tecnología',
-    description: 'Dueño de macroprocesos operativos, mitigación de riesgos de línea y reporte de eventos de pérdida.',
+    department: 'Gerencia de Operaciones y Tecnología',
+    description: 'Dueño de procesos operativos (créditos, captaciones, pagos y sucursales); mitiga riesgos de primera línea y reporta eventos de pérdida.',
     badge: 'Dueño de Proceso',
     isSystemRole: true,
-    permissions: {
-      canEditRisks: true,
-      canEvaluateControls: false,
-      canExecuteAudits: false,
-      canReportFlaws: true,
-      canConvertFlaws: true,
-      canAcknowledgeAlerts: true,
-      canConfigureKRIs: true,
-      canManageRoles: false,
-      canExportReports: true,
-    }
+    permissions: grant('canEditRisks', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canConfigureKRIs', 'canExportReports'),
   },
   {
     id: 'role-ciso',
     title: 'Oficial de Seguridad de la Información (CISO)',
-    department: 'Ciberseguridad y Protección de Datos',
-    description: 'Custodio de controles de ciberresiliencia, cifrado, accesos privilegiados y monitoreo de intrusiones.',
-    badge: 'Ciberseguridad & TI',
+    department: 'Seguridad de la Información y Ciberseguridad',
+    description: 'Gestiona controles de ciberseguridad y la notificación de ciberincidentes a la ANCI y a la CMF.',
+    badge: 'Ciberseguridad',
     isSystemRole: false,
-    permissions: {
-      canEditRisks: true,
-      canEvaluateControls: true,
-      canExecuteAudits: true,
-      canReportFlaws: true,
-      canConvertFlaws: true,
-      canAcknowledgeAlerts: true,
-      canConfigureKRIs: true,
-      canManageRoles: false,
-      canExportReports: true,
-    }
+    permissions: grant('canEditRisks', 'canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canConfigureKRIs', 'canExportReports', 'canManageRegulatoryReports'),
   },
   {
-    id: 'role-aml',
-    title: 'Jefe de Cumplimiento Normativo (AML/KYC)',
-    department: 'Prevención de Lavado y Cumplimiento Legal',
-    description: 'Supervisa el marco regulatorio Basilea, prevención de fraude, reportes regulatorios y listas de control.',
-    badge: 'Cumplimiento Legal',
+    id: 'role-cumplimiento',
+    title: 'Oficial de Cumplimiento',
+    department: 'Cumplimiento y Prevención de Lavado de Activos',
+    description: 'Supervisa el cumplimiento normativo, la prevención de lavado de activos (Ley 19.913 / UAF) y los reportes regulatorios.',
+    badge: 'Cumplimiento',
     isSystemRole: false,
-    permissions: {
-      canEditRisks: false,
-      canEvaluateControls: true,
-      canExecuteAudits: true,
-      canReportFlaws: true,
-      canConvertFlaws: false,
-      canAcknowledgeAlerts: true,
-      canConfigureKRIs: true,
-      canManageRoles: false,
-      canExportReports: true,
-    }
+    permissions: grant('canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canAcknowledgeAlerts', 'canConfigureKRIs', 'canExportReports', 'canManageRegulatoryReports'),
   },
   {
-    id: 'role-board',
-    title: 'Comité de Riesgos y Directorio',
+    id: 'role-comite-riesgos',
+    title: 'Comité de Riesgos',
     department: 'Gobierno Corporativo',
-    description: 'Visualización ejecutiva de mapas de calor, reportes agregados y dictámenes de auditoría externa.',
-    badge: 'Alta Dirección',
+    description: 'Instancia de consejeros y alta administración que revisa el perfil de riesgo, el apetito de riesgo y los incidentes relevantes.',
+    badge: 'Gobierno Corporativo',
     isSystemRole: true,
-    permissions: {
-      canEditRisks: false,
-      canEvaluateControls: false,
-      canExecuteAudits: false,
-      canReportFlaws: false,
-      canConvertFlaws: false,
-      canAcknowledgeAlerts: false,
-      canConfigureKRIs: false,
-      canManageRoles: false,
-      canExportReports: true,
-    }
-  }
+    permissions: grant('canExportReports'),
+  },
+  {
+    id: 'role-consejo',
+    title: 'Consejo de Administración',
+    department: 'Gobierno Corporativo',
+    description: 'Órgano responsable de aprobar las políticas de gestión de riesgos y de velar por su cumplimiento.',
+    badge: 'Consejo',
+    isSystemRole: true,
+    permissions: grant('canExportReports'),
+  },
+  {
+    id: 'role-junta-vigilancia',
+    title: 'Junta de Vigilancia',
+    department: 'Gobierno Corporativo',
+    description: 'Órgano fiscalizador interno de la cooperativa; revisa la administración, los estados financieros y los informes de auditoría.',
+    badge: 'Fiscalización Interna',
+    isSystemRole: true,
+    permissions: grant('canExportReports'),
+  },
 ];
 
 export const DEFAULT_GLOBAL_NOTIFICATION_PREFERENCES: KriNotificationPreferences = {
@@ -604,135 +633,33 @@ export class RiskDataService {
   // Defined Organizational Roles (Puestos)
   readonly organizationalRoles = signal<OrganizationalRole[]>(DEFAULT_ORGANIZATIONAL_ROLES);
 
-  // Predefined Compliance User Profiles (Usuarios & Colaboradores)
-  readonly userProfiles = signal<UserProfile[]>([
-    {
-      id: 'usr-cro',
-      name: 'Dra. Elena Vasconcelos',
-      email: 'elena.vasconcelos@custodia-risk.com',
-      role: 'Oficial de Riesgo (CRO)',
-      roleId: 'role-cro',
-      department: 'Gerencia General de Riesgos y Cumplimiento',
-      badge: 'Oficial Principal Certificado',
-      isSystemUser: true,
-      permissions: {
-        canEditRisks: true,
-        canEvaluateControls: true,
-        canExecuteAudits: true,
-        canReportFlaws: true,
-        canConvertFlaws: true,
-        canAcknowledgeAlerts: true,
-        canConfigureKRIs: true,
-        canManageRoles: true,
-        canExportReports: true,
-      }
-    },
-    {
-      id: 'usr-auditor',
-      name: 'Lic. Roberto Miranda',
-      email: 'roberto.miranda@custodia-risk.com',
-      role: 'Auditor de Control Interno',
-      roleId: 'role-auditor',
-      department: 'Unidad de Auditoría Continua',
-      badge: 'Auditor Líder ISO 31000',
-      isSystemUser: true,
-      permissions: {
-        canEditRisks: false,
-        canEvaluateControls: true,
-        canExecuteAudits: true,
-        canReportFlaws: true,
-        canConvertFlaws: false,
-        canAcknowledgeAlerts: true,
-        canConfigureKRIs: false,
-        canManageRoles: false,
-        canExportReports: true,
-      }
-    },
-    {
-      id: 'usr-ops',
-      name: 'Ing. Carlos Mendoza',
-      email: 'carlos.mendoza@custodia-risk.com',
-      role: 'Gerente de Operaciones',
-      roleId: 'role-ops',
-      department: 'Dirección de Operaciones y Tecnología',
-      badge: 'Dueño de Proceso',
-      isSystemUser: true,
-      permissions: {
-        canEditRisks: true,
-        canEvaluateControls: false,
-        canExecuteAudits: false,
-        canReportFlaws: true,
-        canConvertFlaws: true,
-        canAcknowledgeAlerts: true,
-        canConfigureKRIs: true,
-        canManageRoles: false,
-        canExportReports: true,
-      }
-    },
-    {
-      id: 'usr-ciso',
-      name: 'Ing. Alejandro Vega',
-      email: 'alejandro.vega@custodia-risk.com',
-      role: 'Oficial de Seguridad de la Información (CISO)',
-      roleId: 'role-ciso',
-      department: 'Ciberseguridad y Protección de Datos',
-      badge: 'Ciberseguridad & TI',
-      isSystemUser: false,
-      permissions: {
-        canEditRisks: true,
-        canEvaluateControls: true,
-        canExecuteAudits: true,
-        canReportFlaws: true,
-        canConvertFlaws: true,
-        canAcknowledgeAlerts: true,
-        canConfigureKRIs: true,
-        canManageRoles: false,
-        canExportReports: true,
-      }
-    },
-    {
-      id: 'usr-aml',
-      name: 'Dra. Sofía Valenzuela',
-      email: 'sofia.valenzuela@custodia-risk.com',
-      role: 'Jefe de Cumplimiento Normativo (AML/KYC)',
-      roleId: 'role-aml',
-      department: 'Prevención de Lavado y Cumplimiento Legal',
-      badge: 'Cumplimiento Legal',
-      isSystemUser: false,
-      permissions: {
-        canEditRisks: false,
-        canEvaluateControls: true,
-        canExecuteAudits: true,
-        canReportFlaws: true,
-        canConvertFlaws: false,
-        canAcknowledgeAlerts: true,
-        canConfigureKRIs: true,
-        canManageRoles: false,
-        canExportReports: true,
-      }
-    },
-    {
-      id: 'usr-board',
-      name: 'Comité de Auditoría y Directorio',
-      email: 'comite.directorio@custodia-risk.com',
-      role: 'Comité de Riesgos y Directorio',
-      roleId: 'role-board',
-      department: 'Gobierno Corporativo',
-      badge: 'Alta Dirección',
-      isSystemUser: true,
-      permissions: {
-        canEditRisks: false,
-        canEvaluateControls: false,
-        canExecuteAudits: false,
-        canReportFlaws: false,
-        canConvertFlaws: false,
-        canAcknowledgeAlerts: false,
-        canConfigureKRIs: false,
-        canManageRoles: false,
-        canExportReports: true,
-      }
-    }
-  ]);
+  // Usuarios de ejemplo (uno por cargo de gobierno cooperativo)
+  readonly userProfiles = signal<UserProfile[]>(
+    ([
+      ['usr-riesgo-op', 'Dra. Elena Vasconcelos', 'elena.vasconcelos', 'role-riesgo-op', 'Jefa de Riesgo Operacional'],
+      ['usr-gerencia-general', 'Sr. Patricio Rojas', 'patricio.rojas', 'role-gerencia-general', 'Gerente General'],
+      ['usr-auditoria-interna', 'Lic. Roberto Miranda', 'roberto.miranda', 'role-auditoria-interna', 'Auditor Interno Líder'],
+      ['usr-ops', 'Ing. Carlos Mendoza', 'carlos.mendoza', 'role-ops', 'Dueño de Proceso'],
+      ['usr-ciso', 'Ing. Alejandro Vega', 'alejandro.vega', 'role-ciso', 'Ciberseguridad'],
+      ['usr-cumplimiento', 'Dra. Sofía Valenzuela', 'sofia.valenzuela', 'role-cumplimiento', 'Cumplimiento'],
+      ['usr-comite-riesgos', 'Sr. Andrés Fuentes', 'andres.fuentes', 'role-comite-riesgos', 'Presidente Comité de Riesgos'],
+      ['usr-consejo', 'Sra. Carmen Soto', 'carmen.soto', 'role-consejo', 'Presidenta del Consejo'],
+      ['usr-junta-vigilancia', 'Sra. Mónica Araya', 'monica.araya', 'role-junta-vigilancia', 'Junta de Vigilancia'],
+    ] as const).map(([id, name, mail, roleId, badge]) => {
+      const role = DEFAULT_ORGANIZATIONAL_ROLES.find(r => r.id === roleId)!;
+      return {
+        id,
+        name,
+        email: `${mail}@custodia-risk.com`,
+        role: role.title,
+        roleId,
+        department: role.department,
+        badge,
+        isSystemUser: !!role.isSystemRole,
+        permissions: { ...role.permissions },
+      } satisfies UserProfile;
+    })
+  );
 
   // Backward compatible getter for existing templates
   get availableProfiles(): UserProfile[] {
@@ -1386,13 +1313,72 @@ export class RiskDataService {
     }
   ]);
 
-  // Operational Incidents & Loss Events (Incidentes Operacionales y Pérdidas)
+  // Operational Incidents & Loss Events (Incidentes Operacionales y Base de Pérdidas)
   readonly flaws = signal<OperationalFlaw[]>([
+    {
+      id: 'inc-6',
+      title: 'Interrupción del sitio web y app de socios por falla en balanceador',
+      description: 'Los canales digitales de socios quedaron indisponibles. Las transferencias y pagos de créditos en línea no pudieron procesarse.',
+      reportedBy: 'Ing. Carlos Mendoza',
+      process: 'Ciberseguridad & TI',
+      severity: 'Crítica',
+      reportedAt: localStamp(minutesAgo(55)),
+      status: 'Pendiente de Evaluación',
+      incidentType: 'Vulnerabilidad Operativa',
+      realLossAmountUSD: 0,
+      recoveredAmountUSD: 0,
+      impactedSystemOrAccount: 'Portal web y app de socios',
+      aiSuggestedCategory: 'Fallas Tecnológicas',
+      businessLine: 'Medios y Canales de Pago',
+      baselCategory: 'Fallas Tecnológicas',
+      baselSubcategory: 'Interrupción del negocio y fallas de sistemas',
+      occurrenceDate: minutesAgo(70).slice(0, 10),
+      discoveryDate: minutesAgo(55).slice(0, 10),
+      regulatoryReport: {
+        awarenessAt: minutesAgo(50),
+        reportableToCMF: true,
+        reportableToANCI: false,
+        submissions: [],
+        updates: [
+          { at: minutesAgo(45), by: 'Ing. Carlos Mendoza', note: 'Proveedor de infraestructura confirma falla de hardware; en curso conmutación a sitio alternativo.' }
+        ],
+        status: 'Abierto'
+      }
+    },
+    {
+      id: 'inc-5',
+      title: 'Campaña de phishing suplantando a la cooperativa con robo de credenciales de socios',
+      description: 'Sitio falso con la imagen de la cooperativa capturó credenciales de socios. Se detectaron transferencias no reconocidas desde 9 cuentas de ahorro.',
+      reportedBy: 'Ing. Alejandro Vega',
+      process: 'Ciberseguridad & TI',
+      severity: 'Crítica',
+      reportedAt: localStamp(minutesAgo(25)),
+      status: 'Pendiente de Evaluación',
+      incidentType: 'Evento de Pérdida Real',
+      realLossAmountUSD: 12800,
+      recoveredAmountUSD: 3000,
+      impactedSystemOrAccount: 'Cuentas de ahorro de socios / Canal web',
+      aiSuggestedCategory: 'Fraude Externo',
+      aiSuggestedControls: ['Segundo factor de autenticación en transferencias', 'Monitoreo de dominios similares (takedown)'],
+      businessLine: 'Captaciones y Ahorro',
+      baselCategory: 'Fraude Externo',
+      baselSubcategory: 'Seguridad de los sistemas',
+      occurrenceDate: minutesAgo(180).slice(0, 10),
+      discoveryDate: minutesAgo(25).slice(0, 10),
+      regulatoryReport: {
+        awarenessAt: minutesAgo(20),
+        reportableToCMF: true,
+        reportableToANCI: true,
+        submissions: [],
+        updates: [],
+        status: 'Abierto'
+      }
+    },
     {
       id: 'inc-1',
       title: 'Falla de Control: Uso de cuenta compartida "operador_noche" en transferencias',
       description: 'Se detectó que dos analistas de guardia utilizan credenciales maestras compartidas para acelerar procesamiento sin validación dual del supervisor.',
-      reportedBy: 'Audit. Roberto Miranda',
+      reportedBy: 'Lic. Roberto Miranda',
       process: 'Tesorería',
       severity: 'Crítica',
       reportedAt: '2026-10-17 21:15',
@@ -1400,9 +1386,14 @@ export class RiskDataService {
       incidentType: 'Falla de Control',
       realLossAmountUSD: 0,
       recoveredAmountUSD: 0,
-      impactedSystemOrAccount: 'Sistema SWIFT / Mesa de Dinero',
+      impactedSystemOrAccount: 'Sistema de transferencias / Mesa de Dinero',
       aiSuggestedCategory: 'Fraude Interno',
-      aiSuggestedControls: ['Eliminar usuarios genéricos', 'Forzar autenticación nominal con token individual']
+      aiSuggestedControls: ['Eliminar usuarios genéricos', 'Forzar autenticación nominal con token individual'],
+      businessLine: 'Tesorería e Inversiones',
+      baselCategory: 'Fraude Interno',
+      baselSubcategory: 'Actividades no autorizadas',
+      occurrenceDate: '2026-10-17',
+      discoveryDate: '2026-10-17'
     },
     {
       id: 'inc-2',
@@ -1418,12 +1409,30 @@ export class RiskDataService {
       recoveredAmountUSD: 0,
       impactedSystemOrAccount: 'Clúster PostgreSQL Core',
       aiSuggestedCategory: 'Fallas Tecnológicas',
-      aiSuggestedControls: ['Auto-expansión de almacenamiento', 'Alarma crítica con escalamiento PagerDuty']
+      aiSuggestedControls: ['Auto-expansión de almacenamiento', 'Alarma crítica con escalamiento PagerDuty'],
+      businessLine: 'Soporte Corporativo',
+      baselCategory: 'Fallas Tecnológicas',
+      baselSubcategory: 'Interrupción del negocio y fallas de sistemas',
+      occurrenceDate: '2026-10-15',
+      discoveryDate: '2026-10-16',
+      regulatoryReport: {
+        awarenessAt: '2026-10-16T11:40:00.000Z',
+        reportableToCMF: true,
+        reportableToANCI: false,
+        submissions: [
+          { milestoneId: 'cmf-aviso-inicial', submittedAt: '2026-10-16T12:02:00.000Z', submittedBy: 'Dra. Elena Vasconcelos', folio: 'CMF-INC-2026-0187' }
+        ],
+        updates: [
+          { at: '2026-10-16T15:30:00.000Z', by: 'Dra. Elena Vasconcelos', note: 'Respaldo regenerado y verificado. Sin pérdida de datos de socios.' }
+        ],
+        status: 'Cerrado',
+        closedAt: '2026-10-16T18:00:00.000Z'
+      }
     },
     {
       id: 'inc-3',
-      title: 'Evento de Pérdida Real: Cobro duplicado y penalización por descalce en pasarela de pagos',
-      description: 'Falla de sincronización horaria de lotes provocó la ejecución duplicada de 14 transferencias interbancarias, causando reclamos y un cargo no recuperable de arbitraje.',
+      title: 'Evento de Pérdida Real: Cobro duplicado de cuotas de crédito por desfase en lote de pagos',
+      description: 'Falla de sincronización horaria de lotes provocó el cargo duplicado de cuotas de crédito a 14 socios, con devoluciones y un costo no recuperable de procesamiento.',
       reportedBy: 'Analista Sofía Ramos',
       process: 'Operaciones de Pago',
       severity: 'Media',
@@ -1432,14 +1441,22 @@ export class RiskDataService {
       incidentType: 'Evento de Pérdida Real',
       realLossAmountUSD: 18450,
       recoveredAmountUSD: 4200,
-      impactedSystemOrAccount: 'Pasarela Internacional XYZ',
+      impactedSystemOrAccount: 'Recaudación de cuotas / PAC',
       aiSuggestedCategory: 'Ejecución y Procesos',
-      aiSuggestedControls: ['API directa de conciliación continua', 'Penalización por SLA en contrato']
+      aiSuggestedControls: ['API directa de conciliación continua', 'Penalización por SLA en contrato'],
+      businessLine: 'Créditos de Consumo',
+      baselCategory: 'Ejecución y Procesos',
+      baselSubcategory: 'Recepción, ejecución y mantenimiento de operaciones',
+      occurrenceDate: '2026-10-14',
+      discoveryDate: '2026-10-15',
+      accountingDate: '2026-10-16',
+      accountingAccount: 'Gastos por pérdidas operacionales – procesos',
+      creditRiskBoundary: false
     },
     {
       id: 'inc-4',
-      title: 'Evento de Pérdida Real: Multa regulatoria por reporte extemporáneo de transacciones SAR',
-      description: 'Retraso de 48 horas en el despacho telemático del reporte de transacciones sospechosas debido a fallo no alertado en el script de integración de cumplimiento.',
+      title: 'Evento de Pérdida Real: Multa por envío extemporáneo de reporte de operaciones sospechosas',
+      description: 'Retraso de 48 horas en el envío del reporte de operaciones sospechosas a la UAF debido a un fallo no alertado en el script de integración de cumplimiento.',
       reportedBy: 'Oficial Laura Méndez',
       process: 'Cumplimiento Legal',
       severity: 'Alta',
@@ -1448,9 +1465,16 @@ export class RiskDataService {
       incidentType: 'Evento de Pérdida Real',
       realLossAmountUSD: 35000,
       recoveredAmountUSD: 0,
-      impactedSystemOrAccount: 'Portal Regulador UAF',
+      impactedSystemOrAccount: 'Portal UAF',
       aiSuggestedCategory: 'Cumplimiento Normativo',
-      aiSuggestedControls: ['Monitoreo continuo de deadlines regulatorios', 'Firma digital de respaldo']
+      aiSuggestedControls: ['Monitoreo continuo de deadlines regulatorios', 'Firma digital de respaldo'],
+      businessLine: 'Soporte Corporativo',
+      baselCategory: 'Cumplimiento Normativo',
+      baselSubcategory: 'Prácticas empresariales o de mercado improcedentes',
+      occurrenceDate: '2026-09-02',
+      discoveryDate: '2026-09-04',
+      accountingDate: '2026-10-14',
+      accountingAccount: 'Multas y sanciones'
     }
   ]);
 
@@ -1572,7 +1596,7 @@ export class RiskDataService {
       blockNumber: 1,
       timestamp: '2026-10-18T10:00:12Z',
       userName: 'Dra. Elena Vasconcelos',
-      userRole: 'Oficial de Riesgo (CRO)',
+      userRole: 'Jefe de Riesgo Operacional',
       action: 'CREACIÓN_RIESGO',
       entityType: 'Riesgo',
       entityCode: 'RGO-101',
@@ -1586,7 +1610,7 @@ export class RiskDataService {
       blockNumber: 2,
       timestamp: '2026-10-18T11:22:04Z',
       userName: 'Dra. Elena Vasconcelos',
-      userRole: 'Oficial de Riesgo (CRO)',
+      userRole: 'Jefe de Riesgo Operacional',
       action: 'APLICACIÓN_CONTROL',
       entityType: 'Control',
       entityCode: 'CTR-102',
@@ -2704,6 +2728,188 @@ export class RiskDataService {
   readonly lossEventsCount = computed(() =>
     this.flaws().filter(f => f.incidentType === 'Evento de Pérdida Real').length
   );
+  readonly totalNetLossesUSD = computed(() =>
+    this.flaws().reduce((sum, f) => sum + this.netLoss(f), 0)
+  );
+
+  // ===========================================================================
+  // BASE DE PÉRDIDAS OPERACIONALES
+  // ===========================================================================
+
+  /** Umbral mínimo de pérdida bruta para incluir un evento en la base de pérdidas. */
+  readonly lossRegistrationThresholdUSD = signal<number>(1000);
+
+  netLoss(f: OperationalFlaw): number {
+    return Math.max(0, (f.realLossAmountUSD || 0) - (f.recoveredAmountUSD || 0));
+  }
+
+  /** Eventos con impacto financiero (pérdida bruta > 0), ordenados por fecha de ocurrencia. */
+  readonly lossDatabase = computed(() =>
+    this.flaws()
+      .filter(f => (f.realLossAmountUSD || 0) > 0)
+      .sort((a, b) => (b.occurrenceDate || b.reportedAt).localeCompare(a.occurrenceDate || a.reportedAt))
+  );
+
+  isAboveLossThreshold(f: OperationalFlaw): boolean {
+    return (f.realLossAmountUSD || 0) >= this.lossRegistrationThresholdUSD();
+  }
+
+  /** Campos de la base de pérdidas que faltan para un evento con pérdida. */
+  missingLossFields(f: OperationalFlaw): string[] {
+    const missing: string[] = [];
+    if (!f.businessLine) missing.push('Línea de negocio');
+    if (!f.baselCategory) missing.push('Categoría Basilea');
+    if (!f.occurrenceDate) missing.push('Fecha de ocurrencia');
+    if (!f.discoveryDate) missing.push('Fecha de descubrimiento');
+    if (!f.accountingDate) missing.push('Fecha de contabilización');
+    if (!f.accountingAccount) missing.push('Cuenta contable');
+    return missing;
+  }
+
+  setLossThreshold(value: number) {
+    const v = Math.max(0, Math.round(value || 0));
+    this.lossRegistrationThresholdUSD.set(v);
+  }
+
+  // ===========================================================================
+  // REPORTE REGULATORIO DE INCIDENTES (CMF / ANCI)
+  // ===========================================================================
+
+  readonly regulatoryMilestones = signal<RegulatoryMilestoneTemplate[]>(
+    DEFAULT_REGULATORY_MILESTONES.map(m => ({ ...m }))
+  );
+
+  /** Incidentes con reporte regulatorio iniciado (abiertos primero). */
+  readonly regulatoryIncidents = computed(() =>
+    this.flaws()
+      .filter(f => !!f.regulatoryReport)
+      .sort((a, b) => {
+        const ra = a.regulatoryReport!, rb = b.regulatoryReport!;
+        if (ra.status !== rb.status) return ra.status === 'Abierto' ? -1 : 1;
+        return rb.awarenessAt.localeCompare(ra.awarenessAt);
+      })
+  );
+
+  /** Hitos aplicables a un reporte según las autoridades marcadas. */
+  milestonesFor(report: RegulatoryReport): RegulatoryMilestoneTemplate[] {
+    return this.regulatoryMilestones().filter(m =>
+      m.enabled &&
+      ((m.authority === 'CMF' && report.reportableToCMF) || (m.authority === 'ANCI' && report.reportableToANCI))
+    );
+  }
+
+  milestoneDeadline(report: RegulatoryReport, m: RegulatoryMilestoneTemplate): Date {
+    return new Date(new Date(report.awarenessAt).getTime() + m.deadlineMinutes * 60_000);
+  }
+
+  milestoneStatus(report: RegulatoryReport, m: RegulatoryMilestoneTemplate, nowMs: number): MilestoneStatus {
+    const deadline = this.milestoneDeadline(report, m).getTime();
+    const sub = report.submissions.find(s => s.milestoneId === m.id);
+    if (sub) return new Date(sub.submittedAt).getTime() <= deadline ? 'Enviado a tiempo' : 'Enviado fuera de plazo';
+    return nowMs > deadline ? 'Vencido' : 'Pendiente';
+  }
+
+  /** Resumen agregado de cumplimiento de plazos. */
+  regulatorySummary(nowMs: number) {
+    let pending = 0, overdue = 0, onTime = 0, late = 0;
+    for (const f of this.regulatoryIncidents()) {
+      const r = f.regulatoryReport!;
+      for (const m of this.milestonesFor(r)) {
+        const st = this.milestoneStatus(r, m, nowMs);
+        if (st === 'Pendiente') { if (r.status === 'Abierto') pending++; }
+        else if (st === 'Vencido') { if (r.status === 'Abierto') overdue++; }
+        else if (st === 'Enviado a tiempo') onTime++;
+        else late++;
+      }
+    }
+    const sent = onTime + late;
+    return {
+      open: this.regulatoryIncidents().filter(f => f.regulatoryReport!.status === 'Abierto').length,
+      pending,
+      overdue,
+      onTimePct: sent > 0 ? Math.round((onTime / sent) * 100) : null as number | null,
+    };
+  }
+
+  async startRegulatoryReport(flawId: string, opts: { awarenessAt: string; cmf: boolean; anci: boolean }) {
+    const flaw = this.flaws().find(f => f.id === flawId);
+    if (!flaw) throw new Error('Incidencia no encontrada');
+    if (!opts.cmf && !opts.anci) throw new Error('Debe seleccionar al menos una autoridad');
+    const report: RegulatoryReport = {
+      awarenessAt: new Date(opts.awarenessAt).toISOString(),
+      reportableToCMF: opts.cmf,
+      reportableToANCI: opts.anci,
+      submissions: flaw.regulatoryReport?.submissions ?? [],
+      updates: flaw.regulatoryReport?.updates ?? [],
+      status: flaw.regulatoryReport?.status ?? 'Abierto',
+      closedAt: flaw.regulatoryReport?.closedAt,
+    };
+    this.patchFlaw(flawId, { regulatoryReport: report });
+    const authorities = [opts.cmf ? 'CMF' : null, opts.anci ? 'ANCI' : null].filter(Boolean).join(' y ');
+    await this.appendAuditLog(
+      'INICIO_REPORTE_REGULATORIO',
+      'Reporte Regulatorio',
+      flawId,
+      `${flaw.regulatoryReport ? 'Ajuste' : 'Inicio'} de reporte regulatorio a ${authorities} por "${flaw.title}". Toma de conocimiento: ${report.awarenessAt}.`
+    );
+  }
+
+  async registerRegulatorySubmission(flawId: string, milestoneId: string, folio: string, submittedAt?: string) {
+    const flaw = this.flaws().find(f => f.id === flawId);
+    const report = flaw?.regulatoryReport;
+    const milestone = this.regulatoryMilestones().find(m => m.id === milestoneId);
+    if (!flaw || !report || !milestone) throw new Error('Reporte o hito no encontrado');
+    const submission = {
+      milestoneId,
+      submittedAt: submittedAt ? new Date(submittedAt).toISOString() : new Date().toISOString(),
+      submittedBy: this.currentProfile().name,
+      folio: folio.trim() || undefined,
+    };
+    this.patchFlaw(flawId, {
+      regulatoryReport: {
+        ...report,
+        submissions: [...report.submissions.filter(s => s.milestoneId !== milestoneId), submission],
+      },
+    });
+    const st = this.milestoneStatus({ ...report, submissions: [submission] }, milestone, Date.now());
+    await this.appendAuditLog(
+      'ENVÍO_REPORTE_REGULATORIO',
+      'Reporte Regulatorio',
+      flawId,
+      `${milestone.name} registrado${submission.folio ? ` (folio ${submission.folio})` : ''}. Resultado: ${st}.`
+    );
+  }
+
+  async addRegulatoryUpdate(flawId: string, note: string) {
+    const flaw = this.flaws().find(f => f.id === flawId);
+    const report = flaw?.regulatoryReport;
+    if (!flaw || !report || !note.trim()) return;
+    this.patchFlaw(flawId, {
+      regulatoryReport: {
+        ...report,
+        updates: [...report.updates, { at: new Date().toISOString(), by: this.currentProfile().name, note: note.trim() }],
+      },
+    });
+    await this.appendAuditLog('ACTUALIZACIÓN_REPORTE_REGULATORIO', 'Reporte Regulatorio', flawId, `Actualización: ${note.trim()}`);
+  }
+
+  async closeRegulatoryReport(flawId: string) {
+    const flaw = this.flaws().find(f => f.id === flawId);
+    const report = flaw?.regulatoryReport;
+    if (!flaw || !report) return;
+    this.patchFlaw(flawId, { regulatoryReport: { ...report, status: 'Cerrado', closedAt: new Date().toISOString() } });
+    await this.appendAuditLog('CIERRE_REPORTE_REGULATORIO', 'Reporte Regulatorio', flawId, `Reporte regulatorio de "${flaw.title}" cerrado.`);
+  }
+
+  async updateRegulatoryMilestones(list: RegulatoryMilestoneTemplate[]) {
+    this.regulatoryMilestones.set(list.map(m => ({ ...m, deadlineMinutes: Math.max(1, Math.round(m.deadlineMinutes)) })));
+    const desc = list.map(m => `${m.name}: ${m.enabled ? formatMinutes(m.deadlineMinutes) : 'desactivado'}`).join('; ');
+    await this.appendAuditLog('CONFIGURACIÓN_PLAZOS_REGULATORIOS', 'Reporte Regulatorio', 'PLAZOS', `Plazos regulatorios actualizados. ${desc}.`);
+  }
+
+  private patchFlaw(id: string, updates: Partial<OperationalFlaw>) {
+    this.flaws.update(list => list.map(f => (f.id === id ? { ...f, ...updates } : f)));
+  }
 
   // Report a new incident / flaw (Registro de Incidencia / Evento de Pérdida o Falla de Control)
   async reportFlaw(flawData: Partial<OperationalFlaw>): Promise<OperationalFlaw> {
@@ -2722,7 +2928,15 @@ export class RiskDataService {
       impactedSystemOrAccount: flawData.impactedSystemOrAccount || '',
       aiSuggestedCategory: flawData.aiSuggestedCategory,
       aiSuggestedControls: flawData.aiSuggestedControls,
-      aiAnalysis: flawData.aiAnalysis
+      aiAnalysis: flawData.aiAnalysis,
+      businessLine: flawData.businessLine,
+      baselCategory: flawData.baselCategory ?? flawData.aiSuggestedCategory,
+      baselSubcategory: flawData.baselSubcategory,
+      occurrenceDate: flawData.occurrenceDate,
+      discoveryDate: flawData.discoveryDate,
+      accountingDate: flawData.accountingDate,
+      accountingAccount: flawData.accountingAccount,
+      creditRiskBoundary: flawData.creditRiskBoundary
     };
 
     this.flaws.update(list => [newFlaw, ...list]);
@@ -2918,7 +3132,7 @@ export class RiskDataService {
   }
 
   // Export Data to CSV (Compatible with Microsoft Excel in Latin America and Global formats with UTF-8 BOM)
-  exportToExcel(type: 'risks' | 'controls' | 'audit_trail' | 'complete') {
+  exportToExcel(type: 'risks' | 'controls' | 'audit_trail' | 'loss_database' | 'complete') {
     const csvContentStart = '\uFEFF'; // UTF-8 BOM for Excel to properly render accents and special characters
     const now = new Date().toISOString().slice(0, 10);
     const filename = `Custodia_Riesgo_Operacional_${type}_${now}.csv`;
@@ -2946,6 +3160,23 @@ export class RiskDataService {
 
       this.controls().forEach(c => {
         csvContent += `"${c.code}";"${c.name.replace(/"/g, '""')}";"${c.process}";"${c.type}";"${c.automation}";"${c.frequency}";${c.designEffectiveness}%;${c.operatingEffectiveness}%;${c.totalEffectiveness}%;"${c.status}";"${c.owner}";"${c.lastTested}"\n`;
+      });
+      csvContent += '\n';
+    }
+
+    if (type === 'loss_database' || type === 'complete') {
+      const q = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      csvContent += 'BASE DE PÉRDIDAS OPERACIONALES\n';
+      csvContent += `Umbral de registro (USD):;${this.lossRegistrationThresholdUSD()}\n`;
+      csvContent += 'ID;Título;Línea de Negocio;Categoría Basilea (N1);Subcategoría (N2);Proceso;Fecha Ocurrencia;Fecha Descubrimiento;Fecha Contabilización;Cuenta Contable;Pérdida Bruta USD;Recuperaciones USD;Pérdida Neta USD;Sobre Umbral;Frontera Riesgo de Crédito;Reporte CMF;Reporte ANCI\n';
+      this.lossDatabase().forEach(f => {
+        csvContent += [
+          q(f.id), q(f.title), q(f.businessLine), q(f.baselCategory ?? f.aiSuggestedCategory), q(f.baselSubcategory), q(f.process),
+          q(f.occurrenceDate), q(f.discoveryDate), q(f.accountingDate), q(f.accountingAccount),
+          f.realLossAmountUSD || 0, f.recoveredAmountUSD || 0, this.netLoss(f),
+          q(this.isAboveLossThreshold(f) ? 'Sí' : 'No'), q(f.creditRiskBoundary ? 'Sí' : 'No'),
+          q(f.regulatoryReport?.reportableToCMF ? 'Sí' : 'No'), q(f.regulatoryReport?.reportableToANCI ? 'Sí' : 'No'),
+        ].join(';') + '\n';
       });
       csvContent += '\n';
     }

@@ -4,210 +4,30 @@
 -- Archivo: database/seed.sql
 -- ==============================================================================
 
--- 1. PUESTOS Y ROLES ORGANIZACIONALES (RBAC)
+-- 1. CARGOS DE GOBIERNO COOPERATIVO (RBAC)
 INSERT INTO organizational_roles (id, title, department, description, badge, is_system_role, permissions) VALUES
-(
-    'role-cro',
-    'Oficial Senior de Riesgo Operacional (CRO)',
-    'Gestión Integral de Riesgos',
-    'Supervisa la gobernanza corporativa de riesgos, políticas Basilea III, auditorías y calibración de apetito al riesgo.',
-    'Alta Dirección',
-    TRUE,
-    '{
-        "canEditRisks": true,
-        "canEvaluateControls": true,
-        "canExecuteAudits": true,
-        "canReportFlaws": true,
-        "canConvertFlaws": true,
-        "canAcknowledgeAlerts": true,
-        "canConfigureKRIs": true,
-        "canManageRoles": true,
-        "canExportReports": true
-    }'::jsonb
-),
-(
-    'role-internal-audit',
-    'Auditor Líder de Control Interno',
-    'Auditoría y Aseguramiento Interno',
-    'Valida el diseño y efectividad operativa de los controles, ejecuta programas periódicos y formula hallazgos.',
-    'Aseguramiento',
-    TRUE,
-    '{
-        "canEditRisks": false,
-        "canEvaluateControls": true,
-        "canExecuteAudits": true,
-        "canReportFlaws": true,
-        "canConvertFlaws": true,
-        "canAcknowledgeAlerts": true,
-        "canConfigureKRIs": false,
-        "canManageRoles": false,
-        "canExportReports": true
-    }'::jsonb
-),
-(
-    'role-ciso',
-    'Líder de Seguridad de la Información (CISO)',
-    'Ciberseguridad y Continuidad',
-    'Gestor de riesgos tecnológicos, respuesta a incidentes de seguridad, cifrado de activos y pruebas BCP/DRP.',
-    'Ciberseguridad',
-    TRUE,
-    '{
-        "canEditRisks": true,
-        "canEvaluateControls": true,
-        "canExecuteAudits": false,
-        "canReportFlaws": true,
-        "canConvertFlaws": true,
-        "canAcknowledgeAlerts": true,
-        "canConfigureKRIs": true,
-        "canManageRoles": false,
-        "canExportReports": true
-    }'::jsonb
-),
-(
-    'role-risk-analyst',
-    'Analista de Riesgo Operacional',
-    'Gestión Integral de Riesgos',
-    'Monitoreo continuo de KRIs, calificación de matrices 4x4, seguimiento de planes de mitigación e investigación.',
-    'Operaciones',
-    TRUE,
-    '{
-        "canEditRisks": true,
-        "canEvaluateControls": true,
-        "canExecuteAudits": false,
-        "canReportFlaws": true,
-        "canConvertFlaws": true,
-        "canAcknowledgeAlerts": true,
-        "canConfigureKRIs": false,
-        "canManageRoles": false,
-        "canExportReports": true
-    }'::jsonb
-),
-(
-    'role-aml',
-    'Jefe de Cumplimiento Normativo (AML/KYC)',
-    'Prevención de Lavado y Cumplimiento Legal',
-    'Supervisa el marco regulatorio Basilea, prevención de fraude, reportes regulatorios y listas de control.',
-    'Cumplimiento Legal',
-    FALSE,
-    '{
-        "canEditRisks": false,
-        "canEvaluateControls": true,
-        "canExecuteAudits": true,
-        "canReportFlaws": true,
-        "canConvertFlaws": false,
-        "canAcknowledgeAlerts": true,
-        "canConfigureKRIs": true,
-        "canManageRoles": false,
-        "canExportReports": true
-    }'::jsonb
-),
-(
-    'role-board',
-    'Comité de Riesgos y Directorio',
-    'Gobierno Corporativo',
-    'Visualización ejecutiva de mapas de calor, reportes agregados y dictámenes de auditoría externa.',
-    'Alta Dirección',
-    TRUE,
-    '{
-        "canEditRisks": false,
-        "canEvaluateControls": false,
-        "canExecuteAudits": false,
-        "canReportFlaws": false,
-        "canConvertFlaws": false,
-        "canAcknowledgeAlerts": false,
-        "canConfigureKRIs": false,
-        "canManageRoles": false,
-        "canExportReports": true
-    }'::jsonb
-)
+('role-riesgo-op', 'Jefe de Riesgo Operacional', 'Gerencia de Riesgos', 'Administra el marco de gestión de riesgo operacional, la base de pérdidas y el reporte de incidentes a la CMF y la ANCI.', 'Super Administrador', TRUE, '{"canEditRisks": true, "canEvaluateControls": true, "canExecuteAudits": true, "canReportFlaws": true, "canConvertFlaws": true, "canAcknowledgeAlerts": true, "canConfigureKRIs": true, "canManageRoles": true, "canExportReports": true, "canManageRegulatoryReports": true}'::jsonb),
+('role-gerencia-general', 'Gerente General', 'Gerencia General', 'Responsable ante el Consejo de la implementación del marco de riesgos; toma conocimiento y autoriza los reportes de incidentes al regulador.', 'Alta Administración', TRUE, '{"canEditRisks": true, "canEvaluateControls": false, "canExecuteAudits": false, "canReportFlaws": true, "canConvertFlaws": true, "canAcknowledgeAlerts": true, "canConfigureKRIs": false, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": true}'::jsonb),
+('role-auditoria-interna', 'Auditor Interno', 'Auditoría Interna', 'Evalúa de forma independiente la efectividad de controles y del marco de gestión; reporta al Comité de Auditoría y al Consejo.', 'Tercera Línea', TRUE, '{"canEditRisks": false, "canEvaluateControls": true, "canExecuteAudits": true, "canReportFlaws": true, "canConvertFlaws": false, "canAcknowledgeAlerts": true, "canConfigureKRIs": false, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": false}'::jsonb),
+('role-ops', 'Gerente de Operaciones', 'Gerencia de Operaciones y Tecnología', 'Dueño de procesos operativos (créditos, captaciones, pagos y sucursales); mitiga riesgos de primera línea y reporta eventos de pérdida.', 'Dueño de Proceso', TRUE, '{"canEditRisks": true, "canEvaluateControls": false, "canExecuteAudits": false, "canReportFlaws": true, "canConvertFlaws": true, "canAcknowledgeAlerts": true, "canConfigureKRIs": true, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": false}'::jsonb),
+('role-ciso', 'Oficial de Seguridad de la Información (CISO)', 'Seguridad de la Información y Ciberseguridad', 'Gestiona controles de ciberseguridad y la notificación de ciberincidentes a la ANCI y a la CMF.', 'Ciberseguridad', FALSE, '{"canEditRisks": true, "canEvaluateControls": true, "canExecuteAudits": true, "canReportFlaws": true, "canConvertFlaws": true, "canAcknowledgeAlerts": true, "canConfigureKRIs": true, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": true}'::jsonb),
+('role-cumplimiento', 'Oficial de Cumplimiento', 'Cumplimiento y Prevención de Lavado de Activos', 'Supervisa el cumplimiento normativo, la prevención de lavado de activos (Ley 19.913 / UAF) y los reportes regulatorios.', 'Cumplimiento', FALSE, '{"canEditRisks": false, "canEvaluateControls": true, "canExecuteAudits": true, "canReportFlaws": true, "canConvertFlaws": false, "canAcknowledgeAlerts": true, "canConfigureKRIs": true, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": true}'::jsonb),
+('role-comite-riesgos', 'Comité de Riesgos', 'Gobierno Corporativo', 'Instancia de consejeros y alta administración que revisa el perfil de riesgo, el apetito de riesgo y los incidentes relevantes.', 'Gobierno Corporativo', TRUE, '{"canEditRisks": false, "canEvaluateControls": false, "canExecuteAudits": false, "canReportFlaws": false, "canConvertFlaws": false, "canAcknowledgeAlerts": false, "canConfigureKRIs": false, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": false}'::jsonb),
+('role-consejo', 'Consejo de Administración', 'Gobierno Corporativo', 'Órgano responsable de aprobar las políticas de gestión de riesgos y de velar por su cumplimiento.', 'Consejo', TRUE, '{"canEditRisks": false, "canEvaluateControls": false, "canExecuteAudits": false, "canReportFlaws": false, "canConvertFlaws": false, "canAcknowledgeAlerts": false, "canConfigureKRIs": false, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": false}'::jsonb),
+('role-junta-vigilancia', 'Junta de Vigilancia', 'Gobierno Corporativo', 'Órgano fiscalizador interno de la cooperativa; revisa la administración, los estados financieros y los informes de auditoría.', 'Fiscalización Interna', TRUE, '{"canEditRisks": false, "canEvaluateControls": false, "canExecuteAudits": false, "canReportFlaws": false, "canConvertFlaws": false, "canAcknowledgeAlerts": false, "canConfigureKRIs": false, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": false}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
--- 2. USUARIOS Y COLABORADORES INICIALES
+-- 2. USUARIOS DE EJEMPLO (UNO POR CARGO)
 INSERT INTO user_profiles (id, name, email, role_id, role_title, department, badge, is_system_user, permissions) VALUES
-(
-    'usr-valeria',
-    'Valeria Cifuentes',
-    'valeria.cifuentes@custodia-risk.com',
-    'role-cro',
-    'Oficial Senior de Riesgo Operacional (CRO)',
-    'Gestión Integral de Riesgos',
-    'Alta Dirección',
-    TRUE,
-    '{
-        "canEditRisks": true,
-        "canEvaluateControls": true,
-        "canExecuteAudits": true,
-        "canReportFlaws": true,
-        "canConvertFlaws": true,
-        "canAcknowledgeAlerts": true,
-        "canConfigureKRIs": true,
-        "canManageRoles": true,
-        "canExportReports": true
-    }'::jsonb
-),
-(
-    'usr-carlos',
-    'Carlos Benítez',
-    'carlos.benitez@custodia-risk.com',
-    'role-internal-audit',
-    'Auditor Líder de Control Interno',
-    'Auditoría y Aseguramiento Interno',
-    'Aseguramiento',
-    TRUE,
-    '{
-        "canEditRisks": false,
-        "canEvaluateControls": true,
-        "canExecuteAudits": true,
-        "canReportFlaws": true,
-        "canConvertFlaws": true,
-        "canAcknowledgeAlerts": true,
-        "canConfigureKRIs": false,
-        "canManageRoles": false,
-        "canExportReports": true
-    }'::jsonb
-),
-(
-    'usr-mariana',
-    'Mariana Restrepo',
-    'mariana.restrepo@custodia-risk.com',
-    'role-ciso',
-    'Líder de Seguridad de la Información (CISO)',
-    'Ciberseguridad y Continuidad',
-    'Ciberseguridad',
-    TRUE,
-    '{
-        "canEditRisks": true,
-        "canEvaluateControls": true,
-        "canExecuteAudits": false,
-        "canReportFlaws": true,
-        "canConvertFlaws": true,
-        "canAcknowledgeAlerts": true,
-        "canConfigureKRIs": true,
-        "canManageRoles": false,
-        "canExportReports": true
-    }'::jsonb
-),
-(
-    'usr-diego',
-    'Diego Salcedo',
-    'diego.salcedo@custodia-risk.com',
-    'role-risk-analyst',
-    'Analista de Riesgo Operacional',
-    'Gestión Integral de Riesgos',
-    'Operaciones',
-    TRUE,
-    '{
-        "canEditRisks": true,
-        "canEvaluateControls": true,
-        "canExecuteAudits": false,
-        "canReportFlaws": true,
-        "canConvertFlaws": true,
-        "canAcknowledgeAlerts": true,
-        "canConfigureKRIs": false,
-        "canManageRoles": false,
-        "canExportReports": true
-    }'::jsonb
-)
+('usr-riesgo-op', 'Dra. Elena Vasconcelos', 'elena.vasconcelos@custodia-risk.com', 'role-riesgo-op', 'Jefe de Riesgo Operacional', 'Gerencia de Riesgos', 'Jefa de Riesgo Operacional', TRUE, '{"canEditRisks": true, "canEvaluateControls": true, "canExecuteAudits": true, "canReportFlaws": true, "canConvertFlaws": true, "canAcknowledgeAlerts": true, "canConfigureKRIs": true, "canManageRoles": true, "canExportReports": true, "canManageRegulatoryReports": true}'::jsonb),
+('usr-gerencia-general', 'Sr. Patricio Rojas', 'patricio.rojas@custodia-risk.com', 'role-gerencia-general', 'Gerente General', 'Gerencia General', 'Gerente General', TRUE, '{"canEditRisks": true, "canEvaluateControls": false, "canExecuteAudits": false, "canReportFlaws": true, "canConvertFlaws": true, "canAcknowledgeAlerts": true, "canConfigureKRIs": false, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": true}'::jsonb),
+('usr-auditoria-interna', 'Lic. Roberto Miranda', 'roberto.miranda@custodia-risk.com', 'role-auditoria-interna', 'Auditor Interno', 'Auditoría Interna', 'Auditor Interno Líder', TRUE, '{"canEditRisks": false, "canEvaluateControls": true, "canExecuteAudits": true, "canReportFlaws": true, "canConvertFlaws": false, "canAcknowledgeAlerts": true, "canConfigureKRIs": false, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": false}'::jsonb),
+('usr-ops', 'Ing. Carlos Mendoza', 'carlos.mendoza@custodia-risk.com', 'role-ops', 'Gerente de Operaciones', 'Gerencia de Operaciones y Tecnología', 'Dueño de Proceso', TRUE, '{"canEditRisks": true, "canEvaluateControls": false, "canExecuteAudits": false, "canReportFlaws": true, "canConvertFlaws": true, "canAcknowledgeAlerts": true, "canConfigureKRIs": true, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": false}'::jsonb),
+('usr-ciso', 'Ing. Alejandro Vega', 'alejandro.vega@custodia-risk.com', 'role-ciso', 'Oficial de Seguridad de la Información (CISO)', 'Seguridad de la Información y Ciberseguridad', 'Ciberseguridad', FALSE, '{"canEditRisks": true, "canEvaluateControls": true, "canExecuteAudits": true, "canReportFlaws": true, "canConvertFlaws": true, "canAcknowledgeAlerts": true, "canConfigureKRIs": true, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": true}'::jsonb),
+('usr-cumplimiento', 'Dra. Sofía Valenzuela', 'sofia.valenzuela@custodia-risk.com', 'role-cumplimiento', 'Oficial de Cumplimiento', 'Cumplimiento y Prevención de Lavado de Activos', 'Cumplimiento', FALSE, '{"canEditRisks": false, "canEvaluateControls": true, "canExecuteAudits": true, "canReportFlaws": true, "canConvertFlaws": false, "canAcknowledgeAlerts": true, "canConfigureKRIs": true, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": true}'::jsonb),
+('usr-comite-riesgos', 'Sr. Andrés Fuentes', 'andres.fuentes@custodia-risk.com', 'role-comite-riesgos', 'Comité de Riesgos', 'Gobierno Corporativo', 'Presidente Comité de Riesgos', TRUE, '{"canEditRisks": false, "canEvaluateControls": false, "canExecuteAudits": false, "canReportFlaws": false, "canConvertFlaws": false, "canAcknowledgeAlerts": false, "canConfigureKRIs": false, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": false}'::jsonb),
+('usr-consejo', 'Sra. Carmen Soto', 'carmen.soto@custodia-risk.com', 'role-consejo', 'Consejo de Administración', 'Gobierno Corporativo', 'Presidenta del Consejo', TRUE, '{"canEditRisks": false, "canEvaluateControls": false, "canExecuteAudits": false, "canReportFlaws": false, "canConvertFlaws": false, "canAcknowledgeAlerts": false, "canConfigureKRIs": false, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": false}'::jsonb),
+('usr-junta-vigilancia', 'Sra. Mónica Araya', 'monica.araya@custodia-risk.com', 'role-junta-vigilancia', 'Junta de Vigilancia', 'Gobierno Corporativo', 'Junta de Vigilancia', TRUE, '{"canEditRisks": false, "canEvaluateControls": false, "canExecuteAudits": false, "canReportFlaws": false, "canConvertFlaws": false, "canAcknowledgeAlerts": false, "canConfigureKRIs": false, "canManageRoles": false, "canExportReports": true, "canManageRegulatoryReports": false}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
 -- 3. CONTROLES OPERACIONALES
@@ -917,3 +737,38 @@ INSERT INTO system_settings (key, value) VALUES
     }'::jsonb
 )
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+
+
+-- 12. BASE DE PÉRDIDAS Y REPORTE REGULATORIO (FASE 1 · NORMATIVA CMF PARA CACs)
+UPDATE operational_flaws SET
+    business_line = 'Medios y Canales de Pago', basel_category = 'Fallas Tecnológicas',
+    basel_subcategory = 'Interrupción del negocio y fallas de sistemas',
+    occurrence_date = '2026-10-17', discovery_date = '2026-10-17'
+WHERE id = 'flw-1';
+
+UPDATE operational_flaws SET
+    business_line = 'Medios y Canales de Pago', basel_category = 'Ejecución y Procesos',
+    basel_subcategory = 'Recepción, ejecución y mantenimiento de operaciones',
+    occurrence_date = '2026-10-19', discovery_date = '2026-10-19', accounting_date = '2026-10-20',
+    accounting_account = 'Gastos por pérdidas operacionales – procesos'
+WHERE id = 'flw-2';
+
+-- Plazos referenciales: validar con Cumplimiento contra la RAN CACs y la Ley 21.663.
+INSERT INTO regulatory_milestone_templates (id, authority, name, deadline_minutes, enabled) VALUES
+('cmf-aviso-inicial', 'CMF', 'Aviso inicial a la CMF', 30, TRUE),
+('anci-alerta-temprana', 'ANCI', 'Alerta temprana a la ANCI (CSIRT Nacional)', 180, TRUE),
+('anci-segundo-informe', 'ANCI', 'Segundo informe a la ANCI', 4320, TRUE),
+('anci-informe-final', 'ANCI', 'Informe final a la ANCI', 21600, TRUE)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO regulatory_reports (flaw_id, awareness_at, reportable_to_cmf, reportable_to_anci, status) VALUES
+('flw-1', '2026-10-17 14:40:00-03', TRUE, FALSE, 'Cerrado')
+ON CONFLICT (flaw_id) DO NOTHING;
+
+INSERT INTO regulatory_submissions (flaw_id, milestone_id, submitted_at, submitted_by, folio) VALUES
+('flw-1', 'cmf-aviso-inicial', '2026-10-17 15:02:00-03', 'Dra. Elena Vasconcelos', 'CMF-INC-2026-0187')
+ON CONFLICT (flaw_id, milestone_id) DO NOTHING;
+
+INSERT INTO system_settings (key, value) VALUES
+('loss_registration_threshold_usd', '1000'::jsonb)
+ON CONFLICT (key) DO NOTHING;
