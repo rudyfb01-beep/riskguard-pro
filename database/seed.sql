@@ -772,3 +772,71 @@ ON CONFLICT (flaw_id, milestone_id) DO NOTHING;
 INSERT INTO system_settings (key, value) VALUES
 ('loss_registration_threshold_usd', '1000'::jsonb)
 ON CONFLICT (key) DO NOTHING;
+
+-- 13. PROVEEDORES Y CONTINUIDAD DEL NEGOCIO (FASE 2) · datos ficticios de ejemplo
+INSERT INTO service_providers (id, code, name, tax_id, service_description, category, criticality, internal_owner, supported_processes, status, is_cloud, cloud_model, data_location, data_country, handles_member_data, uses_subcontractors, contract_start, contract_end, annual_cost_usd, clauses, last_assessment_date, assessment_score, has_exit_plan, exit_plan_notes, committed_rto_hours) VALUES
+('prv-1', 'PRV-001', 'Núcleo Financiero SpA', '76.111.222-3', 'Core financiero en modalidad SaaS: cuentas de ahorro, créditos, cuotas de participación y contabilidad.', 'Core financiero / Procesamiento de datos', 'Crítico', 'Ing. Carlos Mendoza', ARRAY['Créditos y Cobranza', 'Captaciones y Ahorro', 'Operaciones de Pago']::text[], 'Activo', TRUE, 'SaaS', 'Chile', NULL, TRUE, TRUE, '2023-01-01', '2027-12-31', 420000, '{"regulatorAccess":true,"auditRights":true,"confidentiality":true,"incidentNotification":true,"continuity":true,"serviceLevels":true,"subcontracting":true,"dataLocation":true,"termination":true}'::jsonb, '2026-03-10', 88, TRUE, 'Migración a proveedor alternativo en 9 meses con extracción completa de datos en formato estándar.', 4),
+('prv-2', 'PRV-002', 'NubeSur Cloud Services', '77.333.444-5', 'Infraestructura en la nube (IaaS) para el sitio alternativo de recuperación y respaldos.', 'Servicios en la nube', 'Crítico', 'Ing. Alejandro Vega', ARRAY['Infraestructura Cloud', 'Operaciones de Pago']::text[], 'Activo', TRUE, 'IaaS', 'Extranjero', 'Estados Unidos', TRUE, FALSE, '2024-04-01', '2027-03-31', 185000, '{"regulatorAccess":false,"auditRights":true,"confidentiality":true,"incidentNotification":true,"continuity":true,"serviceLevels":true,"subcontracting":true,"dataLocation":true,"termination":true}'::jsonb, '2025-08-20', 74, FALSE, NULL, 8),
+('prv-3', 'PRV-003', 'Pagos Andinos S.A.', '96.555.666-7', 'Recaudación de cuotas de crédito por PAC/PAT y botón de pago.', 'Medios de pago y recaudación', 'Alto', 'Ing. Carlos Mendoza', ARRAY['Operaciones de Pago', 'Créditos y Cobranza']::text[], 'Activo', FALSE, NULL, 'Chile', NULL, TRUE, FALSE, '2021-12-16', '2026-12-15', 64000, '{"regulatorAccess":true,"auditRights":true,"confidentiality":true,"incidentNotification":true,"continuity":true,"serviceLevels":true,"subcontracting":true,"dataLocation":true,"termination":false}'::jsonb, '2026-05-02', 79, TRUE, 'Recaudación transitoria vía cajas de sucursales.', 12),
+('prv-4', 'PRV-004', 'Cobranzas del Pacífico Ltda.', '78.777.888-9', 'Cobranza prejudicial y judicial de cartera morosa.', 'Cobranza externa', 'Medio', 'Dra. Sofía Valenzuela', ARRAY['Créditos y Cobranza']::text[], 'Activo', FALSE, NULL, 'Chile', NULL, TRUE, TRUE, '2025-02-01', '2027-01-31', 38000, '{"regulatorAccess":true,"auditRights":false,"confidentiality":true,"incidentNotification":false,"continuity":true,"serviceLevels":true,"subcontracting":false,"dataLocation":true,"termination":true}'::jsonb, NULL, NULL, FALSE, NULL, NULL),
+('prv-5', 'PRV-005', 'Centinela SOC SpA', '76.999.000-1', 'Centro de operaciones de seguridad 24x7: monitoreo, detección y respuesta a ciberincidentes.', 'Ciberseguridad (SOC / monitoreo)', 'Alto', 'Ing. Alejandro Vega', ARRAY['Ciberseguridad & TI']::text[], 'Activo', TRUE, 'SaaS', 'Chile', NULL, FALSE, FALSE, '2025-07-01', '2028-06-30', 96000, '{"regulatorAccess":true,"auditRights":true,"confidentiality":true,"incidentNotification":true,"continuity":true,"serviceLevels":true,"subcontracting":true,"dataLocation":true,"termination":true}'::jsonb, '2026-07-15', 92, TRUE, 'Traspaso de casos de uso y reglas de correlación al SOC alternativo.', 2),
+('prv-6', 'PRV-006', 'Fono Socios Contact Center', '77.222.111-0', 'Atención telefónica de socios y bloqueo de tarjetas fuera de horario.', 'Atención telefónica / Contact center', 'Medio', 'Sr. Patricio Rojas', ARRAY['Atención a Socios y Sucursales']::text[], 'En término', FALSE, NULL, 'Chile', NULL, TRUE, FALSE, '2022-10-01', '2026-09-30', 52000, '{"regulatorAccess":true,"auditRights":true,"confidentiality":true,"incidentNotification":true,"continuity":false,"serviceLevels":true,"subcontracting":true,"dataLocation":true,"termination":true}'::jsonb, '2025-11-05', 68, TRUE, 'Internalización del servicio en curso.', NULL)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO bia_processes (id, name, owner, business_line, description, impact_financial, impact_members, impact_regulatory, impact_reputational, mtpd_hours, rto_hours, rpo_hours, systems, minimum_staff, alternate_site, last_review_date) VALUES
+('bia-1', 'Otorgamiento de créditos de consumo', 'Ing. Carlos Mendoza', 'Créditos de Consumo', 'Evaluación, aprobación, curse y desembolso de créditos a socios.', 3, 3, 2, 3, 48, 24, 4, ARRAY['Core financiero', 'Motor de evaluación crediticia']::text[], 6, 'Sucursal Casa Matriz / teletrabajo', '2026-04-15'),
+('bia-2', 'Depósitos y retiros de ahorro', 'Ing. Carlos Mendoza', 'Captaciones y Ahorro', 'Depósitos, retiros y consultas de saldo de cuentas de ahorro en sucursales y canales digitales.', 4, 4, 4, 4, 8, 4, 0.25, ARRAY['Core financiero', 'Plataforma de cajas']::text[], 12, 'Sitio alterno en la nube + sucursales de respaldo', '2026-04-15'),
+('bia-3', 'Transferencias y pagos en canales digitales', 'Ing. Alejandro Vega', 'Medios y Canales de Pago', 'Transferencias electrónicas, pagos de créditos y servicios desde web y app de socios.', 4, 4, 3, 4, 6, 4, 0.25, ARRAY['Portal web y app de socios', 'Core financiero', 'Switch de transferencias']::text[], 4, 'Sitio alterno en la nube', '2026-04-15'),
+('bia-4', 'Recaudación de cuotas de crédito', 'Ing. Carlos Mendoza', 'Créditos de Consumo', 'Cobro de cuotas por descuento por planilla, PAC/PAT y botón de pago.', 3, 3, 2, 2, 72, 24, 24, ARRAY['Core financiero', 'Plataforma de recaudación']::text[], 3, 'Cajas de sucursales', '2026-04-15'),
+('bia-5', 'Cobranza de cartera morosa', 'Dra. Sofía Valenzuela', 'Créditos de Consumo', 'Gestión de cobranza prejudicial y judicial.', 2, 2, 2, 2, 120, 72, 24, ARRAY['Core financiero', 'Sistema de cobranza']::text[], 2, 'Teletrabajo', '2026-04-15'),
+('bia-6', 'Reportes normativos a la CMF y la UAF', 'Dra. Sofía Valenzuela', 'Soporte Corporativo', 'Generación y envío de archivos normativos y reportes de operaciones sospechosas.', 2, 1, 4, 3, 48, 24, 24, ARRAY['Core financiero', 'Plataforma de cumplimiento']::text[], 2, 'Teletrabajo', '2026-04-15'),
+('bia-7', 'Atención a socios en sucursales y contact center', 'Sr. Patricio Rojas', 'Captaciones y Ahorro', 'Atención presencial y telefónica, bloqueo de tarjetas y reclamos.', 2, 4, 2, 3, 24, 12, 4, ARRAY['Plataforma de atención', 'Telefonía IP']::text[], 10, 'Sucursales cercanas', '2025-06-10')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO bia_process_providers (bia_process_id, provider_id) VALUES
+('bia-1', 'prv-1'),
+('bia-2', 'prv-1'),
+('bia-2', 'prv-2'),
+('bia-3', 'prv-1'),
+('bia-3', 'prv-2'),
+('bia-4', 'prv-3'),
+('bia-5', 'prv-4'),
+('bia-7', 'prv-6')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO continuity_plans (id, code, name, type, owner, version, approved_by, approval_date, next_review_date, status) VALUES
+('pln-1', 'BCP-01', 'Plan de continuidad de operaciones con socios', 'Plan de Continuidad (BCP)', 'Ing. Carlos Mendoza', '3.1', 'Consejo de Administración', '2026-03-25', '2027-03-25', 'Vigente'),
+('pln-2', 'DRP-01', 'Recuperación del centro de datos y core financiero', 'Recuperación ante Desastres (DRP)', 'Ing. Alejandro Vega', '2.4', 'Gerente General', '2025-09-15', '2026-09-15', 'En actualización'),
+('pln-3', 'CRI-01', 'Plan de gestión de crisis', 'Gestión de Crisis', 'Sr. Patricio Rojas', '1.2', 'Consejo de Administración', '2026-01-20', '2027-01-20', 'Vigente')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO continuity_plan_processes (plan_id, bia_process_id) VALUES
+('pln-1', 'bia-2'),
+('pln-1', 'bia-3'),
+('pln-1', 'bia-4'),
+('pln-1', 'bia-7'),
+('pln-2', 'bia-1'),
+('pln-2', 'bia-2'),
+('pln-2', 'bia-3')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO continuity_tests (id, plan_id, test_date, type, scenario, bia_process_id, achieved_rto_hours, result, findings, actions) VALUES
+('tst-1', 'pln-2', '2026-06-14', 'Prueba técnica DRP', 'Caída del centro de datos principal y conmutación al sitio alterno en la nube.', 'bia-3', 6.5, 'Con observaciones', 'La restauración de la base del switch de transferencias tomó 4 horas más de lo previsto.', 'Automatizar la restauración y repetir la prueba antes de diciembre.'),
+('tst-2', 'pln-1', '2026-08-22', 'Simulacro', 'Corte eléctrico prolongado en Casa Matriz.', 'bia-7', 3, 'Exitosa', 'Atención derivada a sucursales cercanas en 3 horas.', 'Actualizar el árbol de llamadas del personal.')
+ON CONFLICT (id) DO NOTHING;
+
+UPDATE operational_flaws SET provider_id = 'prv-3' WHERE id = 'flw-2' AND provider_id IS NULL;
+
+-- Permisos nuevos de la fase 2
+UPDATE organizational_roles
+SET permissions = permissions || jsonb_build_object(
+    'canManageProviders', id IN ('role-riesgo-op', 'role-gerencia-general', 'role-ops', 'role-ciso'),
+    'canManageContinuity', id IN ('role-riesgo-op', 'role-gerencia-general', 'role-ops', 'role-ciso'))
+WHERE NOT (permissions ? 'canManageProviders');
+
+UPDATE user_profiles u
+SET permissions = u.permissions || jsonb_build_object(
+    'canManageProviders', COALESCE((r.permissions->>'canManageProviders')::boolean, FALSE),
+    'canManageContinuity', COALESCE((r.permissions->>'canManageContinuity')::boolean, FALSE))
+FROM organizational_roles r
+WHERE r.id = u.role_id AND NOT (u.permissions ? 'canManageProviders');

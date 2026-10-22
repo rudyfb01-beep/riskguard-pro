@@ -589,3 +589,115 @@ FROM regulatory_reports r
 JOIN regulatory_milestone_templates t
   ON t.enabled AND ((t.authority = 'CMF' AND r.reportable_to_cmf) OR (t.authority = 'ANCI' AND r.reportable_to_anci))
 LEFT JOIN regulatory_submissions s ON s.flaw_id = r.flaw_id AND s.milestone_id = t.id;
+
+-- ==============================================================================
+-- 19. PROVEEDORES, EXTERNALIZACIÓN Y CONTINUIDAD DEL NEGOCIO (FASE 2)
+-- Idempotente: puede ejecutarse sobre una base existente.
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS service_providers (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    tax_id VARCHAR(20),
+    service_description TEXT NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    criticality VARCHAR(20) NOT NULL CHECK (criticality IN ('Crítico', 'Alto', 'Medio', 'Bajo')),
+    internal_owner VARCHAR(255),
+    supported_processes TEXT[] NOT NULL DEFAULT '{}',
+    status VARCHAR(20) NOT NULL DEFAULT 'Activo' CHECK (status IN ('Activo', 'En evaluación', 'En término')),
+    is_cloud BOOLEAN NOT NULL DEFAULT FALSE,
+    cloud_model VARCHAR(10) CHECK (cloud_model IN ('IaaS', 'PaaS', 'SaaS')),
+    data_location VARCHAR(20) NOT NULL DEFAULT 'Chile' CHECK (data_location IN ('Chile', 'Extranjero')),
+    data_country VARCHAR(100),
+    handles_member_data BOOLEAN NOT NULL DEFAULT FALSE,
+    uses_subcontractors BOOLEAN NOT NULL DEFAULT FALSE,
+    contract_start DATE,
+    contract_end DATE NOT NULL,
+    annual_cost_usd NUMERIC(15,2) NOT NULL DEFAULT 0,
+    clauses JSONB NOT NULL DEFAULT '{}'::jsonb,
+    last_assessment_date DATE,
+    assessment_score SMALLINT CHECK (assessment_score BETWEEN 0 AND 100),
+    has_exit_plan BOOLEAN NOT NULL DEFAULT FALSE,
+    exit_plan_notes TEXT,
+    committed_rto_hours NUMERIC(8,2),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_provider_contract_dates CHECK (contract_start IS NULL OR contract_end >= contract_start)
+);
+
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS provider_id VARCHAR(64) REFERENCES service_providers(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS bia_processes (
+    id VARCHAR(64) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    owner VARCHAR(255),
+    business_line VARCHAR(100),
+    description TEXT,
+    impact_financial SMALLINT NOT NULL CHECK (impact_financial BETWEEN 1 AND 4),
+    impact_members SMALLINT NOT NULL CHECK (impact_members BETWEEN 1 AND 4),
+    impact_regulatory SMALLINT NOT NULL CHECK (impact_regulatory BETWEEN 1 AND 4),
+    impact_reputational SMALLINT NOT NULL CHECK (impact_reputational BETWEEN 1 AND 4),
+    mtpd_hours NUMERIC(8,2) NOT NULL,
+    rto_hours NUMERIC(8,2) NOT NULL,
+    rpo_hours NUMERIC(8,2) NOT NULL,
+    systems TEXT[] NOT NULL DEFAULT '{}',
+    minimum_staff INTEGER NOT NULL DEFAULT 0,
+    alternate_site VARCHAR(255),
+    last_review_date DATE NOT NULL,
+    CONSTRAINT chk_bia_rto_mtpd CHECK (rto_hours <= mtpd_hours)
+);
+
+CREATE TABLE IF NOT EXISTS bia_process_providers (
+    bia_process_id VARCHAR(64) REFERENCES bia_processes(id) ON DELETE CASCADE,
+    provider_id VARCHAR(64) REFERENCES service_providers(id) ON DELETE CASCADE,
+    PRIMARY KEY (bia_process_id, provider_id)
+);
+
+CREATE TABLE IF NOT EXISTS continuity_plans (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(60) NOT NULL,
+    owner VARCHAR(255),
+    version VARCHAR(20) NOT NULL DEFAULT '1.0',
+    approved_by VARCHAR(100),
+    approval_date DATE,
+    next_review_date DATE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'Borrador' CHECK (status IN ('Vigente', 'En actualización', 'Borrador'))
+);
+
+CREATE TABLE IF NOT EXISTS continuity_plan_processes (
+    plan_id VARCHAR(64) REFERENCES continuity_plans(id) ON DELETE CASCADE,
+    bia_process_id VARCHAR(64) REFERENCES bia_processes(id) ON DELETE CASCADE,
+    PRIMARY KEY (plan_id, bia_process_id)
+);
+
+CREATE TABLE IF NOT EXISTS continuity_tests (
+    id VARCHAR(64) PRIMARY KEY,
+    plan_id VARCHAR(64) NOT NULL REFERENCES continuity_plans(id) ON DELETE CASCADE,
+    test_date DATE NOT NULL,
+    type VARCHAR(60) NOT NULL,
+    scenario TEXT NOT NULL,
+    bia_process_id VARCHAR(64) REFERENCES bia_processes(id) ON DELETE SET NULL,
+    achieved_rto_hours NUMERIC(8,2),
+    result VARCHAR(30) NOT NULL CHECK (result IN ('Exitosa', 'Con observaciones', 'Fallida')),
+    findings TEXT,
+    actions TEXT
+);
+
+-- Vista: procesos cuyo proveedor compromete un RTO mayor al requerido
+CREATE OR REPLACE VIEW v_provider_rto_gaps AS
+SELECT b.id AS bia_process_id, b.name AS process, b.rto_hours AS required_rto_hours,
+       p.code AS provider_code, p.name AS provider, p.committed_rto_hours
+FROM bia_processes b
+JOIN bia_process_providers bp ON bp.bia_process_id = b.id
+JOIN service_providers p ON p.id = bp.provider_id
+WHERE p.committed_rto_hours IS NOT NULL AND p.committed_rto_hours > b.rto_hours;
+
+-- Vista: contratos que vencen en los próximos 90 días o ya vencidos
+CREATE OR REPLACE VIEW v_provider_contract_expiry AS
+SELECT code, name, criticality, contract_end, (contract_end - CURRENT_DATE) AS days_to_end, status
+FROM service_providers
+WHERE contract_end <= CURRENT_DATE + 90
+ORDER BY contract_end;

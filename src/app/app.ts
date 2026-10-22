@@ -18,6 +18,8 @@ import { KriThresholdModal } from './components/kri-threshold-modal';
 import { RolesManagementModal } from './components/roles-management-modal';
 import { AlertSettingsModal } from './components/alert-settings-modal';
 import { RegulatoryReporting } from './components/regulatory-reporting';
+import { ProvidersPanel } from './components/providers-panel';
+import { ContinuityPanel } from './components/continuity-panel';
 import { Control, KriDefinition, OperationalFlaw, Risk } from './models/risk.model';
 
 export type ActiveTab =
@@ -29,6 +31,8 @@ export type ActiveTab =
   | 'incidentes-perdidas'
   | 'falencias'
   | 'reportes-regulatorios'
+  | 'proveedores'
+  | 'continuidad'
   | 'alertas-kri'
   | 'auditorias'
   | 'bitacora'
@@ -56,6 +60,8 @@ export type ActiveTab =
     RolesManagementModal,
     AlertSettingsModal,
     RegulatoryReporting,
+    ProvidersPanel,
+    ContinuityPanel,
   ],
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -105,6 +111,10 @@ export class App {
         return { title: 'Incidentes y Eventos de Pérdida', section: 'Gestión de Riesgo', icon: 'report_problem' };
       case 'reportes-regulatorios':
         return { title: 'Reporte CMF / ANCI', section: 'Gestión de Riesgo', icon: 'gavel' };
+      case 'proveedores':
+        return { title: 'Proveedores y Externalización', section: 'Resiliencia & Terceros', icon: 'handshake' };
+      case 'continuidad':
+        return { title: 'Continuidad del Negocio', section: 'Resiliencia & Terceros', icon: 'restart_alt' };
       case 'alertas-kri':
         return { title: 'Alertas & KRIs en Tiempo Real', section: 'Supervisión & Auditoría', icon: 'notification_important' };
       case 'auditorias':

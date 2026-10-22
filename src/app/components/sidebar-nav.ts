@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output } f
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
+import { ResilienceService } from '../services/resilience.service';
 import { ActiveTab } from '../app';
 
 export interface NavGroup {
@@ -237,6 +238,7 @@ export interface NavGroup {
 })
 export class SidebarNav {
   readonly riskService = inject(RiskDataService);
+  readonly resilience = inject(ResilienceService);
 
   readonly activeTab = input.required<ActiveTab>();
   readonly isCollapsed = input<boolean>(false);
@@ -254,6 +256,8 @@ export class SidebarNav {
     const controlsCount = this.riskService.controls().length;
     const flawsCount = this.riskService.flaws().length;
     const activeAlerts = this.riskService.metrics().activeAlertsCount;
+    const providerHigh = this.resilience.providerKpis().highAlerts;
+    const continuityHigh = this.resilience.continuityKpis().highAlerts;
     const regulatoryOpen = this.riskService.regulatoryIncidents().filter(f => f.regulatoryReport?.status === 'Abierto').length;
 
     return [
@@ -289,6 +293,25 @@ export class SidebarNav {
             icon: 'notification_important',
             badge: activeAlerts > 0 ? activeAlerts : undefined,
             badgeClass: 'bg-rose-600 text-white animate-pulse'
+          },
+        ]
+      },
+      {
+        title: 'Resiliencia & Terceros',
+        items: [
+          {
+            id: 'proveedores',
+            label: 'Proveedores',
+            icon: 'handshake',
+            badge: providerHigh > 0 ? providerHigh : undefined,
+            badgeClass: 'bg-rose-900/60 text-rose-200 border border-rose-700/50'
+          },
+          {
+            id: 'continuidad',
+            label: 'Continuidad del Negocio',
+            icon: 'restart_alt',
+            badge: continuityHigh > 0 ? continuityHigh : undefined,
+            badgeClass: 'bg-rose-900/60 text-rose-200 border border-rose-700/50'
           },
         ]
       },
