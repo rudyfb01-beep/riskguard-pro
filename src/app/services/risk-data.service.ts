@@ -477,17 +477,20 @@ export const INDUSTRY_KRI_PRESETS: Record<IndustryType, Omit<KriDefinition, 'id'
 
 export const DEFAULT_GLOBAL_NOTIFICATION_PREFERENCES: KriNotificationPreferences = {
   emailEnabled: true,
-  emailRecipients: ['oficial.riesgo@custodia-risk.com', 'alertas-kri@custodia-risk.com'],
+  emailRecipients: ['oficial.riesgo@demo.riskguard.cl', 'alertas-kri@demo.riskguard.cl'],
   emailTemplate: 'completa',
   smsEnabled: true,
   smsRecipients: ['+54 9 11 4589-2044', '+52 55 8421-9930'],
   webhookEnabled: false,
-  webhookUrl: 'https://api.custodia-risk.com/v1/webhooks/kri-alerts',
+  webhookUrl: 'https://api.demo.riskguard.cl/v1/webhooks/kri-alerts',
   notifyOnWarning: true,
   notifyOnCritical: true,
   cooldownMinutes: 30,
   escalateToRiskOfficer: true
 };
+
+/** Acción rechazada porque el cargo actual no tiene el permiso necesario. */
+export class PermissionDeniedError extends Error {}
 
 @Injectable({
   providedIn: 'root'
@@ -933,6 +936,7 @@ export class RiskDataService {
 
   // Switch Industry Profile and adapt KRI presets
   async setIndustry(industry: IndustryType) {
+    this.ensure(['canConfigureKRIs'], 'cambiar el perfil de industria de los KRIs');
     this.currentIndustry.set(industry);
     const presets = INDUSTRY_KRI_PRESETS[industry];
     if (presets && presets.length > 0) {
@@ -954,6 +958,7 @@ export class RiskDataService {
 
   // Update an existing KRI definition and its thresholds
   async updateKriThreshold(kriId: string, updates: Partial<KriDefinition>) {
+    this.ensure(['canConfigureKRIs'], 'configurar umbrales de KRIs');
     const existing = this.kriDefinitions().find(k => k.id === kriId);
     if (!existing) return;
 
@@ -992,6 +997,7 @@ export class RiskDataService {
 
   // Update Notification Preferences (Email & SMS) globally or for a specific KRI
   async updateNotificationPreferences(kriId: string | 'GLOBAL', preferences: KriNotificationPreferences) {
+    this.ensure(['canConfigureKRIs'], 'configurar notificaciones de KRIs');
     if (kriId === 'GLOBAL') {
       this.globalNotificationSettings.set(preferences);
       await this.appendAuditLog(
@@ -1025,6 +1031,7 @@ export class RiskDataService {
     recipient: string,
     messagePreview?: string
   ): Promise<{ success: boolean; message: string; timestamp: string }> {
+    this.ensure(['canConfigureKRIs'], 'probar notificaciones de KRIs');
     const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const user = this.currentProfile();
     const details = `Envío de prueba vía ${channel.toUpperCase()} para KRI [${kriCode}] a "${recipient}". Disparado por ${user.name}. ${messagePreview ? `Detalle: "${messagePreview.slice(0, 60)}..."` : ''}`;
@@ -1045,6 +1052,7 @@ export class RiskDataService {
 
   // Record a new sensor / telemetry value for a KRI
   async recordKriValue(kriId: string, newValue: number) {
+    this.ensure(['canConfigureKRIs'], 'registrar valores de KRIs');
     const kri = this.kriDefinitions().find(k => k.id === kriId);
     if (!kri) return;
 
@@ -1097,6 +1105,7 @@ export class RiskDataService {
 
   // Add custom KRI
   async addCustomKri(kriData: Partial<KriDefinition>): Promise<KriDefinition> {
+    this.ensure(['canConfigureKRIs'], 'crear KRIs');
     const code = kriData.code || `KRI-${Date.now().toString().slice(-4)}`;
     const newKri: KriDefinition = {
       id: `kri-${Date.now()}`,
@@ -1133,6 +1142,7 @@ export class RiskDataService {
 
   // Create organizational position/role
   async addOrganizationalRole(roleData: Partial<OrganizationalRole>): Promise<OrganizationalRole> {
+    this.ensure(['canManageRoles'], 'administrar puestos y permisos');
     const newRole: OrganizationalRole = {
       id: `role-${Date.now()}`,
       title: roleData.title || 'Nuevo Puesto Operativo',
@@ -1166,6 +1176,7 @@ export class RiskDataService {
 
   // Update permissions of a role
   async updateOrganizationalRole(roleId: string, updates: Partial<OrganizationalRole>) {
+    this.ensure(['canManageRoles'], 'administrar puestos y permisos');
     this.organizationalRoles.update(list => list.map(r => r.id === roleId ? { ...r, ...updates } : r));
 
     // Also update any user profiles assigned to this role
@@ -1204,6 +1215,7 @@ export class RiskDataService {
 
   // Add a user profile
   async addUserProfile(userData: Partial<UserProfile>): Promise<UserProfile> {
+    this.ensure(['canManageRoles'], 'administrar usuarios');
     const roleMatch = this.organizationalRoles().find(r => r.id === userData.roleId || r.title === userData.role);
     const permissions = userData.permissions || (roleMatch ? roleMatch.permissions : {
       canEditRisks: false,
@@ -1220,7 +1232,7 @@ export class RiskDataService {
     const newUser: UserProfile = {
       id: `usr-${Date.now()}`,
       name: userData.name || 'Nuevo Colaborador',
-      email: userData.email || 'colaborador@custodia-risk.com',
+      email: userData.email || 'colaborador@demo.riskguard.cl',
       role: userData.role || (roleMatch ? roleMatch.title : 'Colaborador Operativo'),
       roleId: userData.roleId || (roleMatch ? roleMatch.id : undefined),
       department: userData.department || (roleMatch ? roleMatch.department : 'Operaciones'),
@@ -1242,6 +1254,7 @@ export class RiskDataService {
 
   // Update existing user profile
   async updateUserProfile(userId: string, updates: Partial<UserProfile>) {
+    this.ensure(['canManageRoles'], 'administrar usuarios');
     this.userProfiles.update(list => list.map(u => u.id === userId ? { ...u, ...updates } : u));
     if (this.currentProfile().id === userId) {
       this.currentProfile.update(cp => ({ ...cp, ...updates }));
@@ -1250,6 +1263,7 @@ export class RiskDataService {
 
   // Delete a user profile (cuenta de usuario)
   async deleteUserProfile(userId: string): Promise<boolean> {
+    this.ensure(['canManageRoles'], 'administrar usuarios');
     const list = this.userProfiles();
     if (list.length <= 1) {
       throw new Error('No se puede eliminar la única cuenta de usuario del sistema.');
@@ -1278,6 +1292,7 @@ export class RiskDataService {
 
   // Delete an organizational role (puesto personalizado)
   async deleteOrganizationalRole(roleId: string): Promise<boolean> {
+    this.ensure(['canManageRoles'], 'administrar puestos y permisos');
     const roles = this.organizationalRoles();
     const roleToDelete = roles.find(r => r.id === roleId);
     if (!roleToDelete) return false;
@@ -1301,9 +1316,34 @@ export class RiskDataService {
     return !!profile.permissions?.[permission];
   }
 
+  /** true si el cargo actual tiene al menos uno de los permisos indicados. */
+  canAny(...permissions: (keyof UserPermissions)[]): boolean {
+    return permissions.some(p => this.hasPermission(p));
+  }
+
+  /** Último intento de acción bloqueado por permisos (la app lo muestra como aviso). */
+  readonly permissionNotice = signal<{ message: string; at: number } | null>(null);
+
+  /**
+   * Corta la acción si el cargo actual no tiene el permiso. Es la misma regla que aplica el
+   * servidor, de modo que lo que se ve en pantalla coincide con lo que se puede guardar.
+   */
+  /** Igual que ensure, pero devuelve false en vez de lanzar (para abrir formularios). */
+  requirePermission(permissions: (keyof UserPermissions)[], action: string): boolean {
+    try { this.ensure(permissions, action); return true; } catch { return false; }
+  }
+
+  private ensure(permissions: (keyof UserPermissions)[], action: string): void {
+    if (this.canAny(...permissions)) return;
+    const message = `Tu cargo (${this.currentProfile().role}) no tiene permiso para ${action}.`;
+    this.permissionNotice.set({ message, at: Date.now() });
+    throw new PermissionDeniedError(message);
+  }
+
 
   // Add a new risk (bounded to 4x4 scale)
   async addRisk(riskData: Partial<Risk>): Promise<Risk> {
+    this.ensure(['canEditRisks', 'canConvertFlaws'], 'crear riesgos');
     const code = `RGO-${100 + this.risks().length + 1}`;
     const inherentL = Math.max(1, Math.min(4, riskData.inherentLikelihood || 2));
     const inherentI = Math.max(1, Math.min(4, riskData.inherentImpact || 2));
@@ -1360,6 +1400,7 @@ export class RiskDataService {
 
   // Update an existing risk
   async updateRisk(id: string, updates: Partial<Risk>) {
+    this.ensure(['canEditRisks'], 'editar riesgos');
     const existing = this.risks().find(r => r.id === id);
     if (!existing) return;
 
@@ -1400,6 +1441,7 @@ export class RiskDataService {
 
   // Toggle control association on a risk
   async toggleControlOnRisk(riskId: string, controlId: string) {
+    this.ensure(['canEditRisks'], 'editar riesgos');
     const risk = this.risks().find(r => r.id === riskId);
     if (!risk) return;
     const isAttached = risk.controlIds.includes(controlId);
@@ -1418,6 +1460,7 @@ export class RiskDataService {
 
   // Add a new control with test evidence
   async addControl(controlData: Partial<Control>): Promise<Control> {
+    this.ensure(['canEditRisks', 'canEvaluateControls'], 'crear controles');
     const code = `CTR-${200 + this.controls().length + 1}`;
     const design = controlData.designEffectiveness ?? 85;
     const operating = controlData.operatingEffectiveness ?? 80;
@@ -1484,6 +1527,7 @@ export class RiskDataService {
     attachments?: ControlEvidenceAttachment[],
     testExecution?: Partial<ControlTestExecution>
   ) {
+    this.ensure(['canEvaluateControls'], 'evaluar controles');
     const control = this.controls().find(c => c.id === id);
     if (!control) return;
 
@@ -1546,6 +1590,7 @@ export class RiskDataService {
 
   // Delete an attachment from a control
   async deleteControlAttachment(controlId: string, attachmentId: string) {
+    this.ensure(['canEvaluateControls'], 'eliminar evidencias de controles');
     const control = this.controls().find(c => c.id === controlId);
     if (!control || !control.attachments) return;
 
@@ -1656,6 +1701,7 @@ export class RiskDataService {
   }
 
   setLossThreshold(value: number) {
+    this.ensure(['canManageRegulatoryReports'], 'cambiar el umbral de la base de pérdidas');
     const v = Math.max(0, Math.round(value || 0));
     this.lossRegistrationThresholdUSD.set(v);
   }
@@ -1712,6 +1758,7 @@ export class RiskDataService {
   }
 
   async updateRegulatoryDetails(flawId: string, changes: { occurredAt?: string; details: Ran208Details }) {
+    this.ensure(['canManageRegulatoryReports'], 'gestionar reportes a la CMF y la ANCI');
     const flaw = this.flaws().find(f => f.id === flawId);
     const report = flaw?.regulatoryReport;
     if (!flaw || !report) return;
@@ -1745,6 +1792,7 @@ export class RiskDataService {
   }
 
   async startRegulatoryReport(flawId: string, opts: { awarenessAt: string; occurredAt?: string; cmf: boolean; anci: boolean }) {
+    this.ensure(['canManageRegulatoryReports', 'canReportFlaws'], 'iniciar reportes a la CMF y la ANCI');
     const flaw = this.flaws().find(f => f.id === flawId);
     if (!flaw) throw new Error('Incidencia no encontrada');
     if (!opts.cmf && !opts.anci) throw new Error('Debe seleccionar al menos una autoridad');
@@ -1770,6 +1818,7 @@ export class RiskDataService {
   }
 
   async registerRegulatorySubmission(flawId: string, milestoneId: string, folio: string, submittedAt?: string) {
+    this.ensure(['canManageRegulatoryReports'], 'gestionar reportes a la CMF y la ANCI');
     const flaw = this.flaws().find(f => f.id === flawId);
     const report = flaw?.regulatoryReport;
     const milestone = this.regulatoryMilestones().find(m => m.id === milestoneId);
@@ -1796,6 +1845,7 @@ export class RiskDataService {
   }
 
   async addRegulatoryUpdate(flawId: string, note: string) {
+    this.ensure(['canManageRegulatoryReports'], 'gestionar reportes a la CMF y la ANCI');
     const flaw = this.flaws().find(f => f.id === flawId);
     const report = flaw?.regulatoryReport;
     if (!flaw || !report || !note.trim()) return;
@@ -1809,6 +1859,7 @@ export class RiskDataService {
   }
 
   async closeRegulatoryReport(flawId: string) {
+    this.ensure(['canManageRegulatoryReports'], 'gestionar reportes a la CMF y la ANCI');
     const flaw = this.flaws().find(f => f.id === flawId);
     const report = flaw?.regulatoryReport;
     if (!flaw || !report) return;
@@ -1819,6 +1870,7 @@ export class RiskDataService {
   }
 
   async updateRegulatoryMilestones(list: RegulatoryMilestoneTemplate[]) {
+    this.ensure(['canManageRegulatoryReports'], 'configurar plazos regulatorios');
     this.regulatoryMilestones.set(list.map(m => ({ ...m, deadlineMinutes: Math.max(1, Math.round(m.deadlineMinutes)) })));
     const desc = list.map(m => `${m.name}: ${m.enabled ? formatMinutes(m.deadlineMinutes) : 'desactivado'}`).join('; ');
     await this.appendAuditLog('CONFIGURACIÓN_PLAZOS_REGULATORIOS', 'Reporte Regulatorio', 'PLAZOS', `Plazos regulatorios actualizados. ${desc}.`);
@@ -1830,6 +1882,7 @@ export class RiskDataService {
 
   // Report a new incident / flaw (Registro de Incidencia / Evento de Pérdida o Falla de Control)
   async reportFlaw(flawData: Partial<OperationalFlaw>): Promise<OperationalFlaw> {
+    this.ensure(['canReportFlaws'], 'registrar incidencias');
     const newFlaw: OperationalFlaw = {
       id: `inc-${Date.now()}`,
       title: flawData.title || 'Incidencia operacional reportada',
@@ -1869,6 +1922,7 @@ export class RiskDataService {
 
   // Update an existing incident / event (Actualizar evento de pérdida o falla de control)
   async updateFlaw(id: string, updates: Partial<OperationalFlaw>): Promise<OperationalFlaw> {
+    this.ensure(['canReportFlaws', 'canConvertFlaws', 'canManageRegulatoryReports'], 'editar incidencias');
     const existing = this.flaws().find(f => f.id === id);
     if (!existing) throw new Error('Incidencia no encontrada');
 
@@ -1889,6 +1943,7 @@ export class RiskDataService {
 
   // Convert an incident/flaw directly into an assessed risk
   async convertFlawToRisk(flawId: string, customData?: Partial<Risk>): Promise<Risk> {
+    this.ensure(['canConvertFlaws'], 'convertir incidencias en riesgos');
     const flaw = this.flaws().find(f => f.id === flawId);
     if (!flaw) throw new Error('Incidencia no encontrada');
 
@@ -1921,6 +1976,7 @@ export class RiskDataService {
 
   // Trigger an anomaly alert (for testing or automation)
   async triggerAlert(alertData: Partial<AnomalyAlert>): Promise<AnomalyAlert> {
+    this.ensure(['canConfigureKRIs', 'canAcknowledgeAlerts', 'canReportFlaws'], 'generar alertas');
     const code = `ALT-${400 + this.alerts().length + 1}`;
     const newAlert: AnomalyAlert = {
       id: `alt-${Date.now()}`,
@@ -1949,6 +2005,7 @@ export class RiskDataService {
 
   // Acknowledge or resolve an alert
   async updateAlertStatus(alertId: string, status: 'En Investigación' | 'Mitigada' | 'Silenciada') {
+    this.ensure(['canAcknowledgeAlerts'], 'gestionar alertas');
     const alert = this.alerts().find(a => a.id === alertId);
     if (!alert) return;
 
@@ -1963,6 +2020,7 @@ export class RiskDataService {
 
   // Register audit findings or review
   async addAuditFinding(auditId: string, finding: Omit<AuditFinding, 'id'>) {
+    this.ensure(['canExecuteAudits'], 'registrar hallazgos de auditoría');
     const audit = this.audits().find(a => a.id === auditId);
     if (!audit) return;
 
@@ -2051,6 +2109,7 @@ export class RiskDataService {
 
   // Export Data to CSV (Compatible with Microsoft Excel in Latin America and Global formats with UTF-8 BOM)
   exportToExcel(type: 'risks' | 'controls' | 'audit_trail' | 'loss_database' | 'complete') {
+    this.ensure(['canExportReports'], 'exportar reportes');
     const csvContentStart = '\uFEFF'; // UTF-8 BOM for Excel to properly render accents and special characters
     const now = new Date().toISOString().slice(0, 10);
     const filename = `RiskGuard_Riesgo_Operacional_${type}_${now}.csv`;

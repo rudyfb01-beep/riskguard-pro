@@ -32,7 +32,7 @@ export const DEMO_USERS: UserProfile[] = ([
       return {
         id,
         name,
-        email: `${mail}@custodia-risk.com`,
+        email: `${mail}@demo.riskguard.cl`,
         role: role.title,
         roleId,
         department: role.department,

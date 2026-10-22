@@ -160,6 +160,28 @@ export class PersistenceService {
     }
   }
 
+  /**
+   * Relee el usuario de la sesión para aplicar cambios de cargo o permisos hechos por un
+   * administrador. Solo actualiza el perfil activo (no la lista de usuarios), así no genera escrituras.
+   */
+  async refreshSessionProfile(): Promise<void> {
+    if (this.mode() !== 'database' || !this.sessionUser()) return;
+    try {
+      const resp = await apiFetch('/api/auth/me');
+      if (resp.status === 401) { this.sessionExpired.set(true); return; }
+      if (!resp.ok) return;
+      const user = (await resp.json())?.user as UserProfile | undefined;
+      if (!user) return;
+      const cur = this.rs.currentProfile();
+      if (JSON.stringify(cur.permissions) !== JSON.stringify(user.permissions) || cur.role !== user.role) {
+        this.sessionUser.set(user);
+        this.rs.currentProfile.set({ ...cur, role: user.role, roleId: user.roleId, department: user.department, permissions: user.permissions });
+      }
+    } catch {
+      // Sin conexión: se reintenta en el próximo ciclo.
+    }
+  }
+
   async logout(): Promise<void> {
     await this.flush();
     await apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);

@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, afterNextRender, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
-import { RiskDataService } from './services/risk-data.service';
+import { PermissionDeniedError, RiskDataService } from './services/risk-data.service';
+import { UserPermissions } from './models/risk.model';
 import { PersistenceService } from './services/persistence.service';
 import { LoginScreen } from './components/login-screen';
 import { TopBar } from './components/top-bar';
@@ -81,7 +82,33 @@ export class App {
 
   constructor() {
     // Carga los datos desde la base (o activa el modo demostración) en el navegador.
-    afterNextRender(() => this.persistence.init());
+    afterNextRender(() => {
+      this.persistence.init();
+      // Si un administrador cambia los permisos del cargo, se aplican sin cerrar sesión:
+      // al volver a la pestaña y cada 2 minutos se relee el perfil de la sesión.
+      const refresh = () => { if (document.visibilityState === 'visible') this.persistence.refreshSessionProfile(); };
+      window.addEventListener('focus', refresh);
+      const timer = setInterval(refresh, 120_000);
+      this.destroyRef.onDestroy(() => { window.removeEventListener('focus', refresh); clearInterval(timer); });
+    });
+
+    // Acciones bloqueadas por permisos: se informan al usuario.
+    effect(() => {
+      const n = this.riskService.permissionNotice();
+      if (n) this.showToast(n.message);
+    });
+  }
+
+  private readonly destroyRef = inject(DestroyRef);
+
+  /** El cargo actual tiene al menos uno de los permisos (para mostrar u ocultar acciones). */
+  openKriThresholds() {
+    if (!this.riskService.requirePermission(['canConfigureKRIs'], 'configurar umbrales de KRIs')) return;
+    this.isKriThresholdModalOpen.set(true);
+  }
+
+  can(...permissions: (keyof UserPermissions)[]): boolean {
+    return this.riskService.canAny(...permissions);
   }
 
   // Active Navigation Tab
@@ -172,6 +199,7 @@ export class App {
   readonly configuringKri = signal<KriDefinition | null>(null);
 
   openAlertSettings(kri?: KriDefinition) {
+    if (!this.riskService.requirePermission(['canConfigureKRIs'], 'configurar notificaciones de KRIs')) return;
     this.configuringKri.set(kri || null);
     this.isAlertSettingsModalOpen.set(true);
   }
@@ -281,6 +309,7 @@ export class App {
 
   // Open Create Risk Modal
   openCreateRisk() {
+    if (!this.riskService.requirePermission(['canEditRisks'], 'crear riesgos')) return;
     this.editingRisk.set(null);
     this.isRiskModalOpen.set(true);
   }
@@ -293,6 +322,7 @@ export class App {
 
   // Open Create Control Modal
   openCreateControl() {
+    if (!this.riskService.requirePermission(['canEditRisks', 'canEvaluateControls'], 'crear controles')) return;
     this.editingControl.set(null);
     this.isControlModalOpen.set(true);
   }
@@ -305,6 +335,7 @@ export class App {
 
   // Open modal to report a new incident or loss event
   openCreateFlaw() {
+    if (!this.riskService.requirePermission(['canReportFlaws'], 'registrar incidencias')) return;
     this.editingFlaw.set(null);
     this.isFlawModalOpen.set(true);
   }
@@ -327,13 +358,14 @@ export class App {
       const created = await this.riskService.convertFlawToRisk(flaw.id);
       this.showToast(`Incidencia convertida exitosamente en el riesgo operacional ${created.code}`);
       this.setTab('matriz-riesgos');
-    } catch {
-      this.showToast('Error convirtiendo incidencia a riesgo');
+    } catch (err) {
+      if (!(err instanceof PermissionDeniedError)) this.showToast('Error convirtiendo incidencia a riesgo');
     }
   }
 
   // Simulate an anomaly alert in real time
   async simulateRealTimeAnomaly() {
+    if (!this.riskService.requirePermission(['canConfigureKRIs'], 'probar disparos de alertas KRI')) return;
     const examples = [
       {
         title: 'Desvío de KRI: Tasa inusual de transacciones rechazadas en switch bancario (> 15%)',
