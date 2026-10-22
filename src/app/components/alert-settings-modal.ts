@@ -404,7 +404,7 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
                     />
                     <div>
                       <span class="text-xs font-bold text-slate-900 block">
-                        Copia Obligatoria al Oficial de Riesgo (CRO) y Auditoría
+                        Copia Obligatoria al Jefe de Riesgo Operacional y Auditoría
                       </span>
                       <span class="text-[11px] text-slate-500 block">
                         Añade automáticamente al Oficial Principal de Cumplimiento a la cadena de notificación institucional.

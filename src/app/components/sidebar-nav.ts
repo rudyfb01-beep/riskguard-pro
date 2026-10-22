@@ -254,6 +254,7 @@ export class SidebarNav {
     const controlsCount = this.riskService.controls().length;
     const flawsCount = this.riskService.flaws().length;
     const activeAlerts = this.riskService.metrics().activeAlertsCount;
+    const regulatoryOpen = this.riskService.regulatoryIncidents().filter(f => f.regulatoryReport?.status === 'Abierto').length;
 
     return [
       {
@@ -275,6 +276,13 @@ export class SidebarNav {
         title: 'Incidentes & Seguimiento',
         items: [
           { id: 'incidentes-perdidas', label: 'Incidentes y Pérdidas', icon: 'report_problem', badge: flawsCount, badgeClass: 'bg-amber-900/60 text-amber-300 border border-amber-700/50' },
+          {
+            id: 'reportes-regulatorios',
+            label: 'Reporte CMF / ANCI',
+            icon: 'gavel',
+            badge: regulatoryOpen > 0 ? regulatoryOpen : undefined,
+            badgeClass: 'bg-indigo-900/60 text-indigo-200 border border-indigo-700/50'
+          },
           {
             id: 'alertas-kri',
             label: 'Alertas & KRIs',

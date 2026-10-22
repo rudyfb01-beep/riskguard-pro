@@ -17,6 +17,7 @@ import { SidebarNav } from './components/sidebar-nav';
 import { KriThresholdModal } from './components/kri-threshold-modal';
 import { RolesManagementModal } from './components/roles-management-modal';
 import { AlertSettingsModal } from './components/alert-settings-modal';
+import { RegulatoryReporting } from './components/regulatory-reporting';
 import { Control, KriDefinition, OperationalFlaw, Risk } from './models/risk.model';
 
 export type ActiveTab =
@@ -27,6 +28,7 @@ export type ActiveTab =
   | 'controles'
   | 'incidentes-perdidas'
   | 'falencias'
+  | 'reportes-regulatorios'
   | 'alertas-kri'
   | 'auditorias'
   | 'bitacora'
@@ -53,6 +55,7 @@ export type ActiveTab =
     KriThresholdModal,
     RolesManagementModal,
     AlertSettingsModal,
+    RegulatoryReporting,
   ],
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -100,6 +103,8 @@ export class App {
       case 'incidentes-perdidas':
       case 'falencias':
         return { title: 'Incidentes y Eventos de Pérdida', section: 'Gestión de Riesgo', icon: 'report_problem' };
+      case 'reportes-regulatorios':
+        return { title: 'Reporte CMF / ANCI', section: 'Gestión de Riesgo', icon: 'gavel' };
       case 'alertas-kri':
         return { title: 'Alertas & KRIs en Tiempo Real', section: 'Supervisión & Auditoría', icon: 'notification_important' };
       case 'auditorias':
@@ -149,6 +154,9 @@ export class App {
 
   // Filter for incidents
   readonly incidentTypeFilter = signal<string>('todos');
+
+  // Vista del módulo de incidentes: tarjetas o tabla de base de pérdidas
+  readonly incidentView = signal<'tarjetas' | 'base-perdidas'>('tarjetas');
 
   // Filtered incidents computed
   readonly filteredIncidents = computed(() => {

@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, effect, inject, input, output, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { AiRiskService, AIAnalysisResult } from '../services/ai-risk.service';
-import { BaselCategory, IncidentType, OperationalFlaw } from '../models/risk.model';
+import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine, IncidentType, OperationalFlaw } from '../models/risk.model';
 
 @Component({
   selector: 'app-flaw-modal',
@@ -138,7 +139,9 @@ import { BaselCategory, IncidentType, OperationalFlaw } from '../models/risk.mod
                   <option value="Infraestructura Cloud">Infraestructura Cloud</option>
                   <option value="Gestión Humana">Gestión Humana</option>
                   <option value="Cumplimiento Legal">Cumplimiento Legal</option>
-                  <option value="Cadena de Suministro">Cadena de Suministro</option>
+                  <option value="Créditos y Cobranza">Créditos y Cobranza</option>
+                  <option value="Captaciones y Ahorro">Captaciones y Ahorro</option>
+                  <option value="Atención a Socios y Sucursales">Atención a Socios y Sucursales</option>
                 </select>
               </div>
 
@@ -217,6 +220,129 @@ import { BaselCategory, IncidentType, OperationalFlaw } from '../models/risk.mod
                   />
                 </div>
               </div>
+            </div>
+
+            <!-- Base de Pérdidas Operacionales -->
+            <div class="p-3.5 bg-white border border-slate-200 rounded-xl space-y-3">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <mat-icon class="text-sm text-indigo-600">table_chart</mat-icon>
+                  <span>Base de Pérdidas Operacionales</span>
+                </span>
+                @if ((form.get('realLossAmountUSD')?.value || 0) > 0) {
+                  <span class="text-[10px] bg-indigo-100 text-indigo-800 font-semibold px-2 py-0.5 rounded">
+                    Evento con pérdida: complete todos los campos
+                  </span>
+                }
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label for="business-line" class="block text-[11px] font-medium text-slate-600 mb-1">Línea de negocio</label>
+                  <select id="business-line" formControlName="businessLine"
+                    class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    <option value="">— Seleccionar —</option>
+                    @for (bl of businessLines; track bl) {
+                      <option [value]="bl">{{ bl }}</option>
+                    }
+                  </select>
+                </div>
+                <div>
+                  <label for="accounting-account" class="block text-[11px] font-medium text-slate-600 mb-1">Cuenta contable</label>
+                  <input id="accounting-account" type="text" formControlName="accountingAccount"
+                    placeholder="Ej. Gastos por pérdidas operacionales"
+                    class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                </div>
+                <div>
+                  <label for="basel-category" class="block text-[11px] font-medium text-slate-600 mb-1">Categoría Basilea (nivel 1)</label>
+                  <select id="basel-category" formControlName="baselCategory" (change)="form.patchValue({ baselSubcategory: '' })"
+                    class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    <option value="">— Seleccionar —</option>
+                    @for (cat of baselCategories; track cat) {
+                      <option [value]="cat">{{ cat }}</option>
+                    }
+                  </select>
+                </div>
+                <div>
+                  <label for="basel-subcategory" class="block text-[11px] font-medium text-slate-600 mb-1">Subcategoría (nivel 2)</label>
+                  <select id="basel-subcategory" formControlName="baselSubcategory"
+                    class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100">
+                    <option value="">— Seleccionar —</option>
+                    @for (sub of subcategories(); track sub) {
+                      <option [value]="sub">{{ sub }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label for="occurrence-date" class="block text-[11px] font-medium text-slate-600 mb-1">Fecha de ocurrencia</label>
+                  <input id="occurrence-date" type="date" formControlName="occurrenceDate"
+                    class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                </div>
+                <div>
+                  <label for="discovery-date" class="block text-[11px] font-medium text-slate-600 mb-1">Fecha de descubrimiento</label>
+                  <input id="discovery-date" type="date" formControlName="discoveryDate"
+                    class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                </div>
+                <div>
+                  <label for="accounting-date" class="block text-[11px] font-medium text-slate-600 mb-1">Fecha de contabilización</label>
+                  <input id="accounting-date" type="date" formControlName="accountingDate"
+                    class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                </div>
+              </div>
+              @if (dateOrderWarning()) {
+                <p class="text-[11px] text-amber-700 flex items-center gap-1">
+                  <mat-icon class="text-xs">warning</mat-icon>
+                  <span>{{ dateOrderWarning() }}</span>
+                </p>
+              }
+
+              <label class="flex items-start gap-2 text-[11px] text-slate-700 cursor-pointer">
+                <input type="checkbox" formControlName="creditRiskBoundary" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                <span><strong>Frontera con riesgo de crédito:</strong> la pérdida se origina en una falla operacional pero se materializa en la cartera de créditos (p. ej., error en la constitución de garantías).</span>
+              </label>
+            </div>
+
+            <!-- Reporte Regulatorio CMF / ANCI -->
+            <div class="p-3.5 rounded-xl space-y-3 border"
+              [class]="form.get('reportCMF')?.value || form.get('reportANCI')?.value ? 'bg-rose-50/40 border-rose-200' : 'bg-white border-slate-200'">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <mat-icon class="text-sm text-rose-600">gavel</mat-icon>
+                  <span>Reporte Regulatorio</span>
+                </span>
+                @if (suggestRegulatory()) {
+                  <span class="text-[10px] bg-amber-100 text-amber-800 font-semibold px-2 py-0.5 rounded">
+                    Severidad {{ form.get('severity')?.value }}: evaluar si debe reportarse
+                  </span>
+                }
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label class="p-2 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                  <input type="checkbox" formControlName="reportCMF" class="mt-0.5 rounded text-rose-600 focus:ring-rose-500" />
+                  <span class="text-[11px]"><strong class="text-slate-900 block">Reportar a la CMF</strong><span class="text-slate-500">Incidente operacional relevante</span></span>
+                </label>
+                <label class="p-2 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                  <input type="checkbox" formControlName="reportANCI" class="mt-0.5 rounded text-rose-600 focus:ring-rose-500" />
+                  <span class="text-[11px]"><strong class="text-slate-900 block">Reportar a la ANCI</strong><span class="text-slate-500">Ciberincidente (Ley 21.663)</span></span>
+                </label>
+              </div>
+
+              @if (form.get('reportCMF')?.value || form.get('reportANCI')?.value) {
+                <div>
+                  <label for="awareness-at" class="block text-[11px] font-medium text-slate-600 mb-1">
+                    Toma de conocimiento por la administración (inicia el conteo de plazos)
+                  </label>
+                  <input id="awareness-at" type="datetime-local" formControlName="awarenessAt"
+                    class="w-full sm:w-64 text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500" />
+                  @if (incidentToEdit()?.regulatoryReport) {
+                    <p class="text-[11px] text-slate-500 mt-1">Este incidente ya tiene un reporte en curso. Los envíos se registran en la pestaña "Reporte CMF / ANCI".</p>
+                  }
+                </div>
+              }
             </div>
 
             <!-- Detailed Description -->
@@ -376,6 +502,9 @@ export class FlawModal {
   readonly isSaving = signal<boolean>(false);
   readonly aiResult = signal<AIAnalysisResult | null>(null);
 
+  readonly businessLines = CAC_BUSINESS_LINES;
+  readonly baselCategories = Object.keys(BASEL_SUBCATEGORIES) as BaselCategory[];
+
   form = new FormGroup({
     incidentType: new FormControl<IncidentType>('Falla de Control', [Validators.required]),
     title: new FormControl('', [Validators.required, Validators.minLength(5)]),
@@ -384,13 +513,29 @@ export class FlawModal {
     description: new FormControl('', [Validators.required, Validators.minLength(10)]),
     realLossAmountUSD: new FormControl<number>(0),
     recoveredAmountUSD: new FormControl<number>(0),
-    impactedSystemOrAccount: new FormControl<string>('')
+    impactedSystemOrAccount: new FormControl<string>(''),
+    // Base de pérdidas
+    businessLine: new FormControl<string>(''),
+    baselCategory: new FormControl<string>(''),
+    baselSubcategory: new FormControl<string>(''),
+    occurrenceDate: new FormControl<string>(''),
+    discoveryDate: new FormControl<string>(''),
+    accountingDate: new FormControl<string>(''),
+    accountingAccount: new FormControl<string>(''),
+    creditRiskBoundary: new FormControl<boolean>(false),
+    // Reporte regulatorio
+    reportCMF: new FormControl<boolean>(false),
+    reportANCI: new FormControl<boolean>(false),
+    awarenessAt: new FormControl<string>(''),
   });
+
+  private readonly formValue = toSignal(this.form.valueChanges, { initialValue: this.form.value });
 
   constructor() {
     effect(() => {
       const inc = this.incidentToEdit();
       if (inc) {
+        const rr = inc.regulatoryReport;
         this.form.patchValue({
           incidentType: inc.incidentType || 'Falla de Control',
           title: inc.title,
@@ -399,12 +544,24 @@ export class FlawModal {
           description: inc.description,
           realLossAmountUSD: inc.realLossAmountUSD || 0,
           recoveredAmountUSD: inc.recoveredAmountUSD || 0,
-          impactedSystemOrAccount: inc.impactedSystemOrAccount || ''
+          impactedSystemOrAccount: inc.impactedSystemOrAccount || '',
+          businessLine: inc.businessLine || '',
+          baselCategory: inc.baselCategory || inc.aiSuggestedCategory || '',
+          baselSubcategory: inc.baselSubcategory || '',
+          occurrenceDate: inc.occurrenceDate || '',
+          discoveryDate: inc.discoveryDate || '',
+          accountingDate: inc.accountingDate || '',
+          accountingAccount: inc.accountingAccount || '',
+          creditRiskBoundary: !!inc.creditRiskBoundary,
+          reportCMF: !!rr?.reportableToCMF,
+          reportANCI: !!rr?.reportableToANCI,
+          awarenessAt: toLocalInput(rr?.awarenessAt ?? new Date().toISOString()),
         });
         if (inc.aiAnalysis) {
           this.aiResult.set(inc.aiAnalysis as unknown as AIAnalysisResult);
         }
       } else {
+        const today = new Date().toISOString().slice(0, 10);
         this.form.reset({
           incidentType: 'Falla de Control',
           title: '',
@@ -413,11 +570,43 @@ export class FlawModal {
           description: '',
           realLossAmountUSD: 0,
           recoveredAmountUSD: 0,
-          impactedSystemOrAccount: ''
+          impactedSystemOrAccount: '',
+          businessLine: '',
+          baselCategory: '',
+          baselSubcategory: '',
+          occurrenceDate: today,
+          discoveryDate: today,
+          accountingDate: '',
+          accountingAccount: '',
+          creditRiskBoundary: false,
+          reportCMF: false,
+          reportANCI: false,
+          awarenessAt: toLocalInput(new Date().toISOString()),
         });
         this.aiResult.set(null);
       }
     });
+  }
+
+  subcategories(): string[] {
+    const cat = this.formValue().baselCategory as BaselCategory | '';
+    return cat ? BASEL_SUBCATEGORIES[cat] ?? [] : [];
+  }
+
+  suggestRegulatory(): boolean {
+    const v = this.formValue();
+    return (v.severity === 'Crítica' || v.severity === 'Alta') && !v.reportCMF && !v.reportANCI;
+  }
+
+  dateOrderWarning(): string | null {
+    const v = this.formValue();
+    if (v.occurrenceDate && v.discoveryDate && v.discoveryDate < v.occurrenceDate) {
+      return 'La fecha de descubrimiento es anterior a la de ocurrencia.';
+    }
+    if (v.discoveryDate && v.accountingDate && v.accountingDate < v.discoveryDate) {
+      return 'La fecha de contabilización es anterior a la de descubrimiento.';
+    }
+    return null;
   }
 
   setIncidentType(type: IncidentType) {
@@ -437,49 +626,67 @@ export class FlawModal {
       if (res.title && !this.form.get('title')?.value) {
         this.form.patchValue({ title: res.title });
       }
+      if (res.category && !this.form.get('baselCategory')?.value && res.category in BASEL_SUBCATEGORIES) {
+        this.form.patchValue({ baselCategory: res.category, baselSubcategory: '' });
+      }
     } finally {
       this.isAnalyzing.set(false);
     }
+  }
+
+  /** Datos comunes del incidente a partir del formulario. */
+  private buildPayload(): Partial<OperationalFlaw> {
+    const val = this.form.value;
+    const ai = this.aiResult();
+    const existing = this.incidentToEdit();
+    return {
+      title: val.title || '',
+      description: val.description || '',
+      process: val.process || 'Operaciones',
+      severity: val.severity || 'Alta',
+      incidentType: val.incidentType || 'Falla de Control',
+      realLossAmountUSD: Number(val.realLossAmountUSD) || 0,
+      recoveredAmountUSD: Number(val.recoveredAmountUSD) || 0,
+      impactedSystemOrAccount: val.impactedSystemOrAccount || '',
+      aiSuggestedCategory: (ai?.category as BaselCategory) || existing?.aiSuggestedCategory,
+      aiSuggestedControls: ai?.suggestedControls?.map(c => c.name) || existing?.aiSuggestedControls,
+      aiAnalysis: ai ? (ai as unknown as Record<string, unknown>) : existing?.aiAnalysis,
+      businessLine: (val.businessLine || undefined) as CacBusinessLine | undefined,
+      baselCategory: (val.baselCategory || undefined) as BaselCategory | undefined,
+      baselSubcategory: val.baselSubcategory || undefined,
+      occurrenceDate: val.occurrenceDate || undefined,
+      discoveryDate: val.discoveryDate || undefined,
+      accountingDate: val.accountingDate || undefined,
+      accountingAccount: val.accountingAccount || undefined,
+      creditRiskBoundary: !!val.creditRiskBoundary,
+    };
+  }
+
+  /** Guarda (crea o actualiza) el incidente y, si corresponde, inicia o ajusta el reporte regulatorio. */
+  private async persist(): Promise<string> {
+    const payload = this.buildPayload();
+    const existing = this.incidentToEdit();
+    const id = existing
+      ? (await this.riskService.updateFlaw(existing.id, payload)).id
+      : (await this.riskService.reportFlaw(payload)).id;
+
+    const v = this.form.value;
+    const cmf = !!v.reportCMF, anci = !!v.reportANCI;
+    const rr = existing?.regulatoryReport;
+    const awarenessIso = v.awarenessAt ? new Date(v.awarenessAt).toISOString() : new Date().toISOString();
+    // Se compara a nivel de minuto: el campo datetime-local no tiene segundos.
+    const changed = !rr || rr.reportableToCMF !== cmf || rr.reportableToANCI !== anci || toLocalInput(rr.awarenessAt) !== v.awarenessAt;
+    if ((cmf || anci) && changed) {
+      await this.riskService.startRegulatoryReport(id, { awarenessAt: awarenessIso, cmf, anci });
+    }
+    return id;
   }
 
   async saveIncidentOnly() {
     if (this.form.invalid) return;
     this.isSaving.set(true);
     try {
-      const val = this.form.value;
-      const ai = this.aiResult();
-      const existing = this.incidentToEdit();
-
-      if (existing) {
-        await this.riskService.updateFlaw(existing.id, {
-          title: val.title || '',
-          description: val.description || '',
-          process: val.process || 'Operaciones',
-          severity: val.severity || 'Alta',
-          incidentType: val.incidentType || 'Falla de Control',
-          realLossAmountUSD: Number(val.realLossAmountUSD) || 0,
-          recoveredAmountUSD: Number(val.recoveredAmountUSD) || 0,
-          impactedSystemOrAccount: val.impactedSystemOrAccount || '',
-          aiSuggestedCategory: (ai?.category as BaselCategory) || existing.aiSuggestedCategory,
-          aiSuggestedControls: ai?.suggestedControls?.map(c => c.name) || existing.aiSuggestedControls,
-          aiAnalysis: ai ? (ai as unknown as Record<string, unknown>) : existing.aiAnalysis
-        });
-      } else {
-        await this.riskService.reportFlaw({
-          title: val.title || '',
-          description: val.description || '',
-          process: val.process || 'Operaciones',
-          severity: val.severity || 'Alta',
-          incidentType: val.incidentType || 'Falla de Control',
-          realLossAmountUSD: Number(val.realLossAmountUSD) || 0,
-          recoveredAmountUSD: Number(val.recoveredAmountUSD) || 0,
-          impactedSystemOrAccount: val.impactedSystemOrAccount || '',
-          aiSuggestedCategory: (ai?.category as BaselCategory) || undefined,
-          aiSuggestedControls: ai?.suggestedControls?.map(c => c.name),
-          aiAnalysis: ai ? (ai as unknown as Record<string, unknown>) : undefined
-        });
-      }
-
+      await this.persist();
       this.closeModal.emit();
     } finally {
       this.isSaving.set(false);
@@ -492,53 +699,27 @@ export class FlawModal {
     try {
       const val = this.form.value;
       const ai = this.aiResult();
-      const existing = this.incidentToEdit();
-
-      let targetId = existing?.id;
-      if (existing) {
-        await this.riskService.updateFlaw(existing.id, {
-          title: val.title || '',
-          description: val.description || '',
-          process: val.process || 'Operaciones',
-          severity: val.severity || 'Alta',
-          incidentType: val.incidentType || 'Falla de Control',
-          realLossAmountUSD: Number(val.realLossAmountUSD) || 0,
-          recoveredAmountUSD: Number(val.recoveredAmountUSD) || 0,
-          impactedSystemOrAccount: val.impactedSystemOrAccount || ''
-        });
-      } else {
-        const reported = await this.riskService.reportFlaw({
-          title: val.title || '',
-          description: val.description || '',
-          process: val.process || 'Operaciones',
-          severity: val.severity || 'Alta',
-          incidentType: val.incidentType || 'Falla de Control',
-          realLossAmountUSD: Number(val.realLossAmountUSD) || 0,
-          recoveredAmountUSD: Number(val.recoveredAmountUSD) || 0,
-          impactedSystemOrAccount: val.impactedSystemOrAccount || '',
-          aiSuggestedCategory: (ai?.category as BaselCategory) || undefined,
-          aiSuggestedControls: ai?.suggestedControls?.map(c => c.name),
-          aiAnalysis: ai ? (ai as unknown as Record<string, unknown>) : undefined
-        });
-        targetId = reported.id;
-      }
-
-      if (targetId) {
-        const lossAmount = Number(val.realLossAmountUSD) || 0;
-        await this.riskService.convertFlawToRisk(targetId, {
-          title: ai?.title || val.title || 'Riesgo operacional derivado de incidencia',
-          process: ai?.process || val.process || 'Operaciones',
-          category: (ai?.category as BaselCategory) || 'Ejecución y Procesos',
-          inherentLikelihood: ai?.inherentLikelihood || (val.severity === 'Crítica' ? 4 : 3),
-          inherentImpact: ai?.inherentImpact || (val.severity === 'Crítica' ? 4 : 3),
-          financialExposureUSD: lossAmount > 0 ? lossAmount * 2 : (ai?.financialExposureEstUSD || 120000),
-          description: `${val.description}\n\n[Tipo de Evento]: ${val.incidentType || 'Incidencia Operativa'}\n[Impacto Registrado]: $${lossAmount} USD\n[Análisis Técnico]: ${ai?.technicalDescription || 'Identificado y registrado en Incidentes y Pérdidas.'}`
-        });
-      }
-
+      const targetId = await this.persist();
+      const lossAmount = Number(val.realLossAmountUSD) || 0;
+      await this.riskService.convertFlawToRisk(targetId, {
+        title: ai?.title || val.title || 'Riesgo operacional derivado de incidencia',
+        process: ai?.process || val.process || 'Operaciones',
+        category: (val.baselCategory as BaselCategory) || (ai?.category as BaselCategory) || 'Ejecución y Procesos',
+        inherentLikelihood: ai?.inherentLikelihood || (val.severity === 'Crítica' ? 4 : 3),
+        inherentImpact: ai?.inherentImpact || (val.severity === 'Crítica' ? 4 : 3),
+        financialExposureUSD: lossAmount > 0 ? lossAmount * 2 : (ai?.financialExposureEstUSD || 120000),
+        description: `${val.description}\n\n[Tipo de Evento]: ${val.incidentType || 'Incidencia Operativa'}\n[Impacto Registrado]: $${lossAmount} USD\n[Análisis Técnico]: ${ai?.technicalDescription || 'Identificado y registrado en Incidentes y Pérdidas.'}`
+      });
       this.closeModal.emit();
     } finally {
       this.isSaving.set(false);
     }
   }
+}
+
+/** ISO → valor para <input type="datetime-local"> en hora local. */
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
