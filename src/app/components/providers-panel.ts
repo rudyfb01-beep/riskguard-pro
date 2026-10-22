@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, output, signal } 
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
+import { downloadCsv } from '../utils/csv';
 import { ResilienceService, ASSESSMENT_FREQUENCY_MONTHS } from '../services/resilience.service';
 import {
   CONTRACT_CLAUSES,
@@ -33,12 +34,20 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 tex
             evaluaciones periódicas y plan de salida.
           </p>
         </div>
+        <div class="flex gap-2 shrink-0">
+        @if (canExport()) {
+          <button type="button" (click)="exportRegister()" title="Registro de servicios externalizados (RAN 20-7, aplicable vía CAC-3)"
+            class="px-3.5 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl flex items-center gap-1.5 cursor-pointer">
+            <mat-icon class="text-sm text-emerald-600">download</mat-icon><span>Exportar registro</span>
+          </button>
+        }
         @if (canManage()) {
           <button type="button" (click)="openNew()"
             class="px-4 py-2.5 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-600 rounded-xl flex items-center gap-2 shrink-0 cursor-pointer">
             <mat-icon class="text-sm">add_business</mat-icon><span>Nuevo proveedor</span>
           </button>
         }
+        </div>
       </div>
 
       <!-- KPIs -->
@@ -327,6 +336,30 @@ export class ProvidersPanel {
 
   readonly kpis = this.res.providerKpis;
   readonly canManage = computed(() => !!this.rs.currentProfile().permissions.canManageProviders);
+  readonly canExport = computed(() => !!this.rs.currentProfile().permissions.canExportReports);
+
+  /** Registro de servicios externalizados con cláusulas, nube, evaluación y dependencias. */
+  exportRegister() {
+    const clauseLabels = CONTRACT_CLAUSES.map(c => c.label);
+    const rows: (string | number | boolean | undefined)[][] = [
+      ['Registro de servicios externalizados', `Generado ${new Date().toISOString().slice(0, 16)}`, this.rs.currentProfile().name],
+      [],
+      ['Código', 'Proveedor', 'RUT', 'Servicio', 'Categoría', 'Criticidad', 'Estado', 'Responsable', 'Procesos que soporta',
+       'Nube', 'Modelo', 'Ubicación datos', 'País', 'Datos de socios', 'Subcontrata', 'Inicio contrato', 'Término contrato',
+       'Costo anual USD', 'RTO comprometido (h)', 'Última evaluación', 'Puntaje', 'Próxima evaluación', 'Plan de salida',
+       ...clauseLabels, 'Procesos críticos BIA dependientes', 'Alertas'],
+      ...this.res.providers().map(p => [
+        p.code, p.name, p.taxId, p.serviceDescription, p.category, p.criticality, p.status, p.internalOwner, p.supportedProcesses.join(', '),
+        p.isCloud ? 'Sí' : 'No', p.cloudModel ?? '', p.dataLocation, p.dataCountry ?? '', p.handlesMemberData ? 'Sí' : 'No',
+        p.usesSubcontractors ? 'Sí' : 'No', p.contractStart, p.contractEnd, p.annualCostUSD, p.committedRtoHours,
+        p.lastAssessmentDate ?? '', p.assessmentScore, this.res.nextAssessmentDue(p)?.toISOString().slice(0, 10) ?? '',
+        p.hasExitPlan ? 'Sí' : 'No', ...CONTRACT_CLAUSES.map(c => (p.clauses[c.key] ? 'Sí' : 'No')),
+        this.res.dependentProcesses(p.id).map(b => b.name).join(', '),
+        this.alertsFor(p.id).map(a => a.type).join(', '),
+      ]),
+    ];
+    downloadCsv(`Registro_externalizacion_${new Date().toISOString().slice(0, 10)}.csv`, rows);
+  }
 
   readonly visibleAlerts = computed(() => (this.showAllAlerts() ? this.res.providerAlerts() : this.res.providerAlerts().slice(0, 6)));
 

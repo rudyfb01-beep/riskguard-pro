@@ -126,13 +126,16 @@ export function formatMinutes(min: number): string {
 }
 
 /**
- * Plazos de reporte por defecto, contados desde la toma de conocimiento.
- * Son valores referenciales y configurables: deben validarse con Cumplimiento
- * contra el texto vigente de la RAN CACs (CMF) y la Ley 21.663 (ANCI).
+ * Plazos de reporte por defecto.
+ * CMF: la RAN CACs (CAC-3 §5.2, NCG 567) remite al N°1.1 del Capítulo 20-8 de la
+ * RAN de bancos: reporte inicial dentro de 30 minutos desde la ocurrencia y
+ * reporte de cierre al terminar el incidente.
+ * ANCI (Ley 21.663): plazos desde la toma de conocimiento; validar con Cumplimiento.
  */
 export const DEFAULT_REGULATORY_MILESTONES: RegulatoryMilestoneTemplate[] = [
-  { id: 'cmf-aviso-inicial', authority: 'CMF', name: 'Aviso inicial a la CMF', deadlineMinutes: 30, enabled: true },
-  { id: 'anci-alerta-temprana', authority: 'ANCI', name: 'Alerta temprana a la ANCI (CSIRT Nacional)', deadlineMinutes: 3 * 60, enabled: true },
-  { id: 'anci-segundo-informe', authority: 'ANCI', name: 'Segundo informe a la ANCI', deadlineMinutes: 72 * 60, enabled: true },
-  { id: 'anci-informe-final', authority: 'ANCI', name: 'Informe final a la ANCI', deadlineMinutes: 15 * 24 * 60, enabled: true },
+  { id: 'cmf-aviso-inicial', authority: 'CMF', name: 'Reporte inicial a la CMF (RAN 20-8)', deadlineMinutes: 30, enabled: true, basis: 'ocurrencia' },
+  { id: 'cmf-reporte-cierre', authority: 'CMF', name: 'Reporte de cierre a la CMF (RAN 20-8)', deadlineMinutes: 1, enabled: true, basis: 'ocurrencia', dueOnClose: true },
+  { id: 'anci-alerta-temprana', authority: 'ANCI', name: 'Alerta temprana a la ANCI (CSIRT Nacional)', deadlineMinutes: 3 * 60, enabled: true, basis: 'conocimiento' },
+  { id: 'anci-segundo-informe', authority: 'ANCI', name: 'Segundo informe a la ANCI', deadlineMinutes: 72 * 60, enabled: true, basis: 'conocimiento' },
+  { id: 'anci-informe-final', authority: 'ANCI', name: 'Informe final a la ANCI', deadlineMinutes: 15 * 24 * 60, enabled: true, basis: 'conocimiento' },
 ];

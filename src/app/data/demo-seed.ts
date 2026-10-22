@@ -707,6 +707,15 @@ export const DEMO_FLAWS: OperationalFlaw[] = [
     discoveryDate: minutesAgo(55).slice(0, 10),
     regulatoryReport: {
       awarenessAt: minutesAgo(50),
+      occurredAt: minutesAgo(70),
+      details: {
+        possibleCauses: 'Falla de hardware en el balanceador del proveedor de nube.',
+        affectedProducts: 'Transferencias, pago de créditos y consultas de saldo en canales digitales.',
+        affectedChannels: ['Página web', 'Aplicación móvil'],
+        customerType: 'Personas', estimatedAffectedMembers: 4200, affectedTransactions: 0,
+        measures: 'Conmutación al sitio alternativo en curso; aviso en redes sociales.',
+        informant: 'Ing. Carlos Mendoza, Gerente de Operaciones',
+      },
       reportableToCMF: true,
       reportableToANCI: false,
       submissions: [],
@@ -739,6 +748,7 @@ export const DEMO_FLAWS: OperationalFlaw[] = [
     discoveryDate: minutesAgo(25).slice(0, 10),
     regulatoryReport: {
       awarenessAt: minutesAgo(20),
+      occurredAt: minutesAgo(25),
       reportableToCMF: true,
       reportableToANCI: true,
       submissions: [],
@@ -790,10 +800,12 @@ export const DEMO_FLAWS: OperationalFlaw[] = [
     discoveryDate: '2026-10-16',
     regulatoryReport: {
       awarenessAt: '2026-10-16T11:40:00.000Z',
+      occurredAt: '2026-10-16T11:35:00.000Z',
       reportableToCMF: true,
       reportableToANCI: false,
       submissions: [
-        { milestoneId: 'cmf-aviso-inicial', submittedAt: '2026-10-16T12:02:00.000Z', submittedBy: 'Dra. Elena Vasconcelos', folio: 'CMF-INC-2026-0187' }
+        { milestoneId: 'cmf-aviso-inicial', submittedAt: '2026-10-16T12:02:00.000Z', submittedBy: 'Dra. Elena Vasconcelos', folio: 'CMF-INC-2026-0187' },
+        { milestoneId: 'cmf-reporte-cierre', submittedAt: '2026-10-16T17:50:00.000Z', submittedBy: 'Dra. Elena Vasconcelos', folio: 'CMF-INC-2026-0187' }
       ],
       updates: [
         { at: '2026-10-16T15:30:00.000Z', by: 'Dra. Elena Vasconcelos', note: 'Respaldo regenerado y verificado. Sin pérdida de datos de socios.' }

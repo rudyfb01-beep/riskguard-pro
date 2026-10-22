@@ -345,6 +345,7 @@ export class SidebarNav {
           { id: 'auditorias', label: 'Auditorías Periódicas', icon: 'fact_check' },
           { id: 'bitacora', label: 'Bitácora Inalterable', icon: 'lock', badge: 'SHA-256', badgeClass: 'bg-emerald-950 text-emerald-400 border border-emerald-800/40' },
           { id: 'reportes-pdf', label: 'Centro de Reportes & PDF', icon: 'picture_as_pdf', badge: 'PDF', badgeClass: 'bg-rose-950 text-rose-300 border border-rose-800/40' },
+          { id: 'apr-operacional', label: 'APR Riesgo Operacional', icon: 'account_balance', badge: 'CAC-20', badgeClass: 'bg-emerald-950 text-emerald-300 border border-emerald-800/40' },
         ]
       }
     ];

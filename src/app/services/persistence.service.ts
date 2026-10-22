@@ -2,6 +2,7 @@ import { Injectable, WritableSignal, effect, inject, signal, untracked } from '@
 import { RiskDataService } from './risk-data.service';
 import { ResilienceService } from './resilience.service';
 import { SecurityService } from './security.service';
+import { AprService } from './apr.service';
 import { AuditLogEntry, UserProfile } from '../models/risk.model';
 
 export type DataMode = 'loading' | 'login' | 'database' | 'demo' | 'error';
@@ -45,6 +46,7 @@ export class PersistenceService {
   private readonly rs = inject(RiskDataService);
   private readonly res = inject(ResilienceService);
   private readonly sec = inject(SecurityService);
+  private readonly apr = inject(AprService);
 
   readonly mode = signal<DataMode>('loading');
   readonly loadError = signal<string | null>(null);
@@ -84,6 +86,7 @@ export class PersistenceService {
     { key: 'current_industry', sig: this.rs.currentIndustry as WritableSignal<unknown>, last: '' },
     { key: 'global_notification_preferences', sig: this.rs.globalNotificationSettings as WritableSignal<unknown>, last: '' },
     { key: 'loss_registration_threshold_usd', sig: this.rs.lossRegistrationThresholdUSD as WritableSignal<unknown>, last: '' },
+    { key: 'apr_operational_inputs', sig: this.apr.inputs as WritableSignal<unknown>, last: '' },
   ];
 
   constructor() {

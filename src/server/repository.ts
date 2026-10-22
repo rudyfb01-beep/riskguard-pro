@@ -35,7 +35,7 @@ export const ENTITY_ORDER = [
 ] as const;
 export type EntityName = typeof ENTITY_ORDER[number];
 
-export const SETTING_KEYS = ['current_industry', 'global_notification_preferences', 'loss_registration_threshold_usd'] as const;
+export const SETTING_KEYS = ['current_industry', 'global_notification_preferences', 'loss_registration_threshold_usd', 'apr_operational_inputs'] as const;
 export type SettingKey = typeof SETTING_KEYS[number];
 
 export interface BootstrapData {
@@ -177,6 +177,7 @@ export async function loadAll(): Promise<BootstrapData> {
     providers: providers.map(providerFromRow),
     regulatoryMilestones: milestones.map(m => ({
       id: m.id, authority: m.authority, name: m.name, deadlineMinutes: m.deadline_minutes, enabled: m.enabled,
+      basis: m.basis, dueOnClose: m.due_on_close,
     })),
     flaws: flaws.map(r => flawFromRow(r, reportBy.get(r.id), subsBy.get(r.id) ?? [], updBy.get(r.id) ?? [])),
     alerts: alerts.map(alertFromRow),
@@ -255,6 +256,8 @@ function providerFromRow(r: Row): ServiceProvider {
 function flawFromRow(r: Row, rep: Row | undefined, subs: Row[], upds: Row[]): OperationalFlaw {
   const report: RegulatoryReport | undefined = rep && {
     awarenessAt: iso(rep.awareness_at),
+    occurredAt: isoOpt(rep.occurred_at),
+    details: opt(rep.details),
     reportableToCMF: rep.reportable_to_cmf,
     reportableToANCI: rep.reportable_to_anci,
     submissions: subs.map(s => ({ milestoneId: s.milestone_id, submittedAt: iso(s.submitted_at), submittedBy: s.submitted_by, folio: opt(s.folio) })),
@@ -434,6 +437,7 @@ const savers: Record<EntityName, (c: PoolClient, o: any) => Promise<void>> = {
   async 'regulatory-milestones'(c, o: RegulatoryMilestoneTemplate) {
     await upsertRow(c, 'regulatory_milestone_templates', 'id', {
       id: o.id, authority: o.authority, name: o.name, deadline_minutes: o.deadlineMinutes, enabled: o.enabled,
+      basis: o.basis ?? 'conocimiento', due_on_close: !!o.dueOnClose,
     });
   },
 
@@ -457,7 +461,8 @@ const savers: Record<EntityName, (c: PoolClient, o: any) => Promise<void>> = {
       return;
     }
     await upsertRow(c, 'regulatory_reports', 'flaw_id', {
-      flaw_id: o.id, awareness_at: r.awarenessAt, reportable_to_cmf: r.reportableToCMF, reportable_to_anci: r.reportableToANCI,
+      flaw_id: o.id, awareness_at: r.awarenessAt, occurred_at: r.occurredAt ?? null, details: r.details ? json(r.details) : null,
+      reportable_to_cmf: r.reportableToCMF, reportable_to_anci: r.reportableToANCI,
       status: r.status, closed_at: r.closedAt ?? null,
     }, false);
     await c.query('DELETE FROM regulatory_submissions WHERE flaw_id = $1', [o.id]);

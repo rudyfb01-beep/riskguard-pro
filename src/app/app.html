@@ -281,6 +281,17 @@
                 <span>Reportes & PDF</span>
               </button>
 
+              <button
+                (click)="setTab('apr-operacional')"
+                [class]="activeTab() === 'apr-operacional'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-emerald-700">account_balance</mat-icon>
+                <span>APR Operacional</span>
+              </button>
+
             </div>
 
             <!-- Quick Live Simulation Action -->
@@ -1063,6 +1074,11 @@
     <!-- TAB: PROVEEDORES Y EXTERNALIZACIÓN -->
     @if (activeTab() === 'proveedores') {
       <app-providers-panel (notify)="showToast($event)" />
+    }
+
+    <!-- TAB: APR POR RIESGO OPERACIONAL -->
+    @if (activeTab() === 'apr-operacional') {
+      <app-apr-panel (notify)="showToast($event)" />
     }
 
     <!-- TAB: SEGURIDAD DE LA INFORMACIÓN -->

@@ -359,14 +359,23 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
               </div>
 
               @if (form.get('reportCMF')?.value || form.get('reportANCI')?.value) {
-                <div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label for="occurred-at" class="block text-[11px] font-medium text-slate-600 mb-1">
+                      Inicio del incidente (base del plazo CMF, RAN 20-8)
+                    </label>
+                    <input id="occurred-at" type="datetime-local" formControlName="occurredAt"
+                      class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500" />
+                  </div>
+                  <div>
                   <label for="awareness-at" class="block text-[11px] font-medium text-slate-600 mb-1">
-                    Toma de conocimiento por la administración (inicia el conteo de plazos)
+                    Toma de conocimiento por la administración (base de plazos ANCI)
                   </label>
                   <input id="awareness-at" type="datetime-local" formControlName="awarenessAt"
-                    class="w-full sm:w-64 text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500" />
+                    class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500" />
+                  </div>
                   @if (incidentToEdit()?.regulatoryReport) {
-                    <p class="text-[11px] text-slate-500 mt-1">Este incidente ya tiene un reporte en curso. Los envíos se registran en la pestaña "Reporte CMF / ANCI".</p>
+                    <p class="text-[11px] text-slate-500 sm:col-span-2">Este incidente ya tiene un reporte en curso. Los envíos se registran en la pestaña "Reporte CMF / ANCI".</p>
                   }
                 </div>
               }
@@ -559,6 +568,7 @@ export class FlawModal {
     reportCMF: new FormControl<boolean>(false),
     reportANCI: new FormControl<boolean>(false),
     awarenessAt: new FormControl<string>(''),
+    occurredAt: new FormControl<string>(''),
   });
 
   private readonly formValue = toSignal(this.form.valueChanges, { initialValue: this.form.value });
@@ -589,6 +599,7 @@ export class FlawModal {
           reportCMF: !!rr?.reportableToCMF,
           reportANCI: !!rr?.reportableToANCI,
           awarenessAt: toLocalInput(rr?.awarenessAt ?? new Date().toISOString()),
+          occurredAt: toLocalInput(rr?.occurredAt ?? rr?.awarenessAt ?? new Date().toISOString()),
         });
         this.affectedAssetIds.set([...(inc.affectedAssetIds ?? [])]);
         if (inc.aiAnalysis) {
@@ -617,6 +628,7 @@ export class FlawModal {
           reportCMF: false,
           reportANCI: false,
           awarenessAt: toLocalInput(new Date().toISOString()),
+          occurredAt: toLocalInput(new Date().toISOString()),
         });
         this.aiResult.set(null);
         this.affectedAssetIds.set([]);
@@ -717,9 +729,11 @@ export class FlawModal {
     const rr = existing?.regulatoryReport;
     const awarenessIso = v.awarenessAt ? new Date(v.awarenessAt).toISOString() : new Date().toISOString();
     // Se compara a nivel de minuto: el campo datetime-local no tiene segundos.
-    const changed = !rr || rr.reportableToCMF !== cmf || rr.reportableToANCI !== anci || toLocalInput(rr.awarenessAt) !== v.awarenessAt;
+    const occurredIso = v.occurredAt ? new Date(v.occurredAt).toISOString() : awarenessIso;
+    const changed = !rr || rr.reportableToCMF !== cmf || rr.reportableToANCI !== anci || toLocalInput(rr.awarenessAt) !== v.awarenessAt
+      || toLocalInput(rr.occurredAt ?? rr.awarenessAt) !== v.occurredAt;
     if ((cmf || anci) && changed) {
-      await this.riskService.startRegulatoryReport(id, { awarenessAt: awarenessIso, cmf, anci });
+      await this.riskService.startRegulatoryReport(id, { awarenessAt: awarenessIso, occurredAt: occurredIso, cmf, anci });
     }
     return id;
   }

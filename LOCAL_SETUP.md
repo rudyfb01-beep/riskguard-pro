@@ -156,6 +156,24 @@ Detrás de un proxy inverso con HTTPS (IIS, nginx, balanceador), define `TRUST_P
 cookie se marque como segura y se registre la IP real del usuario. Define también `AUTH_SECRET`
 con una cadena aleatoria larga.
 
+## Módulos regulatorios: referencias y supuestos
+
+- **Reporte de incidentes a la CMF:** la RAN CACs (NCG 567, Capítulo CAC-3, numeral 5.2) remite
+  al numeral 1.1 del Capítulo 20-8 de la RAN de bancos. Reporte inicial dentro de **30 minutos
+  desde la ocurrencia** del incidente, actualizaciones mientras dure y reporte de cierre. La
+  pantalla genera el texto de cada reporte con los campos de ese capítulo.
+- **ANCI (Ley 21.663):** alerta temprana a las 3 horas, segundo informe a las 72 horas e informe
+  final a los 15 días. Los plazos se cuentan **desde la detección** y son configurables.
+- **APR por riesgo operacional:** el Capítulo CAC-20 está en consulta desde octubre de 2026. La
+  calculadora usa el método estándar que la CMF aplica a la banca (Basilea III): indicador de
+  negocio de 3 años, coeficientes de 12 % hasta 25 millones de UF y 15 % sobre ese monto, e ILM
+  opcional con al menos 5 años de pérdidas. Es una **referencia**: actualice los parámetros
+  cuando se publique la norma definitiva.
+- **Reportes:** se exportan en CSV para Excel la base de pérdidas, el registro de incidentes
+  reportados, el registro de servicios externalizados (RAN 20-7), el informe de seguridad y el
+  cálculo de APR. Son formatos internos; el formato oficial de archivos del MSI CACs se puede
+  agregar cuando se disponga de su especificación.
+
 ## Variables de entorno
 
 | Variable | Descripción |
