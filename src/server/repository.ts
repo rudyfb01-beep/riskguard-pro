@@ -189,10 +189,10 @@ function roleFromRow(r: Row): OrganizationalRole {
   return { id: r.id, title: r.title, department: r.department, description: r.description, badge: r.badge, isSystemRole: r.is_system_role, permissions: r.permissions };
 }
 
-function userFromRow(r: Row): UserProfile {
+export function userFromRow(r: Row): UserProfile {
   return {
     id: r.id, name: r.name, email: r.email, role: r.role_title, roleId: opt(r.role_id), department: r.department,
-    badge: r.badge, isSystemUser: r.is_system_user, permissions: r.permissions,
+    badge: r.badge, isSystemUser: r.is_system_user, permissions: r.permissions, active: r.active ?? true,
   };
 }
 
@@ -340,7 +340,7 @@ const savers: Record<EntityName, (c: PoolClient, o: any) => Promise<void>> = {
   async users(c, o: UserProfile) {
     await upsertRow(c, 'user_profiles', 'id', {
       id: o.id, name: o.name, email: o.email, role_id: o.roleId ?? null, role_title: o.role, department: o.department,
-      badge: o.badge, is_system_user: !!o.isSystemUser, permissions: json(o.permissions),
+      badge: o.badge, is_system_user: !!o.isSystemUser, permissions: json(o.permissions), active: o.active ?? true,
     });
   },
 

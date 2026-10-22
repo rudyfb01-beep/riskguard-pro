@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
-import { OrganizationalRole, UserPermissions } from '../models/risk.model';
+import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk.model';
 
 @Component({
   selector: 'app-roles-management-modal',
@@ -315,15 +315,17 @@ import { OrganizationalRole, UserPermissions } from '../models/risk.model';
                         <!-- Switch to this role action -->
                         <td class="py-3 px-4 text-right whitespace-nowrap">
                           <div class="inline-flex items-center gap-1.5 justify-end">
-                            <button
-                              type="button"
-                              (click)="switchToRole(role)"
-                              class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
-                              title="Iniciar sesión inmediatamente con las credenciales de este puesto"
-                            >
-                              <mat-icon class="text-xs">login</mat-icon>
-                              <span>Probar Puesto</span>
-                            </button>
+                            @if (!riskService.sessionLocked()) {
+                              <button
+                                type="button"
+                                (click)="switchToRole(role)"
+                                class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                title="Iniciar sesión inmediatamente con las credenciales de este puesto"
+                              >
+                                <mat-icon class="text-xs">login</mat-icon>
+                                <span>Probar Puesto</span>
+                              </button>
+                            }
 
                             @if (!role.isSystemRole) {
                               <button
@@ -461,23 +463,41 @@ import { OrganizationalRole, UserPermissions } from '../models/risk.model';
                         <button
                           type="button"
                           (click)="promptDeleteUser(usr.id)"
-                          [disabled]="riskService.userProfiles().length <= 1"
+                          [disabled]="riskService.userProfiles().length <= 1 || (riskService.sessionLocked() && riskService.currentProfile().id === usr.id)"
                           class="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                           [title]="riskService.userProfiles().length <= 1 ? 'No se puede eliminar la única cuenta del sistema' : 'Eliminar cuenta de colaborador'"
                         >
                           <mat-icon class="text-base leading-none">delete_outline</mat-icon>
                         </button>
 
-                        <button
-                          type="button"
-                          (click)="riskService.switchProfile(usr.id)"
-                          class="px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
-                          [class]="riskService.currentProfile().id === usr.id
-                            ? 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300'
-                            : 'bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700'"
-                        >
-                          {{ riskService.currentProfile().id === usr.id ? 'Sesión Activa ✓' : 'Conectar' }}
-                        </button>
+                        @if (riskService.sessionLocked()) {
+                          @if (riskService.currentProfile().id === usr.id) {
+                            <span class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300">Tu sesión</span>
+                          } @else {
+                            <button
+                              type="button"
+                              (click)="toggleUserActive(usr)"
+                              class="px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
+                              [class]="usr.active === false
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'"
+                              [title]="usr.active === false ? 'Permitir nuevamente el acceso de este usuario' : 'Impedir el acceso de este usuario (cierra sus sesiones)'"
+                            >
+                              {{ usr.active === false ? 'Inactivo · Reactivar' : 'Desactivar' }}
+                            </button>
+                          }
+                        } @else {
+                          <button
+                            type="button"
+                            (click)="riskService.switchProfile(usr.id)"
+                            class="px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
+                            [class]="riskService.currentProfile().id === usr.id
+                              ? 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300'
+                              : 'bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700'"
+                          >
+                            {{ riskService.currentProfile().id === usr.id ? 'Sesión Activa ✓' : 'Conectar' }}
+                          </button>
+                        }
                       </div>
                     </div>
 
@@ -790,6 +810,10 @@ export class RolesManagementModal {
     this.riskService.updateOrganizationalRole(role.id, {
       permissions: newPermissions
     });
+  }
+
+  toggleUserActive(usr: UserProfile) {
+    this.riskService.updateUserProfile(usr.id, { active: usr.active === false });
   }
 
   switchToRole(role: OrganizationalRole) {

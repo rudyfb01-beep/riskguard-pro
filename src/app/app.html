@@ -19,6 +19,13 @@
     </div>
   }
 
+  <!-- Inicio de sesión (y renovación si la sesión vence durante el trabajo) -->
+  @if (persistence.mode() === 'login') {
+    <app-login-screen (loggedIn)="persistence.onLoggedIn($event)" />
+  } @else if (persistence.sessionExpired()) {
+    <app-login-screen [overlay]="true" [presetEmail]="persistence.sessionUser()?.email ?? ''" (loggedIn)="persistence.onLoggedIn($event)" />
+  }
+
   <!-- Estado de guardado -->
   @if (persistence.mode() === 'database') {
     <div class="fixed bottom-6 left-6 z-40 no-print">

@@ -509,6 +509,9 @@ export class RiskDataService {
     return this.userProfiles();
   }
 
+  /** Con sesión iniciada el usuario es fijo: no se puede cambiar de perfil desde la pantalla. */
+  readonly sessionLocked = signal(false);
+
   // Active User Profile
   readonly currentProfile = signal<UserProfile>(this.userProfiles()[0]);
 
@@ -914,6 +917,7 @@ export class RiskDataService {
 
   // Switch User Profile (Role-based access)
   async switchProfile(profileOrId: string | UserProfile) {
+    if (this.sessionLocked()) return;
     const profileId = typeof profileOrId === 'string' ? profileOrId : profileOrId.id;
     const profile = this.userProfiles().find(p => p.id === profileId);
     if (!profile) return;
