@@ -216,7 +216,7 @@ import { AiRiskService } from '../services/ai-risk.service';
             </div>
 
             <div class="text-right text-[11px] font-mono">
-              <div>Custodia Risk System · Compliance Engine v2.4</div>
+              <div>RiskGuard Pro · Gestión de riesgo operacional</div>
               <div>Copia Auténtica y Certificada</div>
             </div>
           </div>

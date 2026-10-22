@@ -21,7 +21,7 @@ import { PersistenceService } from '../services/persistence.service';
             <div>
               <div class="flex items-center gap-2">
                 <span class="text-lg font-bold tracking-tight text-white whitespace-nowrap">
-                  Custodia Risk
+                  RiskGuard Pro
                 </span>
                 <span class="text-[11px] font-medium uppercase tracking-wider text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/50">
                   ISO 31000 / Basilea III
@@ -31,7 +31,7 @@ import { PersistenceService } from '../services/persistence.service';
           </div>
 
           <!-- Compliance Role Switcher & Active Session -->
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2 shrink-0">
             
             <!-- Layout Switcher Action -->
             <button
@@ -43,8 +43,8 @@ import { PersistenceService } from '../services/persistence.service';
               <mat-icon class="text-sm text-indigo-400">
                 {{ currentLayout() === 'vertical' ? 'view_day' : 'view_sidebar' }}
               </mat-icon>
-              <span class="hidden md:inline">
-                {{ currentLayout() === 'vertical' ? 'Menú Superior' : 'Menú Vertical (Izquierda)' }}
+              <span class="hidden 2xl:inline">
+                {{ currentLayout() === 'vertical' ? 'Menú Superior' : 'Menú Vertical' }}
               </span>
             </button>
 
@@ -55,7 +55,7 @@ import { PersistenceService } from '../services/persistence.service';
               title="Generar informe para el Consejo de Administración y exportar PDF/Excel"
             >
               <mat-icon class="text-sm text-emerald-400">picture_as_pdf</mat-icon>
-              <span>Informes Ejecutivos</span>
+              <span class="hidden xl:inline">Informes Ejecutivos</span>
             </button>
 
             <button
@@ -65,19 +65,21 @@ import { PersistenceService } from '../services/persistence.service';
               title="Registrar eventos de pérdida real o fallas de control operacional"
             >
               <mat-icon class="text-sm">add_alert</mat-icon>
-              <span>Registrar Incidencia</span>
+              <span class="hidden sm:inline">Registrar Incidencia</span>
             </button>
 
             <!-- Role Selector Dropdown -->
-            <div class="relative flex items-center pl-3 border-l border-slate-700">
-              <div class="text-right hidden md:block mr-2.5">
-                <div class="text-xs font-semibold text-slate-200 leading-tight">
+            <div class="relative flex items-center pl-3 border-l border-slate-700 min-w-0">
+              @if (riskService.sessionLocked()) {
+              <div class="text-right hidden lg:block mr-2.5 max-w-[220px] whitespace-nowrap">
+                <div class="text-xs font-semibold text-slate-200 leading-tight truncate">
                   {{ riskService.currentProfile().name }}
                 </div>
-                <div class="text-[11px] text-slate-400">
+                <div class="text-[11px] text-slate-400 truncate">
                   {{ riskService.currentProfile().role }}
                 </div>
               </div>
+              }
 
               @if (riskService.sessionLocked()) {
                 <button
@@ -93,7 +95,7 @@ import { PersistenceService } from '../services/persistence.service';
                 <select
                   [value]="riskService.currentProfile().id"
                   (change)="onRoleChange($event)"
-                  class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                  class="max-w-[150px] lg:max-w-[260px] truncate bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
                   title="Cambiar rol normativo de cumplimiento (RBAC)"
                 >
                   @for (profile of riskService.availableProfiles; track profile.id) {

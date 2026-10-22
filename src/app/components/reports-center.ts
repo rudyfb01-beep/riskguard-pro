@@ -489,7 +489,7 @@ export type ReportType =
           </div>
 
           <div class="text-right text-[11px] font-mono">
-            <div>Custodia Risk Platform · ISO 31000 Engine</div>
+            <div>RiskGuard Pro · Gestión de riesgo operacional</div>
             <div>Copia Oficial Auténtica para Archivo Regulador</div>
           </div>
         </div>

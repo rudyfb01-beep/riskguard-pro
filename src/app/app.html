@@ -315,7 +315,7 @@
         <div class="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           
           <!-- Mobile Menu Toggle & Title -->
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 min-w-0 flex-1">
             <button
               type="button"
               (click)="toggleMobileSidebar()"
@@ -325,31 +325,31 @@
               <mat-icon>menu</mat-icon>
             </button>
 
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 min-w-0">
               <div class="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center justify-center shrink-0">
                 <mat-icon class="text-lg">{{ activeTabInfo().icon }}</mat-icon>
               </div>
-              <div>
-                <div class="flex items-center gap-2">
-                  <h1 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 min-w-0">
+                  <h1 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight whitespace-nowrap truncate" [title]="activeTabInfo().title">
                     {{ activeTabInfo().title }}
                   </h1>
-                  <span class="hidden md:inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                  <span class="hidden 2xl:inline-flex shrink-0 items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                     Menú Vertical
                   </span>
                 </div>
-                <div class="text-[11px] text-slate-500 hidden sm:block">
+                <div class="text-[11px] text-slate-500 hidden sm:block whitespace-nowrap truncate">
                   <span>{{ activeTabInfo().section }}</span>
                   <span class="mx-1.5">•</span>
-                  <span class="text-emerald-700 font-medium">Custodia Risk Management</span>
+                  <span class="text-emerald-700 font-medium">RiskGuard Pro</span>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- Actions & Layout Switcher in Vertical Header -->
-          <div class="flex items-center gap-2.5">
+          <div class="flex items-center gap-2 shrink-0">
             <!-- Switch back to Horizontal Menu button -->
             <button
               type="button"
@@ -358,8 +358,7 @@
               title="Cambiar a vista de barra de menú superior horizontal"
             >
               <mat-icon class="text-sm text-indigo-600">view_day</mat-icon>
-              <span class="hidden sm:inline">Cambiar a Menú Superior</span>
-              <span class="sm:hidden">Menú Superior</span>
+              <span class="hidden 2xl:inline whitespace-nowrap">Cambiar a Menú Superior</span>
             </button>
 
             <button
@@ -369,7 +368,7 @@
               title="Administrar puestos y roles reales de tu organización y matriz de permisos"
             >
               <mat-icon class="text-sm text-indigo-600">manage_accounts</mat-icon>
-              <span>Puestos & Permisos</span>
+              <span class="hidden xl:inline whitespace-nowrap">Puestos & Permisos</span>
             </button>
 
             <button
@@ -379,7 +378,7 @@
               title="Generar y exportar reportes ejecutivos e imprimibles"
             >
               <mat-icon class="text-sm text-rose-600">picture_as_pdf</mat-icon>
-              <span>Informes PDF</span>
+              <span class="hidden xl:inline whitespace-nowrap">Informes PDF</span>
             </button>
 
             <button
@@ -389,12 +388,11 @@
               title="Registrar incidencia o evento de pérdida"
             >
               <mat-icon class="text-sm">add_alert</mat-icon>
-              <span class="hidden sm:inline">Registrar Incidencia</span>
-              <span class="sm:hidden">Incidencia</span>
+              <span class="hidden sm:inline whitespace-nowrap">Registrar Incidencia</span>
             </button>
 
             <!-- Role pill in Vertical layout header -->
-            <div class="hidden xl:flex items-center gap-2 pl-2 border-l border-slate-200 text-xs">
+            <div class="hidden 2xl:flex items-center gap-2 pl-2 border-l border-slate-200 text-xs whitespace-nowrap">
               <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
               <span class="font-medium text-slate-700">{{ riskService.currentProfile().name }}</span>
               <span class="text-[11px] text-slate-400 font-mono">({{ riskService.currentProfile().role }})</span>

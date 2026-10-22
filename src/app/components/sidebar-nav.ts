@@ -37,7 +37,7 @@ export interface NavGroup {
           @if (!isCollapsed()) {
             <div class="min-w-0">
               <div class="flex items-center gap-1.5">
-                <span class="text-base font-bold tracking-tight text-white truncate">Custodia Risk</span>
+                <span class="text-base font-bold tracking-tight text-white truncate">RiskGuard Pro</span>
                 <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Sistema Operacional Activo"></span>
               </div>
               <div class="text-[10px] text-slate-400 truncate flex items-center gap-1">

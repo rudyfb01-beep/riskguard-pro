@@ -20,7 +20,7 @@ import { UserProfile } from '../models/risk.model';
           <div class="flex items-center gap-2.5">
             <span class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center"><mat-icon>shield</mat-icon></span>
             <div>
-              <h1 class="text-base font-bold text-slate-900 leading-tight">Custodia Risk</h1>
+              <h1 class="text-base font-bold text-slate-900 leading-tight">RiskGuard Pro</h1>
               <p class="text-[11px] text-slate-500">Gestión de riesgo operacional</p>
             </div>
           </div>

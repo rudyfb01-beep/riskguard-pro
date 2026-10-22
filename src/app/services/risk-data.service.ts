@@ -2053,7 +2053,7 @@ export class RiskDataService {
   exportToExcel(type: 'risks' | 'controls' | 'audit_trail' | 'loss_database' | 'complete') {
     const csvContentStart = '\uFEFF'; // UTF-8 BOM for Excel to properly render accents and special characters
     const now = new Date().toISOString().slice(0, 10);
-    const filename = `Custodia_Riesgo_Operacional_${type}_${now}.csv`;
+    const filename = `RiskGuard_Riesgo_Operacional_${type}_${now}.csv`;
     let csvContent = csvContentStart;
 
     if (type === 'risks' || type === 'complete') {
