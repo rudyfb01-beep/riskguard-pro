@@ -4,6 +4,8 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
+import { ResilienceService } from '../services/resilience.service';
+import { SecurityService } from '../services/security.service';
 import { AiRiskService, AIAnalysisResult } from '../services/ai-risk.service';
 import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine, IncidentType, OperationalFlaw } from '../models/risk.model';
 
@@ -299,6 +301,31 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
                 </p>
               }
 
+              <div>
+                <label for="provider-id" class="block text-[11px] font-medium text-slate-600 mb-1">Proveedor involucrado (servicio externalizado)</label>
+                <select id="provider-id" formControlName="providerId"
+                  class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option value="">— Ninguno —</option>
+                  @for (p of resilience.providers(); track p.id) {
+                    <option [value]="p.id">{{ p.code }} · {{ p.name }}</option>
+                  }
+                </select>
+              </div>
+
+              @if (security.assets().length > 0) {
+                <div>
+                  <span class="block text-[11px] font-medium text-slate-600 mb-1">Activos de información afectados</span>
+                  <div class="max-h-28 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1 p-2 rounded-lg border border-slate-200">
+                    @for (a of security.assets(); track a.id) {
+                      <label class="flex items-center gap-1.5 text-[11px] text-slate-700 cursor-pointer">
+                        <input type="checkbox" [checked]="affectedAssetIds().includes(a.id)" (change)="toggleAsset(a.id, $any($event.target).checked)" class="rounded" />
+                        <span class="truncate">{{ a.code }} · {{ a.name }}</span>
+                      </label>
+                    }
+                  </div>
+                </div>
+              }
+
               <label class="flex items-start gap-2 text-[11px] text-slate-700 cursor-pointer">
                 <input type="checkbox" formControlName="creditRiskBoundary" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
                 <span><strong>Frontera con riesgo de crédito:</strong> la pérdida se origina en una falla operacional pero se materializa en la cartera de créditos (p. ej., error en la constitución de garantías).</span>
@@ -332,14 +359,23 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
               </div>
 
               @if (form.get('reportCMF')?.value || form.get('reportANCI')?.value) {
-                <div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label for="occurred-at" class="block text-[11px] font-medium text-slate-600 mb-1">
+                      Inicio del incidente (base del plazo CMF, RAN 20-8)
+                    </label>
+                    <input id="occurred-at" type="datetime-local" formControlName="occurredAt"
+                      class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500" />
+                  </div>
+                  <div>
                   <label for="awareness-at" class="block text-[11px] font-medium text-slate-600 mb-1">
-                    Toma de conocimiento por la administración (inicia el conteo de plazos)
+                    Toma de conocimiento por la administración (base de plazos ANCI)
                   </label>
                   <input id="awareness-at" type="datetime-local" formControlName="awarenessAt"
-                    class="w-full sm:w-64 text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500" />
+                    class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500" />
+                  </div>
                   @if (incidentToEdit()?.regulatoryReport) {
-                    <p class="text-[11px] text-slate-500 mt-1">Este incidente ya tiene un reporte en curso. Los envíos se registran en la pestaña "Reporte CMF / ANCI".</p>
+                    <p class="text-[11px] text-slate-500 sm:col-span-2">Este incidente ya tiene un reporte en curso. Los envíos se registran en la pestaña "Reporte CMF / ANCI".</p>
                   }
                 </div>
               }
@@ -494,6 +530,10 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
 export class FlawModal {
   readonly riskService = inject(RiskDataService);
   readonly aiService = inject(AiRiskService);
+  readonly resilience = inject(ResilienceService);
+  readonly security = inject(SecurityService);
+  /** Activos de información afectados (fuera del formulario reactivo por ser una lista). */
+  readonly affectedAssetIds = signal<string[]>([]);
 
   readonly incidentToEdit = input<OperationalFlaw | null>(null);
   readonly closeModal = output<void>();
@@ -523,10 +563,12 @@ export class FlawModal {
     accountingDate: new FormControl<string>(''),
     accountingAccount: new FormControl<string>(''),
     creditRiskBoundary: new FormControl<boolean>(false),
+    providerId: new FormControl<string>(''),
     // Reporte regulatorio
     reportCMF: new FormControl<boolean>(false),
     reportANCI: new FormControl<boolean>(false),
     awarenessAt: new FormControl<string>(''),
+    occurredAt: new FormControl<string>(''),
   });
 
   private readonly formValue = toSignal(this.form.valueChanges, { initialValue: this.form.value });
@@ -553,10 +595,13 @@ export class FlawModal {
           accountingDate: inc.accountingDate || '',
           accountingAccount: inc.accountingAccount || '',
           creditRiskBoundary: !!inc.creditRiskBoundary,
+          providerId: inc.providerId || '',
           reportCMF: !!rr?.reportableToCMF,
           reportANCI: !!rr?.reportableToANCI,
           awarenessAt: toLocalInput(rr?.awarenessAt ?? new Date().toISOString()),
+          occurredAt: toLocalInput(rr?.occurredAt ?? rr?.awarenessAt ?? new Date().toISOString()),
         });
+        this.affectedAssetIds.set([...(inc.affectedAssetIds ?? [])]);
         if (inc.aiAnalysis) {
           this.aiResult.set(inc.aiAnalysis as unknown as AIAnalysisResult);
         }
@@ -579,11 +624,14 @@ export class FlawModal {
           accountingDate: '',
           accountingAccount: '',
           creditRiskBoundary: false,
+          providerId: '',
           reportCMF: false,
           reportANCI: false,
           awarenessAt: toLocalInput(new Date().toISOString()),
+          occurredAt: toLocalInput(new Date().toISOString()),
         });
         this.aiResult.set(null);
+        this.affectedAssetIds.set([]);
       }
     });
   }
@@ -607,6 +655,10 @@ export class FlawModal {
       return 'La fecha de contabilización es anterior a la de descubrimiento.';
     }
     return null;
+  }
+
+  toggleAsset(id: string, on: boolean) {
+    this.affectedAssetIds.update(l => (on ? [...l, id] : l.filter(x => x !== id)));
   }
 
   setIncidentType(type: IncidentType) {
@@ -659,6 +711,8 @@ export class FlawModal {
       accountingDate: val.accountingDate || undefined,
       accountingAccount: val.accountingAccount || undefined,
       creditRiskBoundary: !!val.creditRiskBoundary,
+      providerId: val.providerId || undefined,
+      affectedAssetIds: this.affectedAssetIds(),
     };
   }
 
@@ -675,9 +729,11 @@ export class FlawModal {
     const rr = existing?.regulatoryReport;
     const awarenessIso = v.awarenessAt ? new Date(v.awarenessAt).toISOString() : new Date().toISOString();
     // Se compara a nivel de minuto: el campo datetime-local no tiene segundos.
-    const changed = !rr || rr.reportableToCMF !== cmf || rr.reportableToANCI !== anci || toLocalInput(rr.awarenessAt) !== v.awarenessAt;
+    const occurredIso = v.occurredAt ? new Date(v.occurredAt).toISOString() : awarenessIso;
+    const changed = !rr || rr.reportableToCMF !== cmf || rr.reportableToANCI !== anci || toLocalInput(rr.awarenessAt) !== v.awarenessAt
+      || toLocalInput(rr.occurredAt ?? rr.awarenessAt) !== v.occurredAt;
     if ((cmf || anci) && changed) {
-      await this.riskService.startRegulatoryReport(id, { awarenessAt: awarenessIso, cmf, anci });
+      await this.riskService.startRegulatoryReport(id, { awarenessAt: awarenessIso, occurredAt: occurredIso, cmf, anci });
     }
     return id;
   }

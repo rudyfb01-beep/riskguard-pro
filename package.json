@@ -9,7 +9,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint",
-    "serve:ssr:app": "node dist/app/server/server.mjs"
+    "serve:ssr:app": "node --env-file-if-exists=.env dist/app/server/server.mjs"
   },
   "private": true,
   "dependencies": {
@@ -27,6 +27,7 @@
     "@types/pg": "^8.23.1",
     "express": "^5.1.0",
     "motion": "^12.23.24",
+    "nodemailer": "^6.10.1",
     "pg": "^8.23.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
@@ -38,6 +39,7 @@
     "@tailwindcss/postcss": "^4.1.12",
     "@types/express": "^5.0.1",
     "@types/node": "^20.17.19",
+    "@types/nodemailer": "^6.4.24",
     "angular-eslint": "21.1.0",
     "cross-env": "^10.1.0",
     "eslint": "^9.39.1",

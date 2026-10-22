@@ -439,10 +439,11 @@ FOR EACH ROW EXECUTE FUNCTION fn_calculate_risk_matrix();
 CREATE OR REPLACE FUNCTION fn_calculate_control_effectiveness()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.total_effectiveness := ROUND((NEW.design_effectiveness * 0.40 + NEW.operating_effectiveness * 0.60)::numeric, 2);
-    IF NEW.total_effectiveness >= 80 THEN
+    -- Misma regla que la aplicación: total redondeado; Efectivo >= 85, Parcial >= 65.
+    NEW.total_effectiveness := ROUND((NEW.design_effectiveness * 0.40 + NEW.operating_effectiveness * 0.60)::numeric, 0);
+    IF NEW.total_effectiveness >= 85 THEN
         NEW.status := 'Efectivo';
-    ELSIF NEW.total_effectiveness >= 50 THEN
+    ELSIF NEW.total_effectiveness >= 65 THEN
         NEW.status := 'Parcialmente Efectivo';
     ELSE
         NEW.status := 'Deficiente';
@@ -589,3 +590,244 @@ FROM regulatory_reports r
 JOIN regulatory_milestone_templates t
   ON t.enabled AND ((t.authority = 'CMF' AND r.reportable_to_cmf) OR (t.authority = 'ANCI' AND r.reportable_to_anci))
 LEFT JOIN regulatory_submissions s ON s.flaw_id = r.flaw_id AND s.milestone_id = t.id;
+
+-- ==============================================================================
+-- 19. PROVEEDORES, EXTERNALIZACIÓN Y CONTINUIDAD DEL NEGOCIO (FASE 2)
+-- Idempotente: puede ejecutarse sobre una base existente.
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS service_providers (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    tax_id VARCHAR(20),
+    service_description TEXT NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    criticality VARCHAR(20) NOT NULL CHECK (criticality IN ('Crítico', 'Alto', 'Medio', 'Bajo')),
+    internal_owner VARCHAR(255),
+    supported_processes TEXT[] NOT NULL DEFAULT '{}',
+    status VARCHAR(20) NOT NULL DEFAULT 'Activo' CHECK (status IN ('Activo', 'En evaluación', 'En término')),
+    is_cloud BOOLEAN NOT NULL DEFAULT FALSE,
+    cloud_model VARCHAR(10) CHECK (cloud_model IN ('IaaS', 'PaaS', 'SaaS')),
+    data_location VARCHAR(20) NOT NULL DEFAULT 'Chile' CHECK (data_location IN ('Chile', 'Extranjero')),
+    data_country VARCHAR(100),
+    handles_member_data BOOLEAN NOT NULL DEFAULT FALSE,
+    uses_subcontractors BOOLEAN NOT NULL DEFAULT FALSE,
+    contract_start DATE,
+    contract_end DATE NOT NULL,
+    annual_cost_usd NUMERIC(15,2) NOT NULL DEFAULT 0,
+    clauses JSONB NOT NULL DEFAULT '{}'::jsonb,
+    last_assessment_date DATE,
+    assessment_score SMALLINT CHECK (assessment_score BETWEEN 0 AND 100),
+    has_exit_plan BOOLEAN NOT NULL DEFAULT FALSE,
+    exit_plan_notes TEXT,
+    committed_rto_hours NUMERIC(8,2),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_provider_contract_dates CHECK (contract_start IS NULL OR contract_end >= contract_start)
+);
+
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS provider_id VARCHAR(64) REFERENCES service_providers(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS bia_processes (
+    id VARCHAR(64) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    owner VARCHAR(255),
+    business_line VARCHAR(100),
+    description TEXT,
+    impact_financial SMALLINT NOT NULL CHECK (impact_financial BETWEEN 1 AND 4),
+    impact_members SMALLINT NOT NULL CHECK (impact_members BETWEEN 1 AND 4),
+    impact_regulatory SMALLINT NOT NULL CHECK (impact_regulatory BETWEEN 1 AND 4),
+    impact_reputational SMALLINT NOT NULL CHECK (impact_reputational BETWEEN 1 AND 4),
+    mtpd_hours NUMERIC(8,2) NOT NULL,
+    rto_hours NUMERIC(8,2) NOT NULL,
+    rpo_hours NUMERIC(8,2) NOT NULL,
+    systems TEXT[] NOT NULL DEFAULT '{}',
+    minimum_staff INTEGER NOT NULL DEFAULT 0,
+    alternate_site VARCHAR(255),
+    last_review_date DATE NOT NULL,
+    CONSTRAINT chk_bia_rto_mtpd CHECK (rto_hours <= mtpd_hours)
+);
+
+CREATE TABLE IF NOT EXISTS bia_process_providers (
+    bia_process_id VARCHAR(64) REFERENCES bia_processes(id) ON DELETE CASCADE,
+    provider_id VARCHAR(64) REFERENCES service_providers(id) ON DELETE CASCADE,
+    PRIMARY KEY (bia_process_id, provider_id)
+);
+
+CREATE TABLE IF NOT EXISTS continuity_plans (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(60) NOT NULL,
+    owner VARCHAR(255),
+    version VARCHAR(20) NOT NULL DEFAULT '1.0',
+    approved_by VARCHAR(100),
+    approval_date DATE,
+    next_review_date DATE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'Borrador' CHECK (status IN ('Vigente', 'En actualización', 'Borrador'))
+);
+
+CREATE TABLE IF NOT EXISTS continuity_plan_processes (
+    plan_id VARCHAR(64) REFERENCES continuity_plans(id) ON DELETE CASCADE,
+    bia_process_id VARCHAR(64) REFERENCES bia_processes(id) ON DELETE CASCADE,
+    PRIMARY KEY (plan_id, bia_process_id)
+);
+
+CREATE TABLE IF NOT EXISTS continuity_tests (
+    id VARCHAR(64) PRIMARY KEY,
+    plan_id VARCHAR(64) NOT NULL REFERENCES continuity_plans(id) ON DELETE CASCADE,
+    test_date DATE NOT NULL,
+    type VARCHAR(60) NOT NULL,
+    scenario TEXT NOT NULL,
+    bia_process_id VARCHAR(64) REFERENCES bia_processes(id) ON DELETE SET NULL,
+    achieved_rto_hours NUMERIC(8,2),
+    result VARCHAR(30) NOT NULL CHECK (result IN ('Exitosa', 'Con observaciones', 'Fallida')),
+    findings TEXT,
+    actions TEXT
+);
+
+-- Vista: procesos cuyo proveedor compromete un RTO mayor al requerido
+CREATE OR REPLACE VIEW v_provider_rto_gaps AS
+SELECT b.id AS bia_process_id, b.name AS process, b.rto_hours AS required_rto_hours,
+       p.code AS provider_code, p.name AS provider, p.committed_rto_hours
+FROM bia_processes b
+JOIN bia_process_providers bp ON bp.bia_process_id = b.id
+JOIN service_providers p ON p.id = bp.provider_id
+WHERE p.committed_rto_hours IS NOT NULL AND p.committed_rto_hours > b.rto_hours;
+
+-- Vista: contratos que vencen en los próximos 90 días o ya vencidos
+CREATE OR REPLACE VIEW v_provider_contract_expiry AS
+SELECT code, name, criticality, contract_end, (contract_end - CURRENT_DATE) AS days_to_end, status
+FROM service_providers
+WHERE contract_end <= CURRENT_DATE + 90
+ORDER BY contract_end;
+
+-- ==============================================================================
+-- 20. AUTENTICACIÓN: CÓDIGO DE UN SOLO USO POR CORREO Y SESIONES (FASE 4)
+-- ==============================================================================
+
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+-- El correo identifica al usuario al iniciar sesión: debe ser único sin distinguir mayúsculas.
+DO $$
+BEGIN
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_user_profiles_email_lower ON user_profiles (lower(email));
+EXCEPTION WHEN unique_violation THEN
+    RAISE WARNING 'Hay correos duplicados (sin distinguir mayúsculas) en user_profiles; corríjalos para habilitar el índice único.';
+END $$;
+
+-- Códigos de acceso enviados por correo (se guarda solo su hash)
+CREATE TABLE IF NOT EXISTS auth_login_codes (
+    id BIGSERIAL PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+    code_hash VARCHAR(128) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    consumed_at TIMESTAMPTZ,
+    request_ip VARCHAR(100),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_auth_codes_user ON auth_login_codes(user_id, created_at DESC);
+
+-- Sesiones activas (se guarda solo el hash del token de la cookie)
+CREATE TABLE IF NOT EXISTS auth_sessions (
+    token_hash VARCHAR(128) PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMPTZ NOT NULL,
+    ip VARCHAR(100),
+    user_agent VARCHAR(300)
+);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
+
+-- ==============================================================================
+-- 21. SEGURIDAD DE LA INFORMACIÓN Y CIBERSEGURIDAD
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS info_assets (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    type VARCHAR(60) NOT NULL,
+    owner VARCHAR(255) NOT NULL,
+    custodian VARCHAR(255),
+    classification VARCHAR(20) NOT NULL CHECK (classification IN ('Pública', 'Interna', 'Confidencial', 'Restringida')),
+    confidentiality SMALLINT NOT NULL CHECK (confidentiality BETWEEN 1 AND 4),
+    integrity SMALLINT NOT NULL CHECK (integrity BETWEEN 1 AND 4),
+    availability SMALLINT NOT NULL CHECK (availability BETWEEN 1 AND 4),
+    handles_personal_data BOOLEAN NOT NULL DEFAULT FALSE,
+    location VARCHAR(40) NOT NULL,
+    provider_id VARCHAR(64) REFERENCES service_providers(id) ON DELETE SET NULL,
+    bia_process_ids TEXT[] NOT NULL DEFAULT '{}',
+    last_review_date DATE NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS vulnerabilities (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    asset_id VARCHAR(64) NOT NULL REFERENCES info_assets(id) ON DELETE CASCADE,
+    source VARCHAR(40) NOT NULL,
+    severity VARCHAR(10) NOT NULL CHECK (severity IN ('Crítica', 'Alta', 'Media', 'Baja')),
+    cvss_score NUMERIC(3,1) CHECK (cvss_score BETWEEN 0 AND 10),
+    detected_date DATE NOT NULL,
+    due_date DATE NOT NULL,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('Abierta', 'En remediación', 'Mitigada', 'Riesgo aceptado', 'Cerrada')),
+    owner VARCHAR(255),
+    remediation TEXT,
+    closed_date DATE,
+    acceptance JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_vuln_dates CHECK (due_date >= detected_date),
+    CONSTRAINT chk_vuln_acceptance CHECK (status <> 'Riesgo aceptado' OR acceptance IS NOT NULL)
+);
+CREATE INDEX IF NOT EXISTS idx_vulnerabilities_asset ON vulnerabilities(asset_id);
+CREATE INDEX IF NOT EXISTS idx_vulnerabilities_status ON vulnerabilities(status, due_date);
+
+CREATE TABLE IF NOT EXISTS security_assessment_items (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    domain VARCHAR(40) NOT NULL,
+    requirement TEXT NOT NULL,
+    guidance TEXT,
+    status VARCHAR(30) NOT NULL DEFAULT 'Sin evaluar'
+        CHECK (status IN ('Sin evaluar', 'Cumple', 'Cumple parcialmente', 'No cumple', 'No aplica')),
+    evidence TEXT,
+    owner VARCHAR(255),
+    action_plan TEXT,
+    due_date DATE,
+    assessed_by VARCHAR(255),
+    assessed_date DATE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS affected_asset_ids TEXT[] NOT NULL DEFAULT '{}';
+
+-- Vista: vulnerabilidades abiertas fuera de plazo
+CREATE OR REPLACE VIEW v_overdue_vulnerabilities AS
+SELECT v.code, v.title, v.severity, v.due_date, (CURRENT_DATE - v.due_date) AS days_overdue,
+       a.code AS asset_code, a.name AS asset, v.owner
+FROM vulnerabilities v JOIN info_assets a ON a.id = v.asset_id
+WHERE v.status IN ('Abierta', 'En remediación') AND v.due_date < CURRENT_DATE
+ORDER BY v.due_date;
+
+-- ==============================================================================
+-- 22. REPORTE DE INCIDENTES SEGÚN RAN 20-8 (CAC-3 §5.2) Y PREPARACIÓN APR
+-- ==============================================================================
+
+ALTER TABLE regulatory_reports ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ;
+ALTER TABLE regulatory_reports ADD COLUMN IF NOT EXISTS details JSONB;
+ALTER TABLE regulatory_milestone_templates ADD COLUMN IF NOT EXISTS basis VARCHAR(20) NOT NULL DEFAULT 'conocimiento';
+ALTER TABLE regulatory_milestone_templates ADD COLUMN IF NOT EXISTS due_on_close BOOLEAN NOT NULL DEFAULT FALSE;
+DO $$
+BEGIN
+    ALTER TABLE regulatory_milestone_templates ADD CONSTRAINT chk_milestone_basis CHECK (basis IN ('ocurrencia', 'conocimiento'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

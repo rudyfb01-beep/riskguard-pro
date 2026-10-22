@@ -158,13 +158,39 @@ export const BASEL_SUBCATEGORIES: Record<BaselCategory, string[]> = {
 
 export type RegulatoryAuthority = 'CMF' | 'ANCI';
 
-/** Hito de reporte configurable (plazo contado desde la toma de conocimiento). */
+/**
+ * Hito de reporte configurable. El plazo se cuenta desde la ocurrencia del
+ * incidente (RAN 20-8 §1.1: "30 minutos luego de su ocurrencia") o desde la
+ * toma de conocimiento, según `basis`. Los hitos `dueOnClose` se envían al cerrar.
+ */
 export interface RegulatoryMilestoneTemplate {
   id: string;
   authority: RegulatoryAuthority;
   name: string;
   deadlineMinutes: number;
   enabled: boolean;
+  basis?: 'ocurrencia' | 'conocimiento';
+  dueOnClose?: boolean;
+}
+
+export const RAN208_CHANNELS = ['Sucursales', 'Página web', 'Aplicación móvil', 'Atención telefónica', 'Cajeros / POS', 'Correo electrónico', 'Otros'] as const;
+
+/** Contenido del reporte de incidente operacional (RAN 20-8 §1.1, aplicable vía CAC-3 §5.2). */
+export interface Ran208Details {
+  cmfIncidentId?: string;            // identificador asignado por la CMF
+  possibleCauses?: string;           // reporte inicial
+  identifiedCauses?: string;         // reporte de cierre
+  affectedProducts?: string;
+  affectedChannels?: string[];
+  affectedPremises?: string;         // dependencias afectadas
+  customerType?: 'Personas' | 'Empresas' | 'Ambos' | 'N/A';
+  estimatedAffectedMembers?: number;
+  affectedTransactions?: number;
+  measures?: string;                 // medidas adoptadas y en curso
+  otherInfo?: string;
+  informant?: string;                // nombre y cargo de quien informa
+  endedAt?: string;                  // ISO: término del incidente
+  memberNotice?: string;             // §1.2: comunicación a socios/usuarios
 }
 
 export interface RegulatorySubmission {
@@ -183,6 +209,8 @@ export interface RegulatoryReportUpdate {
 /** Seguimiento del reporte de un incidente a la CMF y/o a la ANCI. */
 export interface RegulatoryReport {
   awarenessAt: string; // ISO: momento en que la administración toma conocimiento
+  occurredAt?: string; // ISO: inicio u ocurrencia del incidente (base del plazo CMF)
+  details?: Ran208Details;
   reportableToCMF: boolean;
   reportableToANCI: boolean;
   submissions: RegulatorySubmission[];
@@ -225,6 +253,12 @@ export interface OperationalFlaw {
 
   // ---- Reporte regulatorio CMF / ANCI ----
   regulatoryReport?: RegulatoryReport;
+
+  /** Proveedor externo involucrado en el incidente (si aplica). */
+  providerId?: string;
+
+  /** Activos de información afectados (ciberincidentes). */
+  affectedAssetIds?: string[];
 }
 
 export type OperationalIncident = OperationalFlaw;
@@ -301,8 +335,23 @@ export interface AuditLogEntry {
     | 'ENVÍO_REPORTE_REGULATORIO'
     | 'ACTUALIZACIÓN_REPORTE_REGULATORIO'
     | 'CIERRE_REPORTE_REGULATORIO'
-    | 'CONFIGURACIÓN_PLAZOS_REGULATORIOS';
-  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio';
+    | 'CONFIGURACIÓN_PLAZOS_REGULATORIOS'
+    | 'ALTA_PROVEEDOR'
+    | 'MODIFICACIÓN_PROVEEDOR'
+    | 'EVALUACIÓN_PROVEEDOR'
+    | 'ACTUALIZACIÓN_BIA'
+    | 'ALTA_PLAN_CONTINUIDAD'
+    | 'MODIFICACIÓN_PLAN_CONTINUIDAD'
+    | 'PRUEBA_CONTINUIDAD'
+    | 'INICIO_SESIÓN'
+    | 'CIERRE_SESIÓN'
+    | 'ALTA_ACTIVO_INFORMACION'
+    | 'MODIFICACIÓN_ACTIVO_INFORMACION'
+    | 'REGISTRO_VULNERABILIDAD'
+    | 'ACTUALIZACIÓN_VULNERABILIDAD'
+    | 'AUTOEVALUACIÓN_SEGURIDAD'
+    | 'CONFIGURACIÓN_APR';
+  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad';
   entityCode: string;
   details: string;
   ipAddress: string;
@@ -365,6 +414,12 @@ export interface UserPermissions {
   canExportReports: boolean;
   /** Registrar envíos a CMF/ANCI y configurar plazos regulatorios. */
   canManageRegulatoryReports?: boolean;
+  /** Registrar y evaluar proveedores y servicios externalizados. */
+  canManageProviders?: boolean;
+  /** Mantener BIA, planes de continuidad y registrar pruebas. */
+  canManageContinuity?: boolean;
+  /** Mantener activos de información, vulnerabilidades y la autoevaluación de seguridad. */
+  canManageInfoSecurity?: boolean;
 }
 
 export interface OrganizationalRole {
@@ -387,6 +442,8 @@ export interface UserProfile {
   badge: string;
   isSystemUser?: boolean;
   permissions: UserPermissions;
+  /** Usuario habilitado para iniciar sesión (por defecto true). */
+  active?: boolean;
 }
 
 export interface ProcessHeatmapCell {

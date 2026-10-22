@@ -10,16 +10,38 @@ import {GoogleGenAI} from '@google/genai';
 import {
   checkDbHealth,
   getDbStats,
-  initializeSchemaAndSeed,
   getPool,
 } from './server/db';
+import { dataApi, getDbReady } from './server/api';
+import { currentUser, hasAny, requireAuth, requireCsrfHeader } from './server/auth';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
 const app = express();
 const angularApp = new AngularNodeAppEngine();
 
-app.use(express.json());
+// Límite amplio: las evidencias de controles pueden incluir archivos adjuntos.
+// Detrás de un proxy inverso (HTTPS), TRUST_PROXY permite conocer la IP real y si la conexión es segura.
+if (process.env['TRUST_PROXY']) {
+  const v = process.env['TRUST_PROXY'];
+  app.set('trust proxy', v === 'true' ? true : /^\d+$/.test(v) ? Number(v) : v);
+}
+app.disable('x-powered-by');
+
+// Cabeceras de seguridad básicas.
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  next();
+});
+
+// Límite amplio: las evidencias de controles pueden incluir archivos adjuntos.
+app.use(express.json({ limit: '15mb' }));
+
+// Las funciones de IA y el diagnóstico de la base requieren sesión.
+app.use('/api/ai', requireCsrfHeader, requireAuth);
+app.use(['/api/db/stats', '/api/db/init'], requireCsrfHeader, requireAuth);
 
 // Initialize Gemini Client on demand
 let aiClient: GoogleGenAI | null = null;
@@ -192,11 +214,12 @@ Escribe un resumen en español de 2 párrafos concisos y de alto nivel gerencial
 
 // Database Health & Diagnostic Endpoints
 app.get('/api/db/health', async (req, res): Promise<void> => {
+  // Público (lo usa el healthcheck de Docker): solo informa si hay conexión.
   try {
     const health = await checkDbHealth();
-    res.json(health);
-  } catch (err) {
-    res.status(500).json({ connected: false, message: (err as Error).message });
+    res.status(health.connected || !getPool() ? 200 : 503).json({ connected: health.connected });
+  } catch {
+    res.status(503).json({ connected: false });
   }
 });
 
@@ -210,76 +233,20 @@ app.get('/api/db/stats', async (req, res): Promise<void> => {
 });
 
 app.post('/api/db/init', async (req, res): Promise<void> => {
+  if (getPool() && !hasAny(currentUser(res), ['canManageRoles'])) {
+    res.status(403).json({ error: 'Requiere permiso para administrar cargos.' });
+    return;
+  }
   try {
-    const result = await initializeSchemaAndSeed();
-    res.json(result);
+    const result = await getDbReady(true);
+    res.json({ success: true, ...result });
   } catch (err) {
     res.status(500).json({ success: false, error: (err as Error).message });
   }
 });
 
-app.get('/api/risks', async (req, res): Promise<void> => {
-  try {
-    const pool = getPool();
-    if (!pool) {
-      res.json({ source: 'local_fallback', message: 'PostgreSQL no conectado en esta sesión.' });
-      return;
-    }
-    const result = await pool.query(`
-      SELECT r.*, 
-        COALESCE(json_agg(rc.control_id) FILTER (WHERE rc.control_id IS NOT NULL), '[]') as "controlIds"
-      FROM risks r
-      LEFT JOIN risk_controls rc ON r.id = rc.risk_id
-      GROUP BY r.id
-      ORDER BY r.inherent_score DESC
-    `);
-    res.json({ source: 'postgresql', data: result.rows });
-  } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
-  }
-});
-
-app.get('/api/controls', async (req, res): Promise<void> => {
-  try {
-    const pool = getPool();
-    if (!pool) {
-      res.json({ source: 'local_fallback' });
-      return;
-    }
-    const result = await pool.query('SELECT * FROM controls ORDER BY code ASC');
-    res.json({ source: 'postgresql', data: result.rows });
-  } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
-  }
-});
-
-app.get('/api/kris', async (req, res): Promise<void> => {
-  try {
-    const pool = getPool();
-    if (!pool) {
-      res.json({ source: 'local_fallback' });
-      return;
-    }
-    const result = await pool.query('SELECT * FROM kri_definitions ORDER BY code ASC');
-    res.json({ source: 'postgresql', data: result.rows });
-  } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
-  }
-});
-
-app.get('/api/audit-ledger', async (req, res): Promise<void> => {
-  try {
-    const pool = getPool();
-    if (!pool) {
-      res.json({ source: 'local_fallback' });
-      return;
-    }
-    const result = await pool.query('SELECT * FROM crypto_audit_ledger ORDER BY block_number DESC LIMIT 100');
-    res.json({ source: 'postgresql', data: result.rows });
-  } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
-  }
-});
+// API de datos: carga inicial, guardado por entidad, bitácora y ajustes.
+app.use('/api', dataApi);
 
 /**
  * Serve static files from /browser
@@ -316,6 +283,18 @@ if (isMainModule(import.meta.url) || process.env['pm_id']) {
     }
 
     console.log(`Node Express server listening on http://localhost:${port}`);
+    if (getPool()) {
+      getDbReady()
+        .then(r => console.log(`[PostgreSQL] Esquema al día${r.baseSeeded ? ' · datos base cargados' : ''}${r.demoSeeded ? ' · datos de ejemplo cargados' : ''}.`))
+        .catch(err => console.error('[PostgreSQL] No se pudo preparar la base de datos:', (err as Error).message));
+    } else {
+      console.log('[PostgreSQL] Sin DATABASE_URL: la aplicación funciona en modo demostración (sin guardar).');
+    }
+    if (getPool() && !process.env['SMTP_HOST']) {
+      console.warn(process.env['AUTH_DEV_LOG_CODES'] === 'true'
+        ? '[Auth] ATENCIÓN: SMTP no configurado; los códigos de acceso se escriben en este log. Usar solo para evaluación.'
+        : '[Auth] SMTP no configurado (SMTP_HOST): nadie podrá recibir el código para iniciar sesión.');
+    }
   });
 }
 

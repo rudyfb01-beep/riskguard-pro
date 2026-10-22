@@ -1,182 +1,239 @@
-# 🚀 Guía de Instalación Local con Base de Datos PostgreSQL
+# Guía de instalación — RiskGuard Pro (Custodia Risk)
 
-Esta guía detalla los pasos para instalar y ejecutar **Custodia Risk Management** en tu entorno local (Windows, macOS o Linux) junto con el motor de base de datos relacional **PostgreSQL 15 / 16**.
+Aplicación de gestión de riesgo operacional para cooperativas de ahorro y crédito:
+Angular 21 en el navegador, servidor Express (Node 22) y PostgreSQL 16.
 
----
+## Cómo se guardan los datos
 
-## 📋 Requisitos Previos
+- Todo lo que se registra en pantalla se guarda en **PostgreSQL** a través de la API del
+  servidor. El indicador de la esquina inferior izquierda muestra "Guardando…", "Guardado" o un
+  error con el botón **Reintentar**.
+- Al arrancar, el servidor **aplica `database/schema.sql` automáticamente**. El script es
+  idempotente, así que también actualiza bases creadas con versiones anteriores.
+- En una base vacía se cargan los **datos base**: los cargos de gobierno cooperativo, los plazos
+  regulatorios CMF/ANCI y un usuario administrador.
+- Con `SEED_DEMO_DATA=true` se cargan además los **datos de ejemplo ficticios** (riesgos,
+  incidentes, proveedores, etc.), útiles para evaluar la aplicación.
+- Sin `DATABASE_URL` la aplicación funciona en **modo demostración**: muestra datos de ejemplo y
+  avisa que los cambios se pierden al recargar.
+- La bitácora inalterable la encadena el **servidor**: asigna el número de bloque, la hora y el
+  hash SHA-256, y serializa las escrituras simultáneas para que la cadena no se bifurque.
 
-Elige la modalidad que prefieras:
+## Opción 1: Docker Compose (recomendada)
 
-### Modalidad A: Con Docker (Recomendada - Sin instalar Postgres manualmente)
-* **Docker Desktop** (versión 20+ con soporte para Docker Compose).
-
-### Modalidad B: Instalación Nativa
-* **Node.js**: versión 20.x o 22.x LTS.
-* **npm**: versión 10+.
-* **PostgreSQL**: versión 14, 15 o 16 en ejecución local.
-* Herramienta visual SQL recomendada: DBeaver, pgAdmin 4, TablePlus o cliente CLI `psql`.
-
----
-
-## ⚡ Opción 1: Despliegue Rápido con Docker Compose (1 solo comando)
-
-Esta opción levanta automáticamente:
-1. El contenedor de **PostgreSQL 16** con el esquema (`schema.sql`) y datos semilla (`seed.sql`) pre-cargados.
-2. La aplicación web **Angular 21 + SSR Express** lista para producción en el puerto `3000`.
-3. El administrador web **Adminer** en el puerto `8080` para consultar la base de datos visualmente.
-
-### Pasos:
-
-1. Abre tu terminal en la carpeta raíz del proyecto.
-2. Copia el archivo de entorno:
-   ```bash
-   cp .env.example .env
-   ```
-3. Inicia todos los servicios con Docker Compose:
-   ```bash
-   docker compose up -d --build
-   ```
-4. ¡Listo! Abre en tu navegador:
-   * **Aplicación Web**: [http://localhost:3000](http://localhost:3000)
-   * **Adminer (Gestor SQL)**: [http://localhost:8080](http://localhost:8080)
-     * *Sistema*: PostgreSQL
-     * *Servidor*: `postgres`
-     * *Usuario*: `postgres`
-     * *Contraseña*: `postgrespassword`
-     * *Base de datos*: `custodia_risk`
-
-Para detener los contenedores:
-```bash
-docker compose down
-```
-
----
-
-## 🛠️ Opción 2: Instalación Nativa Paso a Paso
-
-Si prefieres ejecutar Node.js y PostgreSQL directamente en tu sistema operativo:
-
-### Paso 1: Instalar dependencias del proyecto
-```bash
-npm install
-```
-
-### Paso 2: Crear y poblar la Base de Datos en PostgreSQL
-
-1. Abre una terminal y conéctate a tu servidor PostgreSQL local:
-   ```bash
-   psql -U postgres
-   ```
-
-2. Crea la base de datos:
-   ```sql
-   CREATE DATABASE custodia_risk;
-   \q
-   ```
-
-3. Ejecuta el archivo DDL de esquema (tablas, relaciones, enums y triggers):
-   ```bash
-   psql -U postgres -d custodia_risk -f database/schema.sql
-   ```
-
-4. Ejecuta el script de datos semilla iniciales (roles, riesgos, controles, KRIs y ledger):
-   ```bash
-   psql -U postgres -d custodia_risk -f database/seed.sql
-   ```
-
-*(Nota en Windows: también puedes abrir `database/schema.sql` y `database/seed.sql` en pgAdmin o DBeaver y ejecutarlos secuencialmente).*
-
----
-
-### Paso 3: Configurar variables de entorno
-
-Crea un archivo `.env` en la raíz del proyecto basándote en `.env.example`:
+Requisito: Docker Desktop 20+.
 
 ```bash
-cp .env.example .env
+git clone https://github.com/rudyfb01-beep/riskguard-pro
+cd riskguard-pro
+docker compose up -d --build
 ```
 
-Edita `.env` con las credenciales de tu PostgreSQL:
-```env
-PORT=3000
-DATABASE_URL=postgres://postgres:TU_CONTRASEÑA@localhost:5432/custodia_risk
-GEMINI_API_KEY=tu_clave_opcional
-```
+- Aplicación: http://localhost:3000
+- Adminer (consultas SQL): http://localhost:8080 — servidor `postgres`, usuario `postgres`,
+  contraseña `postgrespassword`, base `custodia_risk`.
 
----
+Para entrar con los datos de ejemplo, escribe `elena.vasconcelos@custodia-risk.com` y busca el
+código en `docker compose logs app` (sin SMTP configurado, los códigos se escriben ahí; ver
+[Inicio de sesión](#inicio-de-sesión)).
 
-### Paso 4: Iniciar la aplicación
+Por defecto, Docker Compose carga los datos de ejemplo (`SEED_DEMO_DATA=true`). Para empezar sin
+ellos:
 
-#### Modo Desarrollo (con recarga en vivo):
 ```bash
+SEED_DEMO_DATA=false docker compose up -d --build
+```
+
+Para borrar todos los datos y empezar de cero: `docker compose down -v`.
+
+> Si la base se creó con una versión anterior (que usaba `database/seed.sql`), conviene
+> recrearla con `docker compose down -v`, porque los datos de ejemplo antiguos no coinciden con
+> los actuales.
+
+## Opción 2: Instalación nativa
+
+Requisitos: Node.js 22, PostgreSQL 14 o superior y [bun](https://bun.sh) (el proyecto usa
+`bun.lock`; `npm install` falla con este árbol de dependencias).
+
+```bash
+bun install
+createdb -U postgres custodia_risk     # solo crea la base vacía
+cp .env.example .env                   # ajustar DATABASE_URL y SEED_DEMO_DATA
+npm run build
+npm run serve:ssr:app                  # lee .env automáticamente
+```
+
+La aplicación queda en http://localhost:3000 (o el `PORT` definido en `.env`). No es necesario
+ejecutar ningún script SQL a mano: el servidor crea las tablas al arrancar.
+
+Para desarrollo con recarga en vivo, exporta las variables antes de `npm run dev`:
+
+```bash
+set -a; source .env; set +a
 npm run dev
 ```
-La aplicación estará disponible en [http://localhost:3000](http://localhost:3000).
 
-#### Modo Producción (Compilación optimizada SSR):
-```bash
-npm run build
-npm run serve:ssr:app
-```
-La aplicación compilará los bundles de navegador y servidor en `dist/app/` y arrancará en [http://localhost:3000](http://localhost:3000).
+## Inicio de sesión
 
----
+Los usuarios entran con su **correo electrónico** y un **código de 6 dígitos** que se les envía
+por email (no hay contraseñas).
 
-## 🏛️ Estructura del Modelo Relacional en PostgreSQL
+- El código vence a los 10 minutos, sirve una sola vez y admite 5 intentos. Se pueden pedir
+  hasta 5 códigos cada 15 minutos por usuario, y hay un límite por dirección IP.
+- La respuesta es la misma exista o no el correo, así no se puede averiguar quién está
+  registrado.
+- La sesión se guarda en una cookie `HttpOnly` y `SameSite=Strict`. Vence tras 60 minutos sin
+  actividad o 10 horas en total (`SESSION_IDLE_MINUTES`, `SESSION_MAX_HOURS`). Si vence mientras
+  se trabaja, la app pide el código de nuevo y guarda los cambios pendientes al volver a entrar.
+- **El servidor valida los permisos del cargo** en cada guardado. Por ejemplo, el Consejo o la
+  Junta de Vigilancia no pueden modificar datos aunque lo intenten directamente contra la API.
+- El autor de cada bloque de la bitácora es siempre el usuario de la sesión. Los inicios y cierres
+  de sesión también quedan registrados.
+- Un administrador puede **desactivar** a un usuario en "Puestos & Permisos", lo que cierra sus
+  sesiones de inmediato. El sistema impide eliminarse o desactivarse a uno mismo y dejar el
+  sistema sin ningún administrador.
+- En la base de datos solo se guardan hashes de los códigos y de los tokens de sesión.
 
-El archivo `database/schema.sql` define una arquitectura relacional sólida alineada con **Basilea III**, **ISO 31000** y **COSO ERM**:
+### Configurar el envío de correo con Google Workspace (Gmail)
 
-| Tabla | Descripción | Llave Primaria / Foráneas |
-| :--- | :--- | :--- |
-| `organizational_roles` | Catálogo de puestos organizacionales y matriz de permisos JSONB | `id` (PK) |
-| `user_profiles` | Colaboradores y usuarios del sistema con sesión asignada | `id` (PK), `role_id` (FK) |
-| `controls` | Controles operacionales (preventivos, detectivos, correctivos) con efectividad 40/60 | `id` (PK), `code` (Unique) |
-| `control_test_executions` | Pruebas de diseño y operación con anexos de evidencia y hash | `id` (PK), `control_id` (FK) |
-| `risks` | Matriz 4x4 de riesgos operacionales (severidad inherente y residual) | `id` (PK), `code` (Unique) |
-| `risk_controls` | Asignación de controles a riesgos (Muchos a Muchos) | `(risk_id, control_id)` (PK Compuesta) |
-| `operational_flaws` | Registro de incidencias, falencias operacionales y pérdidas reales | `id` (PK), `converted_risk_id` (FK) |
-| `kri_definitions` | Indicadores Clave de Riesgo por industria con umbrales y preferencias | `id` (PK), `code` (Unique) |
-| `anomaly_alerts` | Alertas disparadas por brecha de umbrales en KRIs | `id` (PK), `code` (Unique) |
-| `periodic_audits` | Programas periódicos de auditoría interna y regulatoria | `id` (PK), `code` (Unique) |
-| `audit_findings` | Hallazgos de auditoría (no conformidades, observaciones) | `id` (PK), `audit_id` (FK) |
-| `crypto_audit_ledger` | Bitácora inalterable firmada criptográficamente con SHA-256 | `id` (PK), `block_number` (Serial) |
-| `system_settings` | Ajustes globales de industria y preferencias generales | `key` (PK) |
+Desde el 14 de marzo de 2025, Google no acepta la contraseña normal de una cuenta para SMTP. Hay
+dos opciones que funcionan con la aplicación:
 
-### Procedimientos y Triggers Automatizados
-* **`fn_calculate_risk_matrix()`**: Calcula automáticamente `inherent_score = inherent_likelihood * inherent_impact` y asigna el nivel ('Bajo', 'Medio', 'Alto', 'Crítico') tanto para la matriz inherente como residual.
-* **`fn_calculate_control_effectiveness()`**: Pondera la efectividad global del control (40% efectividad de diseño + 60% efectividad operativa) y califica su estado en 'Efectivo', 'Parcialmente Efectivo' o 'Deficiente'.
-* **`fn_update_timestamp()`**: Mantiene actualizado el campo `updated_at` en todas las tablas de forma automática.
-* **Vistas Ejecutivas**:
-  * `v_process_risk_summary`: Agregaciones de exposición financiera y conteo por severidad por proceso de negocio.
-  * `v_kri_breaches`: Listado de todos los KRIs actualmente en advertencia o estado crítico.
+**Opción A — Servicio de relay SMTP de Google Workspace (recomendada).** No depende de la
+contraseña de ninguna persona.
 
----
+1. En la Consola de administración: *Aplicaciones → Google Workspace → Gmail → Enrutamiento →
+   Servicio de relay SMTP*.
+2. Agrega una regla que permita **solo direcciones de tus dominios**, autentique por **dirección
+   IP** (la IP pública fija del servidor de RiskGuard) y **exija cifrado TLS**.
+3. Configura la aplicación:
 
-## 🔍 Endpoints de Verificación y Diagnóstico
+   ```env
+   SMTP_HOST=smtp-relay.gmail.com
+   SMTP_PORT=587
+   SMTP_SECURE=false            # 587 usa STARTTLS
+   SMTP_FROM="RiskGuard Pro <riskguard@tudominio.cl>"
+   SMTP_HELO_NAME=tudominio.cl  # Google pide un nombre propio en HELO, no 'localhost'
+   # Sin SMTP_USER: la autenticación es por IP
+   ```
 
-Una vez iniciada la aplicación, puedes verificar el estado de la conexión a PostgreSQL accediendo a:
+   Conviene que `riskguard@tudominio.cl` exista como usuario o grupo del dominio, para recibir
+   rebotes.
 
-* **Salud de la Base de Datos**:
-  ```bash
-  curl http://localhost:3000/api/db/health
-  ```
-  *Respuesta:* `{"connected":true,"message":"Conectado exitosamente a PostgreSQL (custodia_risk)","version":"..."}`
+**Opción B — Cuenta dedicada con contraseña de aplicación.** Sirve si el servidor no tiene una IP
+pública fija.
 
-* **Estadísticas de Registros**:
-  ```bash
-  curl http://localhost:3000/api/db/stats
-  ```
-  *Respuesta:* Conteo de riesgos, controles, KRIs, usuarios y bloques del ledger criptográfico.
+1. Crea una cuenta, por ejemplo `riskguard@tudominio.cl`, activa la **verificación en dos pasos** y
+   genera una **contraseña de aplicación** (el administrador debe permitir su uso).
+2. Configura:
 
-* **Inicialización o Reinicio bajo demanda vía API**:
-  ```bash
-  curl -X POST http://localhost:3000/api/db/init
-  ```
-  Aplica el esquema y datos semilla sin necesidad de abrir la consola de PostgreSQL.
+   ```env
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_SECURE=false
+   SMTP_USER=riskguard@tudominio.cl
+   SMTP_PASS=<contraseña de aplicación de 16 caracteres>
+   SMTP_FROM="RiskGuard Pro <riskguard@tudominio.cl>"
+   ```
 
----
+Con cualquier otro servidor de correo (Microsoft 365, Exchange, relay interno) basta con ajustar
+`SMTP_HOST`, `SMTP_PORT` y, si corresponde, `SMTP_USER` y `SMTP_PASS`.
 
-## 💡 Soporte y Consultas
+El primer administrador se define con `ADMIN_EMAIL` (por ejemplo, el correo del Jefe de Riesgo
+Operacional). Ese usuario se crea al iniciar una base vacía sin datos de ejemplo, y su correo se
+actualiza si cambia la variable. Desde ahí se dan de alta los demás usuarios en "Puestos &
+Permisos".
 
-Cualquier duda o ajuste adicional sobre el esquema o la configuración de entorno puede ser personalizado directamente modificando `database/schema.sql` y las variables de `.env`.
+**Para evaluar sin SMTP**, `AUTH_DEV_LOG_CODES=true` escribe los códigos en el log del servidor
+(`docker compose logs app`). Docker Compose lo trae activado por defecto junto con los datos de
+ejemplo; **en producción debe ser `false`**. Con los datos de ejemplo se puede entrar, por ejemplo,
+como `elena.vasconcelos@custodia-risk.com` (Jefa de Riesgo Operacional) o
+`carmen.soto@custodia-risk.com` (Consejo, solo lectura).
+
+### Publicar con HTTPS
+
+Detrás de un proxy inverso con HTTPS (IIS, nginx, balanceador), define `TRUST_PROXY=1` para que la
+cookie se marque como segura y se registre la IP real del usuario. Define también `AUTH_SECRET`
+con una cadena aleatoria larga.
+
+## Módulos regulatorios: referencias y supuestos
+
+- **Reporte de incidentes a la CMF:** la RAN CACs (NCG 567, Capítulo CAC-3, numeral 5.2) remite
+  al numeral 1.1 del Capítulo 20-8 de la RAN de bancos. Reporte inicial dentro de **30 minutos
+  desde la ocurrencia** del incidente, actualizaciones mientras dure y reporte de cierre. La
+  pantalla genera el texto de cada reporte con los campos de ese capítulo.
+- **ANCI (Ley 21.663):** alerta temprana a las 3 horas, segundo informe a las 72 horas e informe
+  final a los 15 días. Los plazos se cuentan **desde la detección** y son configurables.
+- **APR por riesgo operacional:** el Capítulo CAC-20 está en consulta desde octubre de 2026. La
+  calculadora usa el método estándar que la CMF aplica a la banca (Basilea III): indicador de
+  negocio de 3 años, coeficientes de 12 % hasta 25 millones de UF y 15 % sobre ese monto, e ILM
+  opcional con al menos 5 años de pérdidas. Es una **referencia**: actualice los parámetros
+  cuando se publique la norma definitiva.
+- **Reportes:** se exportan en CSV para Excel la base de pérdidas, el registro de incidentes
+  reportados, el registro de servicios externalizados (RAN 20-7), el informe de seguridad y el
+  cálculo de APR. Son formatos internos; el formato oficial de archivos del MSI CACs se puede
+  agregar cuando se disponga de su especificación.
+
+## Variables de entorno
+
+| Variable | Descripción |
+| :--- | :--- |
+| `DATABASE_URL` | Cadena de conexión PostgreSQL. Sin ella, la app queda en modo demostración. |
+| `SEED_DEMO_DATA` | `true` carga datos de ejemplo ficticios en una base vacía. Usar `false` en producción. |
+| `ADMIN_EMAIL` | Correo del administrador inicial cuando no se cargan datos de ejemplo. |
+| `DATABASE_SSL` | `true` para conectarse con SSL (bases administradas en la nube). |
+| `DATABASE_SSL_REJECT_UNAUTHORIZED` | `false` solo si el certificado del servidor no es verificable. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_HELO_NAME` | Servidor de correo para enviar los códigos de acceso (ver Google Workspace). |
+| `AUTH_DEV_LOG_CODES` | `true` muestra los códigos en el log (solo para evaluar sin SMTP). |
+| `AUTH_SECRET` | Clave para firmar los códigos. Recomendada; obligatoria con varias instancias. |
+| `SESSION_IDLE_MINUTES`, `SESSION_MAX_HOURS` | Vigencia de la sesión (60 minutos de inactividad y 10 horas en total por defecto). |
+| `TRUST_PROXY`, `COOKIE_SECURE` | Configuración detrás de un proxy HTTPS. |
+| `PORT` | Puerto HTTP (por defecto 4000; Docker usa 3000). |
+| `GEMINI_API_KEY` | Opcional: habilita el análisis de incidentes con IA. |
+
+## API
+
+Todas las rutas (salvo `/api/auth/*` y `/api/db/health`) requieren sesión. Las escrituras deben
+enviar la cabecera `X-Requested-With: RiskGuard` (protección CSRF).
+
+| Método y ruta | Uso |
+| :--- | :--- |
+| `POST /api/auth/request-code` · `POST /api/auth/verify` | Pide el código por correo / lo verifica y abre la sesión. |
+| `GET /api/auth/me` · `POST /api/auth/logout` | Usuario de la sesión / cierre de sesión. |
+| `GET /api/data` | Carga completa de la aplicación (o `{"mode":"demo"}` sin base de datos). |
+| `PUT /api/data/:entidad/:id` | Guarda un objeto completo (riesgo, control, incidente, proveedor…). |
+| `DELETE /api/data/:entidad/:id` | Elimina un objeto. |
+| `POST /api/ledger` · `GET /api/ledger` | Agrega un bloque a la bitácora / lee la cadena completa. |
+| `PUT /api/settings/:clave` | Guarda un ajuste (industria, umbral de pérdidas, notificaciones). |
+| `GET /api/db/health` · `GET /api/db/stats` | Diagnóstico de la conexión y conteos. |
+| `POST /api/db/init` | Vuelve a aplicar el esquema y los datos base. |
+
+Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-milestones`, `flaws`,
+`alerts`, `audits`, `kris`, `bia`, `plans`, `continuity-tests`, `info-assets`, `vulnerabilities`,
+`security-assessment`.
+
+## Limitaciones conocidas
+
+- Algunos botones siguen visibles para cargos sin permiso (por ejemplo, "Registrar Incidencia"
+  para el Consejo). El servidor rechaza el guardado y la app muestra el error, pero conviene
+  ocultarlos.
+- Si dos personas editan **el mismo** registro a la vez, prevalece el último guardado.
+- Los montos se registran en USD.
+
+## Modelo de datos (principales tablas)
+
+| Área | Tablas |
+| :--- | :--- |
+| Gobierno y accesos | `organizational_roles`, `user_profiles` |
+| Riesgos y controles | `risks`, `risk_controls`, `controls`, `control_test_executions` |
+| Incidentes y pérdidas | `operational_flaws` (con campos de base de pérdidas) |
+| Reporte CMF / ANCI | `regulatory_milestone_templates`, `regulatory_reports`, `regulatory_submissions`, `regulatory_report_updates` |
+| KRIs y alertas | `kri_definitions`, `anomaly_alerts` |
+| Auditoría | `periodic_audits`, `audit_findings`, `crypto_audit_ledger` |
+| Terceros | `service_providers` |
+| Continuidad | `bia_processes`, `bia_process_providers`, `continuity_plans`, `continuity_plan_processes`, `continuity_tests` |
+| Seguridad de la información | `info_assets`, `vulnerabilities`, `security_assessment_items` |
+| Ajustes | `system_settings` |
+
+Vistas de apoyo a reportes: `v_loss_database`, `v_regulatory_deadlines`, `v_provider_rto_gaps`,
+`v_provider_contract_expiry`, `v_overdue_vulnerabilities`, `v_process_risk_summary`, `v_kri_breaches`.

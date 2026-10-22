@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
-import { OrganizationalRole, UserPermissions } from '../models/risk.model';
+import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk.model';
 
 @Component({
   selector: 'app-roles-management-modal',
@@ -147,6 +147,9 @@ import { OrganizationalRole, UserPermissions } from '../models/risk.model';
                       <th class="py-3 px-3 text-center" title="Administrar puestos y permisos">Roles</th>
                       <th class="py-3 px-3 text-center" title="Exportar reportes PDF y Excel">Reportes</th>
                       <th class="py-3 px-3 text-center" title="Registrar envíos a CMF/ANCI y configurar plazos regulatorios">CMF/ANCI</th>
+                      <th class="py-3 px-3 text-center" title="Registrar y evaluar proveedores">Proveed.</th>
+                      <th class="py-3 px-3 text-center" title="Mantener BIA, planes y pruebas de continuidad">BCP</th>
+                      <th class="py-3 px-3 text-center" title="Activos de información, vulnerabilidades y autoevaluación de seguridad">Seguridad</th>
                       <th class="py-3 px-4 text-right">Acción</th>
                     </tr>
                   </thead>
@@ -286,18 +289,56 @@ import { OrganizationalRole, UserPermissions } from '../models/risk.model';
                           </button>
                         </td>
 
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canManageProviders')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canManageProviders ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de gestión de proveedores"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canManageProviders ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canManageContinuity')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canManageContinuity ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de continuidad del negocio"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canManageContinuity ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canManageInfoSecurity')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canManageInfoSecurity ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de seguridad de la información"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canManageInfoSecurity ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
                         <!-- Switch to this role action -->
                         <td class="py-3 px-4 text-right whitespace-nowrap">
                           <div class="inline-flex items-center gap-1.5 justify-end">
-                            <button
-                              type="button"
-                              (click)="switchToRole(role)"
-                              class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
-                              title="Iniciar sesión inmediatamente con las credenciales de este puesto"
-                            >
-                              <mat-icon class="text-xs">login</mat-icon>
-                              <span>Probar Puesto</span>
-                            </button>
+                            @if (!riskService.sessionLocked()) {
+                              <button
+                                type="button"
+                                (click)="switchToRole(role)"
+                                class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                title="Iniciar sesión inmediatamente con las credenciales de este puesto"
+                              >
+                                <mat-icon class="text-xs">login</mat-icon>
+                                <span>Probar Puesto</span>
+                              </button>
+                            }
 
                             @if (!role.isSystemRole) {
                               <button
@@ -435,23 +476,41 @@ import { OrganizationalRole, UserPermissions } from '../models/risk.model';
                         <button
                           type="button"
                           (click)="promptDeleteUser(usr.id)"
-                          [disabled]="riskService.userProfiles().length <= 1"
+                          [disabled]="riskService.userProfiles().length <= 1 || (riskService.sessionLocked() && riskService.currentProfile().id === usr.id)"
                           class="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                           [title]="riskService.userProfiles().length <= 1 ? 'No se puede eliminar la única cuenta del sistema' : 'Eliminar cuenta de colaborador'"
                         >
                           <mat-icon class="text-base leading-none">delete_outline</mat-icon>
                         </button>
 
-                        <button
-                          type="button"
-                          (click)="riskService.switchProfile(usr.id)"
-                          class="px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
-                          [class]="riskService.currentProfile().id === usr.id
-                            ? 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300'
-                            : 'bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700'"
-                        >
-                          {{ riskService.currentProfile().id === usr.id ? 'Sesión Activa ✓' : 'Conectar' }}
-                        </button>
+                        @if (riskService.sessionLocked()) {
+                          @if (riskService.currentProfile().id === usr.id) {
+                            <span class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300">Tu sesión</span>
+                          } @else {
+                            <button
+                              type="button"
+                              (click)="toggleUserActive(usr)"
+                              class="px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
+                              [class]="usr.active === false
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'"
+                              [title]="usr.active === false ? 'Permitir nuevamente el acceso de este usuario' : 'Impedir el acceso de este usuario (cierra sus sesiones)'"
+                            >
+                              {{ usr.active === false ? 'Inactivo · Reactivar' : 'Desactivar' }}
+                            </button>
+                          }
+                        } @else {
+                          <button
+                            type="button"
+                            (click)="riskService.switchProfile(usr.id)"
+                            class="px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
+                            [class]="riskService.currentProfile().id === usr.id
+                              ? 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300'
+                              : 'bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700'"
+                          >
+                            {{ riskService.currentProfile().id === usr.id ? 'Sesión Activa ✓' : 'Conectar' }}
+                          </button>
+                        }
                       </div>
                     </div>
 
@@ -625,6 +684,30 @@ import { OrganizationalRole, UserPermissions } from '../models/risk.model';
                       <span class="text-[11px] text-slate-500">Registrar envíos al regulador y configurar plazos</span>
                     </div>
                   </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canManageProviders" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Gestionar Proveedores</span>
+                      <span class="text-[11px] text-slate-500">Registrar, evaluar y actualizar servicios externalizados</span>
+                    </div>
+                  </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canManageContinuity" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Continuidad del Negocio</span>
+                      <span class="text-[11px] text-slate-500">Mantener BIA, planes y registrar pruebas</span>
+                    </div>
+                  </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canManageInfoSecurity" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Seguridad de la Información</span>
+                      <span class="text-[11px] text-slate-500">Activos, vulnerabilidades y autoevaluación</span>
+                    </div>
+                  </label>
                 </div>
               </div>
 
@@ -694,7 +777,10 @@ export class RolesManagementModal {
     canConfigureKRIs: [false],
     canManageRoles: [false],
     canExportReports: [true],
-    canManageRegulatoryReports: [false]
+    canManageRegulatoryReports: [false],
+    canManageProviders: [false],
+    canManageContinuity: [false],
+    canManageInfoSecurity: [false]
   });
 
   readonly userForm = this.fb.group({
@@ -722,7 +808,10 @@ export class RolesManagementModal {
       { key: 'kris', label: 'KRIs', granted: p.canConfigureKRIs },
       { key: 'roles', label: 'Puestos', granted: p.canManageRoles },
       { key: 'reports', label: 'Reportes PDF', granted: p.canExportReports },
-      { key: 'regulatory', label: 'CMF/ANCI', granted: !!p.canManageRegulatoryReports }
+      { key: 'regulatory', label: 'CMF/ANCI', granted: !!p.canManageRegulatoryReports },
+      { key: 'providers', label: 'Proveedores', granted: !!p.canManageProviders },
+      { key: 'continuity', label: 'Continuidad', granted: !!p.canManageContinuity },
+      { key: 'infosec', label: 'Seguridad', granted: !!p.canManageInfoSecurity }
     ];
   }
 
@@ -744,6 +833,10 @@ export class RolesManagementModal {
     this.riskService.updateOrganizationalRole(role.id, {
       permissions: newPermissions
     });
+  }
+
+  toggleUserActive(usr: UserProfile) {
+    this.riskService.updateUserProfile(usr.id, { active: usr.active === false });
   }
 
   switchToRole(role: OrganizationalRole) {
@@ -787,7 +880,10 @@ export class RolesManagementModal {
         canConfigureKRIs: !!v.canConfigureKRIs,
         canManageRoles: !!v.canManageRoles,
         canExportReports: !!v.canExportReports,
-        canManageRegulatoryReports: !!v.canManageRegulatoryReports
+        canManageRegulatoryReports: !!v.canManageRegulatoryReports,
+        canManageProviders: !!v.canManageProviders,
+        canManageContinuity: !!v.canManageContinuity,
+        canManageInfoSecurity: !!v.canManageInfoSecurity
       }
     });
 
@@ -805,7 +901,10 @@ export class RolesManagementModal {
       canConfigureKRIs: false,
       canManageRoles: false,
       canExportReports: true,
-      canManageRegulatoryReports: false
+      canManageRegulatoryReports: false,
+      canManageProviders: false,
+      canManageContinuity: false,
+      canManageInfoSecurity: false
     });
 
     this.activeTab.set('roles');

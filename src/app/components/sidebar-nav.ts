@@ -2,6 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output } f
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
+import { PersistenceService } from '../services/persistence.service';
+import { ResilienceService } from '../services/resilience.service';
+import { SecurityService } from '../services/security.service';
 import { ActiveTab } from '../app';
 
 export interface NavGroup {
@@ -194,21 +197,33 @@ export interface NavGroup {
 
           @if (!isCollapsed()) {
             <div class="mt-2 pt-2 border-t border-slate-800/60">
-              <label for="sidebar-role-select" class="block text-[9px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
-                Rol Normativo (RBAC)
-              </label>
-              <select
-                id="sidebar-role-select"
-                [value]="riskService.currentProfile().id"
-                (change)="onRoleChange($event)"
-                class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-[11px] rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-              >
-                @for (profile of riskService.availableProfiles; track profile.id) {
-                  <option [value]="profile.id">
-                    {{ profile.role }}
-                  </option>
-                }
-              </select>
+              @if (riskService.sessionLocked()) {
+                <button
+                  type="button"
+                  (click)="persistence.logout()"
+                  class="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 bg-slate-800 hover:bg-rose-900/60 text-slate-200 hover:text-white rounded-md text-[11px] font-medium border border-slate-700/80 transition-colors cursor-pointer"
+                  title="Cerrar la sesión en este navegador"
+                >
+                  <mat-icon class="text-xs">logout</mat-icon>
+                  <span>Cerrar sesión</span>
+                </button>
+              } @else {
+                <label for="sidebar-role-select" class="block text-[9px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                  Rol Normativo (RBAC)
+                </label>
+                <select
+                  id="sidebar-role-select"
+                  [value]="riskService.currentProfile().id"
+                  (change)="onRoleChange($event)"
+                  class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-[11px] rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                >
+                  @for (profile of riskService.availableProfiles; track profile.id) {
+                    <option [value]="profile.id">
+                      {{ profile.role }}
+                    </option>
+                  }
+                </select>
+              }
 
               <button
                 type="button"
@@ -237,6 +252,9 @@ export interface NavGroup {
 })
 export class SidebarNav {
   readonly riskService = inject(RiskDataService);
+  readonly persistence = inject(PersistenceService);
+  readonly resilience = inject(ResilienceService);
+  readonly security = inject(SecurityService);
 
   readonly activeTab = input.required<ActiveTab>();
   readonly isCollapsed = input<boolean>(false);
@@ -254,6 +272,9 @@ export class SidebarNav {
     const controlsCount = this.riskService.controls().length;
     const flawsCount = this.riskService.flaws().length;
     const activeAlerts = this.riskService.metrics().activeAlertsCount;
+    const providerHigh = this.resilience.providerKpis().highAlerts;
+    const continuityHigh = this.resilience.continuityKpis().highAlerts;
+    const securityHigh = this.security.kpis().highAlerts;
     const regulatoryOpen = this.riskService.regulatoryIncidents().filter(f => f.regulatoryReport?.status === 'Abierto').length;
 
     return [
@@ -293,11 +314,38 @@ export class SidebarNav {
         ]
       },
       {
+        title: 'Resiliencia & Terceros',
+        items: [
+          {
+            id: 'proveedores',
+            label: 'Proveedores',
+            icon: 'handshake',
+            badge: providerHigh > 0 ? providerHigh : undefined,
+            badgeClass: 'bg-rose-900/60 text-rose-200 border border-rose-700/50'
+          },
+          {
+            id: 'continuidad',
+            label: 'Continuidad del Negocio',
+            icon: 'restart_alt',
+            badge: continuityHigh > 0 ? continuityHigh : undefined,
+            badgeClass: 'bg-rose-900/60 text-rose-200 border border-rose-700/50'
+          },
+          {
+            id: 'seguridad-informacion',
+            label: 'Seguridad de la Información',
+            icon: 'security',
+            badge: securityHigh > 0 ? securityHigh : undefined,
+            badgeClass: 'bg-rose-900/60 text-rose-200 border border-rose-700/50'
+          },
+        ]
+      },
+      {
         title: 'Supervisión & Auditoría',
         items: [
           { id: 'auditorias', label: 'Auditorías Periódicas', icon: 'fact_check' },
           { id: 'bitacora', label: 'Bitácora Inalterable', icon: 'lock', badge: 'SHA-256', badgeClass: 'bg-emerald-950 text-emerald-400 border border-emerald-800/40' },
           { id: 'reportes-pdf', label: 'Centro de Reportes & PDF', icon: 'picture_as_pdf', badge: 'PDF', badgeClass: 'bg-rose-950 text-rose-300 border border-rose-800/40' },
+          { id: 'apr-operacional', label: 'APR Riesgo Operacional', icon: 'account_balance', badge: 'CAC-20', badgeClass: 'bg-emerald-950 text-emerald-300 border border-emerald-800/40' },
         ]
       }
     ];
