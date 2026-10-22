@@ -238,6 +238,17 @@
               </button>
 
               <button
+                (click)="setTab('seguridad-informacion')"
+                [class]="activeTab() === 'seguridad-informacion'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-violet-600">security</mat-icon>
+                <span>Seguridad</span>
+              </button>
+
+              <button
                 (click)="setTab('auditorias')"
                 [class]="activeTab() === 'auditorias'
                   ? 'bg-slate-900 text-white font-semibold'
@@ -1052,6 +1063,11 @@
     <!-- TAB: PROVEEDORES Y EXTERNALIZACIÓN -->
     @if (activeTab() === 'proveedores') {
       <app-providers-panel (notify)="showToast($event)" />
+    }
+
+    <!-- TAB: SEGURIDAD DE LA INFORMACIÓN -->
+    @if (activeTab() === 'seguridad-informacion') {
+      <app-security-panel (notify)="showToast($event)" />
     }
 
     <!-- TAB: CONTINUIDAD DEL NEGOCIO -->

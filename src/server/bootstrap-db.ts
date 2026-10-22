@@ -5,6 +5,16 @@ import {
   DEMO_ALERTS, DEMO_AUDITS, DEMO_CONTROLS, DEMO_FLAWS, DEMO_KRIS, DEMO_LEDGER, DEMO_RISKS, DEMO_USERS,
 } from '../app/data/demo-seed';
 import { SEED_BIA, SEED_PLANS, SEED_PROVIDERS, SEED_TESTS } from '../app/data/resilience-seed';
+import { BASE_ASSESSMENT_ITEMS, DEMO_ASSESSMENT, DEMO_ASSETS, DEMO_VULNERABILITIES } from '../app/data/security-seed';
+import { UserPermissions } from '../app/models/risk.model';
+
+/**
+ * Permisos agregados en versiones posteriores: en bases existentes se completan
+ * para los cargos base que los tienen por defecto (y sus usuarios).
+ */
+const PERMISSION_MIGRATIONS: { perm: keyof UserPermissions; roles: string[] }[] = [
+  { perm: 'canManageInfoSecurity', roles: ['role-riesgo-op', 'role-gerencia-general', 'role-ciso'] },
+];
 
 /**
  * Prepara la base al arrancar el servidor:
@@ -27,6 +37,17 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
     if ((await c.query('SELECT 1 FROM organizational_roles LIMIT 1')).rowCount === 0) {
       for (const r of DEFAULT_ORGANIZATIONAL_ROLES) await saveEntity('roles', r, c);
       baseSeeded = true;
+    }
+    if ((await c.query('SELECT 1 FROM security_assessment_items LIMIT 1')).rowCount === 0) {
+      for (const i of BASE_ASSESSMENT_ITEMS) await saveEntity('security-assessment', i, c);
+    }
+    for (const m of PERMISSION_MIGRATIONS) {
+      await c.query(
+        `UPDATE organizational_roles SET permissions = permissions || jsonb_build_object($1::text, id = ANY($2::text[]))
+          WHERE NOT (permissions ? $1)`, [m.perm, m.roles]);
+      await c.query(
+        `UPDATE user_profiles u SET permissions = u.permissions || jsonb_build_object($1::text, COALESCE((r.permissions->>$1)::boolean, FALSE))
+           FROM organizational_roles r WHERE r.id = u.role_id AND NOT (u.permissions ? $1)`, [m.perm]);
     }
     if ((await c.query('SELECT 1 FROM regulatory_milestone_templates LIMIT 1')).rowCount === 0) {
       for (const m of DEFAULT_REGULATORY_MILESTONES) await saveEntity('regulatory-milestones', m, c);
@@ -52,6 +73,12 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
       for (const x of SEED_BIA) await saveEntity('bia', x, c);
       for (const x of SEED_PLANS) await saveEntity('plans', x, c);
       for (const x of SEED_TESTS) await saveEntity('continuity-tests', x, c);
+      for (const x of DEMO_ASSETS) await saveEntity('info-assets', x, c);
+      for (const x of DEMO_VULNERABILITIES) await saveEntity('vulnerabilities', x, c);
+      for (const i of BASE_ASSESSMENT_ITEMS) {
+        const demo = DEMO_ASSESSMENT[i.code];
+        if (demo) await saveEntity('security-assessment', { ...i, ...demo }, c);
+      }
       if ((await c.query('SELECT 1 FROM crypto_audit_ledger LIMIT 1')).rowCount === 0) {
         for (const e of [...DEMO_LEDGER].sort((a, b) => a.blockNumber - b.blockNumber)) await importLedgerBlock(c, e);
       }

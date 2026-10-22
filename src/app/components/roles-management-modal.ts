@@ -149,6 +149,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                       <th class="py-3 px-3 text-center" title="Registrar envíos a CMF/ANCI y configurar plazos regulatorios">CMF/ANCI</th>
                       <th class="py-3 px-3 text-center" title="Registrar y evaluar proveedores">Proveed.</th>
                       <th class="py-3 px-3 text-center" title="Mantener BIA, planes y pruebas de continuidad">BCP</th>
+                      <th class="py-3 px-3 text-center" title="Activos de información, vulnerabilidades y autoevaluación de seguridad">Seguridad</th>
                       <th class="py-3 px-4 text-right">Acción</th>
                     </tr>
                   </thead>
@@ -309,6 +310,18 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                             title="Alternar permiso de continuidad del negocio"
                           >
                             <mat-icon class="text-sm">{{ role.permissions.canManageContinuity ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            (click)="togglePermission(role, 'canManageInfoSecurity')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canManageInfoSecurity ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de seguridad de la información"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canManageInfoSecurity ? 'check' : 'remove' }}</mat-icon>
                           </button>
                         </td>
 
@@ -687,6 +700,14 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                       <span class="text-[11px] text-slate-500">Mantener BIA, planes y registrar pruebas</span>
                     </div>
                   </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canManageInfoSecurity" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Seguridad de la Información</span>
+                      <span class="text-[11px] text-slate-500">Activos, vulnerabilidades y autoevaluación</span>
+                    </div>
+                  </label>
                 </div>
               </div>
 
@@ -758,7 +779,8 @@ export class RolesManagementModal {
     canExportReports: [true],
     canManageRegulatoryReports: [false],
     canManageProviders: [false],
-    canManageContinuity: [false]
+    canManageContinuity: [false],
+    canManageInfoSecurity: [false]
   });
 
   readonly userForm = this.fb.group({
@@ -788,7 +810,8 @@ export class RolesManagementModal {
       { key: 'reports', label: 'Reportes PDF', granted: p.canExportReports },
       { key: 'regulatory', label: 'CMF/ANCI', granted: !!p.canManageRegulatoryReports },
       { key: 'providers', label: 'Proveedores', granted: !!p.canManageProviders },
-      { key: 'continuity', label: 'Continuidad', granted: !!p.canManageContinuity }
+      { key: 'continuity', label: 'Continuidad', granted: !!p.canManageContinuity },
+      { key: 'infosec', label: 'Seguridad', granted: !!p.canManageInfoSecurity }
     ];
   }
 
@@ -859,7 +882,8 @@ export class RolesManagementModal {
         canExportReports: !!v.canExportReports,
         canManageRegulatoryReports: !!v.canManageRegulatoryReports,
         canManageProviders: !!v.canManageProviders,
-        canManageContinuity: !!v.canManageContinuity
+        canManageContinuity: !!v.canManageContinuity,
+        canManageInfoSecurity: !!v.canManageInfoSecurity
       }
     });
 
@@ -879,7 +903,8 @@ export class RolesManagementModal {
       canExportReports: true,
       canManageRegulatoryReports: false,
       canManageProviders: false,
-      canManageContinuity: false
+      canManageContinuity: false,
+      canManageInfoSecurity: false
     });
 
     this.activeTab.set('roles');

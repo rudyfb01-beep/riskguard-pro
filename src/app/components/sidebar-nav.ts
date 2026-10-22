@@ -4,6 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { PersistenceService } from '../services/persistence.service';
 import { ResilienceService } from '../services/resilience.service';
+import { SecurityService } from '../services/security.service';
 import { ActiveTab } from '../app';
 
 export interface NavGroup {
@@ -253,6 +254,7 @@ export class SidebarNav {
   readonly riskService = inject(RiskDataService);
   readonly persistence = inject(PersistenceService);
   readonly resilience = inject(ResilienceService);
+  readonly security = inject(SecurityService);
 
   readonly activeTab = input.required<ActiveTab>();
   readonly isCollapsed = input<boolean>(false);
@@ -272,6 +274,7 @@ export class SidebarNav {
     const activeAlerts = this.riskService.metrics().activeAlertsCount;
     const providerHigh = this.resilience.providerKpis().highAlerts;
     const continuityHigh = this.resilience.continuityKpis().highAlerts;
+    const securityHigh = this.security.kpis().highAlerts;
     const regulatoryOpen = this.riskService.regulatoryIncidents().filter(f => f.regulatoryReport?.status === 'Abierto').length;
 
     return [
@@ -325,6 +328,13 @@ export class SidebarNav {
             label: 'Continuidad del Negocio',
             icon: 'restart_alt',
             badge: continuityHigh > 0 ? continuityHigh : undefined,
+            badgeClass: 'bg-rose-900/60 text-rose-200 border border-rose-700/50'
+          },
+          {
+            id: 'seguridad-informacion',
+            label: 'Seguridad de la Información',
+            icon: 'security',
+            badge: securityHigh > 0 ? securityHigh : undefined,
             badgeClass: 'bg-rose-900/60 text-rose-200 border border-rose-700/50'
           },
         ]

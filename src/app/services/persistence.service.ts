@@ -1,6 +1,7 @@
 import { Injectable, WritableSignal, effect, inject, signal, untracked } from '@angular/core';
 import { RiskDataService } from './risk-data.service';
 import { ResilienceService } from './resilience.service';
+import { SecurityService } from './security.service';
 import { AuditLogEntry, UserProfile } from '../models/risk.model';
 
 export type DataMode = 'loading' | 'login' | 'database' | 'demo' | 'error';
@@ -43,6 +44,7 @@ export function apiFetch(url: string, init: RequestInit = {}): Promise<Response>
 export class PersistenceService {
   private readonly rs = inject(RiskDataService);
   private readonly res = inject(ResilienceService);
+  private readonly sec = inject(SecurityService);
 
   readonly mode = signal<DataMode>('loading');
   readonly loadError = signal<string | null>(null);
@@ -73,6 +75,9 @@ export class PersistenceService {
     this.col('bia', 'bia', this.res.biaProcesses),
     this.col('plans', 'plans', this.res.plans),
     this.col('continuity-tests', 'continuityTests', this.res.tests),
+    this.col('info-assets', 'infoAssets', this.sec.assets),
+    this.col('vulnerabilities', 'vulnerabilities', this.sec.vulnerabilities),
+    this.col('security-assessment', 'securityAssessment', this.sec.assessment),
   ];
 
   private readonly settings: Setting[] = [
