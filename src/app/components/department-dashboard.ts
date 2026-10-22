@@ -436,7 +436,7 @@ import { Risk } from '../models/risk.model';
 
             <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
               <span>Auditoría de cumplimiento: ISO 31000</span>
-              <span class="font-mono">Custodia Risk Compliance System</span>
+              <span class="font-mono">RiskGuard Pro</span>
             </div>
           </div>
 

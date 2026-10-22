@@ -1,4 +1,4 @@
-# Guía de instalación — RiskGuard Pro (Custodia Risk)
+# Guía de instalación — RiskGuard Pro
 
 Aplicación de gestión de riesgo operacional para cooperativas de ahorro y crédito:
 Angular 21 en el navegador, servidor Express (Node 22) y PostgreSQL 16.
