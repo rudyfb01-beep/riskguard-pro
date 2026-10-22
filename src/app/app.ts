@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, afterNextRender, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from './services/risk-data.service';
+import { PersistenceService } from './services/persistence.service';
 import { TopBar } from './components/top-bar';
 import { ExecutiveKpis } from './components/executive-kpis';
 import { HeatmapMatrix } from './components/heatmap-matrix';
@@ -68,6 +69,12 @@ export type ActiveTab =
 })
 export class App {
   readonly riskService = inject(RiskDataService);
+  readonly persistence = inject(PersistenceService);
+
+  constructor() {
+    // Carga los datos desde la base (o activa el modo demostración) en el navegador.
+    afterNextRender(() => this.persistence.init());
+  }
 
   // Active Navigation Tab
   readonly activeTab = signal<ActiveTab>('tablero');
@@ -174,6 +181,24 @@ export class App {
     const list = this.riskService.flaws();
     if (filter === 'todos') return list;
     return list.filter(item => item.incidentType === filter);
+  });
+
+  // Distribución de incidentes por categoría Basilea (tablero ejecutivo)
+  readonly incidentsByCategory = computed(() => {
+    const colors: Record<string, string> = {
+      'Fallas Tecnológicas': 'bg-indigo-600', 'Fraude Interno': 'bg-rose-600', 'Fraude Externo': 'bg-rose-400',
+      'Ejecución y Procesos': 'bg-amber-500', 'Cumplimiento Normativo': 'bg-emerald-600',
+      'Prácticas Laborales': 'bg-sky-500', 'Daño a Activos Físicos': 'bg-slate-500',
+    };
+    const counts = new Map<string, number>();
+    for (const f of this.riskService.flaws()) {
+      const cat = f.baselCategory || f.aiSuggestedCategory || 'Sin clasificar';
+      counts.set(cat, (counts.get(cat) ?? 0) + 1);
+    }
+    const total = this.riskService.flaws().length;
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([category, count]) => ({ category, count, pct: total ? Math.round((count / total) * 100) : 0, color: colors[category] ?? 'bg-slate-400' }));
   });
 
   // Expanded risk row in register

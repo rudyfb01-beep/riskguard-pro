@@ -1,4 +1,10 @@
-import { Pool, PoolConfig } from 'pg';
+import { Pool, PoolConfig, types } from 'pg';
+
+// Tipos devueltos como valores simples y estables para la aplicación:
+// DATE como 'YYYY-MM-DD' (sin desfase horario), NUMERIC y BIGINT como number.
+types.setTypeParser(1082, (v: string) => v);
+types.setTypeParser(1700, (v: string) => parseFloat(v));
+types.setTypeParser(20, (v: string) => parseInt(v, 10));
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -14,9 +20,8 @@ export function getDbConfig(): PoolConfig | null {
   if (connectionString) {
     return {
       connectionString,
-      ssl: process.env['NODE_ENV'] === 'production' && !connectionString.includes('localhost') && !connectionString.includes('127.0.0.1')
-        ? { rejectUnauthorized: false }
-        : false,
+      // SSL solo si se pide explícitamente (DATABASE_SSL=true), p. ej. en una base administrada en la nube.
+      ssl: process.env['DATABASE_SSL'] === 'true' ? { rejectUnauthorized: process.env['DATABASE_SSL_REJECT_UNAUTHORIZED'] !== 'false' } : false,
     };
   }
 
@@ -100,47 +105,32 @@ export async function getDbStats(): Promise<Record<string, unknown>> {
   };
 }
 
-export async function initializeSchemaAndSeed(baseDir: string = process.cwd()): Promise<{ success: boolean; message: string }> {
-  const p = getPool();
-  if (!p) {
-    throw new Error('No hay conexión configurada a PostgreSQL para inicializar el esquema.');
-  }
-
-  const schemaPaths = [
+/** Ruta de database/schema.sql (desarrollo, Docker o despliegue). */
+function findSchemaFile(baseDir: string): string | undefined {
+  return [
     join(baseDir, 'database/schema.sql'),
     join(baseDir, '../database/schema.sql'),
+    '/app/database/schema.sql',
     '/database/schema.sql',
-  ];
-  const seedPaths = [
-    join(baseDir, 'database/seed.sql'),
-    join(baseDir, '../database/seed.sql'),
-    '/database/seed.sql',
-  ];
+  ].find(p => existsSync(p));
+}
 
-  const schemaFile = schemaPaths.find((p) => existsSync(p));
-  const seedFile = seedPaths.find((p) => existsSync(p));
-
-  if (!schemaFile) {
-    throw new Error('Archivo database/schema.sql no encontrado.');
-  }
-
+/**
+ * Aplica database/schema.sql. El script es idempotente, por lo que se ejecuta en
+ * cada arranque y actúa como migración de bases existentes.
+ */
+export async function applySchema(baseDir: string = process.cwd()): Promise<void> {
+  const p = getPool();
+  if (!p) throw new Error('No hay conexión configurada a PostgreSQL.');
+  const schemaFile = findSchemaFile(baseDir);
+  if (!schemaFile) throw new Error('Archivo database/schema.sql no encontrado.');
   const client = await p.connect();
   try {
     await client.query('BEGIN');
-    
-    const schemaSql = readFileSync(schemaFile, 'utf8');
-    await client.query(schemaSql);
-
-    if (seedFile) {
-      const seedSql = readFileSync(seedFile, 'utf8');
-      await client.query(seedSql);
-    }
-
+    // Evita que dos instancias migren al mismo tiempo.
+    await client.query('SELECT pg_advisory_xact_lock(727001)');
+    await client.query(readFileSync(schemaFile, 'utf8'));
     await client.query('COMMIT');
-    return {
-      success: true,
-      message: 'Esquema y datos semilla aplicados exitosamente en la base de datos PostgreSQL.',
-    };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

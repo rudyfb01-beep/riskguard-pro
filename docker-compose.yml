@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ============================================================================
   # 1. MOTOR DE BASE DE DATOS: PostgreSQL 16
@@ -17,9 +15,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # Inicialización automática en el primer arranque:
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      # El esquema lo aplica (y migra) la aplicación en cada arranque.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d custodia_risk"]
       interval: 5s
@@ -42,6 +38,9 @@ services:
       PORT: 3000
       DATABASE_URL: postgres://postgres:postgrespassword@postgres:5432/custodia_risk
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # true: carga datos de ejemplo ficticios en una base vacía (para evaluar).
+      # En producción usar false: se crean solo cargos, plazos y un administrador.
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
     ports:
       - "3000:3000"
     depends_on:
