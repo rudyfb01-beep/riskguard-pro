@@ -25,7 +25,7 @@ import { AiRiskService } from '../services/ai-risk.service';
           <div class="flex items-center gap-2">
             <!-- Excel Export Button -->
             <button
-              (click)="riskService.exportToExcel('complete')"
+              [class.perm-locked]="!riskService.canAny('canExportReports')" (click)="riskService.exportToExcel('complete')"
               class="px-3 py-1.5 text-xs font-semibold text-slate-900 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
               title="Descargar matriz y bitácora completa en formato Excel / CSV con UTF-8"
             >
@@ -35,7 +35,7 @@ import { AiRiskService } from '../services/ai-risk.service';
 
             <!-- PDF Print Button -->
             <button
-              (click)="printPdf()"
+              [class.perm-locked]="!riskService.canAny('canExportReports')" (click)="printPdf()"
               class="px-3 py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors flex items-center gap-1.5"
               title="Imprimir o Guardar en PDF de alta fidelidad"
             >
@@ -59,7 +59,7 @@ import { AiRiskService } from '../services/ai-risk.service';
           <div class="border-b-2 border-slate-900 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
             <div>
               <div class="flex items-center gap-2">
-                <span class="text-xl font-extrabold tracking-tight text-slate-900">CUSTODIA RISK</span>
+                <span class="text-xl font-extrabold tracking-tight text-slate-900">RISKGUARD PRO</span>
                 <span class="text-xs bg-slate-900 text-white px-2 py-0.5 rounded font-mono uppercase">CONFIDENCIAL</span>
               </div>
               <h1 class="text-lg font-bold text-slate-800 mt-1">
@@ -238,7 +238,7 @@ import { AiRiskService } from '../services/ai-risk.service';
             </button>
 
             <button
-              (click)="printPdf()"
+              [class.perm-locked]="!riskService.canAny('canExportReports')" (click)="printPdf()"
               class="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
             >
               <mat-icon class="text-sm">print</mat-icon>
@@ -288,6 +288,7 @@ Se recomienda al Comité de Riesgos mantener supervisión prioritaria sobre los 
   }
 
   printPdf() {
+    if (!this.riskService.requirePermission(['canExportReports'], 'exportar reportes')) return;
     this.riskService.appendAuditLog(
       'EXPORTACIÓN_REPORTE',
       'Reporte',

@@ -33,9 +33,10 @@ docker compose up -d --build
 - Adminer (consultas SQL): http://localhost:8080 — servidor `postgres`, usuario `postgres`,
   contraseña `postgrespassword`, base `custodia_risk`.
 
-Para entrar con los datos de ejemplo, escribe `elena.vasconcelos@custodia-risk.com` y busca el
+Para entrar con los datos de ejemplo, escribe `elena.vasconcelos@demo.riskguard.cl` y busca el
 código en `docker compose logs app` (sin SMTP configurado, los códigos se escriben ahí; ver
-[Inicio de sesión](#inicio-de-sesión)).
+[Inicio de sesión](#inicio-de-sesión)). Las bases creadas antes del 22-10-2026 conservan los correos de ejemplo
+anteriores, terminados en `@custodia-risk.com`.
 
 Por defecto, Docker Compose carga los datos de ejemplo (`SEED_DEMO_DATA=true`). Para empezar sin
 ellos:
@@ -87,6 +88,10 @@ por email (no hay contraseñas).
   se trabaja, la app pide el código de nuevo y guarda los cambios pendientes al volver a entrar.
 - **El servidor valida los permisos del cargo** en cada guardado. Por ejemplo, el Consejo o la
   Junta de Vigilancia no pueden modificar datos aunque lo intenten directamente contra la API.
+- **La pantalla aplica los mismos permisos.** Las acciones que el cargo no tiene aparecen
+  atenuadas y, al pulsarlas, la app explica qué permiso falta. Si un administrador cambia los
+  permisos de un puesto, los usuarios con sesión abierta los reciben al volver a la pestaña o en
+  menos de 2 minutos, sin cerrar sesión.
 - El autor de cada bloque de la bitácora es siempre el usuario de la sesión. Los inicios y cierres
   de sesión también quedan registrados.
 - Un administrador puede **desactivar** a un usuario en "Puestos & Permisos", lo que cierra sus
@@ -147,8 +152,8 @@ Permisos".
 **Para evaluar sin SMTP**, `AUTH_DEV_LOG_CODES=true` escribe los códigos en el log del servidor
 (`docker compose logs app`). Docker Compose lo trae activado por defecto junto con los datos de
 ejemplo; **en producción debe ser `false`**. Con los datos de ejemplo se puede entrar, por ejemplo,
-como `elena.vasconcelos@custodia-risk.com` (Jefa de Riesgo Operacional) o
-`carmen.soto@custodia-risk.com` (Consejo, solo lectura).
+como `elena.vasconcelos@demo.riskguard.cl` (Jefa de Riesgo Operacional) o
+`carmen.soto@demo.riskguard.cl` (Consejo, solo lectura).
 
 ### Publicar con HTTPS
 

@@ -471,7 +471,7 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
                       <div><strong>Asunto:</strong> {{ emailSubjectPreview() }}</div>
                     </div>
                     <div class="text-slate-800 space-y-1.5 text-[11px] leading-relaxed">
-                      <p><strong>CUSTODIA RISK - NOTIFICACIÓN DE DESVIACIÓN KRI</strong></p>
+                      <p><strong>RISKGUARD PRO - NOTIFICACIÓN DE DESVIACIÓN KRI</strong></p>
                       <p>Se ha registrado un evento de tolerancia en el indicador clave <strong>{{ targetKriCode() }}</strong> perteneciente al proceso <strong>{{ targetKriProcess() }}</strong>.</p>
                       <div class="bg-slate-50 p-2 rounded border border-slate-200 font-mono text-[10px] space-y-0.5">
                         <div>Métrica Actual: <span class="text-rose-700 font-bold">{{ targetKriValue() }}</span></div>
@@ -621,12 +621,12 @@ export class AlertSettingsModal implements OnInit {
   // Form Group
   readonly settingsForm = this.fb.group({
     emailEnabled: [true],
-    emailRecipients: ['oficial.riesgo@custodia-risk.com, alertas-kri@custodia-risk.com', [Validators.required]],
+    emailRecipients: ['oficial.riesgo@demo.riskguard.cl, alertas-kri@demo.riskguard.cl', [Validators.required]],
     emailTemplate: ['completa'],
     smsEnabled: [true],
     smsRecipients: ['+54 9 11 4589-2044, +52 55 8421-9930', [Validators.required]],
     webhookEnabled: [false],
-    webhookUrl: ['https://api.custodia-risk.com/v1/webhooks/kri-alerts'],
+    webhookUrl: ['https://api.demo.riskguard.cl/v1/webhooks/kri-alerts'],
     notifyOnWarning: [true],
     notifyOnCritical: [true],
     cooldownMinutes: [30],
@@ -659,7 +659,7 @@ export class AlertSettingsModal implements OnInit {
   });
 
   readonly smsMessagePreview = computed(() => {
-    return `[CUSTODIA RISK] ALERTA KRI: ${this.targetKriCode()} sobrepasó umbral crítico (${this.targetKriValue()}). Proceso: ${this.targetKriProcess()}. Ingrese a consola.`;
+    return `[RISKGUARD PRO] ALERTA KRI: ${this.targetKriCode()} sobrepasó umbral crítico (${this.targetKriValue()}). Proceso: ${this.targetKriProcess()}. Ingrese a consola.`;
   });
 
   readonly smsPreviewLength = computed(() => this.smsMessagePreview().length);
@@ -673,9 +673,9 @@ export class AlertSettingsModal implements OnInit {
 
   readonly firstEmailRecipient = computed(() => {
     const raw = this.settingsForm.get('emailRecipients')?.value;
-    if (!raw) return 'oficial.riesgo@custodia-risk.com';
+    if (!raw) return 'oficial.riesgo@demo.riskguard.cl';
     const parts = raw.split(',');
-    return parts[0]?.trim() || 'oficial.riesgo@custodia-risk.com';
+    return parts[0]?.trim() || 'oficial.riesgo@demo.riskguard.cl';
   });
 
   ngOnInit() {
@@ -751,12 +751,12 @@ export class AlertSettingsModal implements OnInit {
 
     if (channel === 'email') {
       const emails = this.settingsForm.get('emailRecipients')?.value || '';
-      recipient = emails.split(',')[0]?.trim() || 'oficial.riesgo@custodia-risk.com';
+      recipient = emails.split(',')[0]?.trim() || 'oficial.riesgo@demo.riskguard.cl';
     } else if (channel === 'sms') {
       const phones = this.settingsForm.get('smsRecipients')?.value || '';
       recipient = phones.split(',')[0]?.trim() || '+54 9 11 4589-2044';
     } else {
-      recipient = this.settingsForm.get('webhookUrl')?.value || 'https://api.custodia-risk.com/webhook';
+      recipient = this.settingsForm.get('webhookUrl')?.value || 'https://api.demo.riskguard.cl/webhook';
     }
 
     try {
@@ -794,7 +794,7 @@ export class AlertSettingsModal implements OnInit {
 
     const preferences: KriNotificationPreferences = {
       emailEnabled: !!formVal.emailEnabled,
-      emailRecipients: emailRecipientsArray.length > 0 ? emailRecipientsArray : ['oficial.riesgo@custodia-risk.com'],
+      emailRecipients: emailRecipientsArray.length > 0 ? emailRecipientsArray : ['oficial.riesgo@demo.riskguard.cl'],
       emailTemplate: (formVal.emailTemplate as 'completa' | 'ejecutiva') || 'completa',
       smsEnabled: !!formVal.smsEnabled,
       smsRecipients: smsRecipientsArray.length > 0 ? smsRecipientsArray : ['+54 9 11 4589-2044'],

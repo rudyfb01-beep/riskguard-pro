@@ -503,6 +503,7 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
             <button
               type="button"
               (click)="saveIncidentOnly()"
+              [class.perm-locked]="!canSave()"
               [disabled]="form.invalid || isSaving()"
               class="px-3.5 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
             >
@@ -514,6 +515,7 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
             <button
               type="button"
               (click)="saveAndConvertToRisk()"
+              [class.perm-locked]="!canSave() || !riskService.canAny('canConvertFlaws')"
               [disabled]="form.invalid || isSaving()"
               class="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
             >
@@ -738,8 +740,17 @@ export class FlawModal {
     return id;
   }
 
+  canSave(): boolean {
+    return this.riskService.canAny(...this.savePerms());
+  }
+
+  savePerms(): ('canReportFlaws' | 'canConvertFlaws' | 'canManageRegulatoryReports')[] {
+    return this.incidentToEdit() ? ['canReportFlaws', 'canConvertFlaws', 'canManageRegulatoryReports'] : ['canReportFlaws'];
+  }
+
   async saveIncidentOnly() {
     if (this.form.invalid) return;
+    if (!this.riskService.requirePermission(this.savePerms(), 'registrar o editar incidencias')) return;
     this.isSaving.set(true);
     try {
       await this.persist();
@@ -751,6 +762,8 @@ export class FlawModal {
 
   async saveAndConvertToRisk() {
     if (this.form.invalid) return;
+    if (!this.riskService.requirePermission(this.savePerms(), 'registrar o editar incidencias')) return;
+    if (!this.riskService.requirePermission(['canConvertFlaws'], 'convertir incidencias en riesgos')) return;
     this.isSaving.set(true);
     try {
       const val = this.form.value;

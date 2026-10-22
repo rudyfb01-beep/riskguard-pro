@@ -376,6 +376,7 @@ import { Control, ControlAutomation, ControlEvidenceAttachment, ControlFrequency
             <button
               type="button"
               (click)="onSubmit()"
+              [class.perm-locked]="!canSave()"
               [disabled]="form.invalid"
               class="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >
@@ -505,8 +506,17 @@ export class ControlModal implements OnInit {
     this.attachedFiles.update(list => list.filter(a => a.id !== attId));
   }
 
+  canSave(): boolean {
+    return this.riskService.canAny(...this.savePerms());
+  }
+
+  savePerms(): ('canEvaluateControls' | 'canEditRisks')[] {
+    return this.existingControl() ? ['canEvaluateControls'] : ['canEditRisks', 'canEvaluateControls'];
+  }
+
   async onSubmit() {
     if (this.form.invalid) return;
+    if (!this.riskService.requirePermission(this.savePerms(), this.existingControl() ? 'evaluar controles' : 'crear controles')) return;
 
     const val = this.form.value;
     const existing = this.existingControl();

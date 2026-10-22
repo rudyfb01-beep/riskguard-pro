@@ -75,3 +75,10 @@
   }
 }
 
+
+/* Acción no permitida para el cargo actual: visible pero atenuada. Al pulsarla se explica el motivo. */
+.perm-locked {
+  opacity: 0.45;
+  cursor: not-allowed !important;
+  filter: grayscale(0.6);
+}

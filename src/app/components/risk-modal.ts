@@ -302,6 +302,7 @@ import { BaselCategory, Risk } from '../models/risk.model';
           <button
             type="button"
             (click)="onSubmit()"
+            [class.perm-locked]="!canSave()"
             [disabled]="form.invalid"
             class="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
           >
@@ -408,8 +409,16 @@ export class RiskModal implements OnInit {
     }
   }
 
+  /** Permiso necesario para guardar en este formulario. */
+  readonly savePerms = ['canEditRisks'] as const;
+
+  canSave(): boolean {
+    return this.riskService.canAny(...this.savePerms);
+  }
+
   async onSubmit() {
     if (this.form.invalid) return;
+    if (!this.riskService.requirePermission([...this.savePerms], 'crear o editar riesgos')) return;
 
     const val = this.form.value;
     const existing = this.existingRisk();

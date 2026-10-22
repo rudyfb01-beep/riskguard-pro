@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, output, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
@@ -128,6 +128,12 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
           </div>
 
           <!-- TAB 1: PUESTOS & MATRIZ DE PERMISOS -->
+          @if (!canManage()) {
+            <div class="mb-3 p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700 flex items-start gap-2">
+              <mat-icon class="text-sm text-slate-500 shrink-0">lock</mat-icon>
+              <span>Vista de consulta: tu cargo ({{ riskService.currentProfile().role }}) no tiene el permiso "Administrar puestos", así que no puede cambiar permisos, puestos ni usuarios.</span>
+            </div>
+          }
           @if (activeTab() === 'roles') {
             <div class="space-y-4">
               
@@ -172,7 +178,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <td class="py-3 px-3 text-center">
                           <button
                             type="button"
-                            (click)="togglePermission(role, 'canEditRisks')"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canEditRisks')"
                             class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
                             [class]="role.permissions.canEditRisks ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
                             title="Alternar permiso de edición de riesgos"
@@ -184,7 +190,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <td class="py-3 px-3 text-center">
                           <button
                             type="button"
-                            (click)="togglePermission(role, 'canEvaluateControls')"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canEvaluateControls')"
                             class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
                             [class]="role.permissions.canEvaluateControls ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
                             title="Alternar permiso de evaluación de controles"
@@ -196,7 +202,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <td class="py-3 px-3 text-center">
                           <button
                             type="button"
-                            (click)="togglePermission(role, 'canExecuteAudits')"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canExecuteAudits')"
                             class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
                             [class]="role.permissions.canExecuteAudits ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
                             title="Alternar permiso de ejecución de auditorías"
@@ -208,7 +214,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <td class="py-3 px-3 text-center">
                           <button
                             type="button"
-                            (click)="togglePermission(role, 'canReportFlaws')"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canReportFlaws')"
                             class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
                             [class]="role.permissions.canReportFlaws ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
                             title="Alternar permiso de reporte de incidentes"
@@ -220,7 +226,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <td class="py-3 px-3 text-center">
                           <button
                             type="button"
-                            (click)="togglePermission(role, 'canConvertFlaws')"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canConvertFlaws')"
                             class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
                             [class]="role.permissions.canConvertFlaws ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
                             title="Alternar permiso de conversión a riesgo"
@@ -232,7 +238,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <td class="py-3 px-3 text-center">
                           <button
                             type="button"
-                            (click)="togglePermission(role, 'canAcknowledgeAlerts')"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canAcknowledgeAlerts')"
                             class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
                             [class]="role.permissions.canAcknowledgeAlerts ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
                             title="Alternar permiso de resolución de alertas"
@@ -244,7 +250,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <td class="py-3 px-3 text-center">
                           <button
                             type="button"
-                            (click)="togglePermission(role, 'canConfigureKRIs')"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canConfigureKRIs')"
                             class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
                             [class]="role.permissions.canConfigureKRIs ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
                             title="Alternar permiso de configuración de KRIs"
@@ -256,7 +262,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <td class="py-3 px-3 text-center">
                           <button
                             type="button"
-                            (click)="togglePermission(role, 'canManageRoles')"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canManageRoles')"
                             class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
                             [class]="role.permissions.canManageRoles ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
                             title="Alternar permiso de administración de puestos y roles"
@@ -268,7 +274,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <td class="py-3 px-3 text-center">
                           <button
                             type="button"
-                            (click)="togglePermission(role, 'canExportReports')"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canExportReports')"
                             class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
                             [class]="role.permissions.canExportReports ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
                             title="Alternar permiso de exportación de informes"
@@ -280,7 +286,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <td class="py-3 px-3 text-center">
                           <button
                             type="button"
-                            (click)="togglePermission(role, 'canManageRegulatoryReports')"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canManageRegulatoryReports')"
                             class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
                             [class]="role.permissions.canManageRegulatoryReports ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
                             title="Alternar permiso de reporte regulatorio CMF/ANCI"
@@ -292,7 +298,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <td class="py-3 px-3 text-center">
                           <button
                             type="button"
-                            (click)="togglePermission(role, 'canManageProviders')"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canManageProviders')"
                             class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
                             [class]="role.permissions.canManageProviders ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
                             title="Alternar permiso de gestión de proveedores"
@@ -304,7 +310,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <td class="py-3 px-3 text-center">
                           <button
                             type="button"
-                            (click)="togglePermission(role, 'canManageContinuity')"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canManageContinuity')"
                             class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
                             [class]="role.permissions.canManageContinuity ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
                             title="Alternar permiso de continuidad del negocio"
@@ -316,7 +322,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <td class="py-3 px-3 text-center">
                           <button
                             type="button"
-                            (click)="togglePermission(role, 'canManageInfoSecurity')"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canManageInfoSecurity')"
                             class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
                             [class]="role.permissions.canManageInfoSecurity ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
                             title="Alternar permiso de seguridad de la información"
@@ -343,7 +349,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                             @if (!role.isSystemRole) {
                               <button
                                 type="button"
-                                (click)="onDeleteRole(role.id)"
+                                [class.perm-locked]="!canManage()" (click)="onDeleteRole(role.id)"
                                 class="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                                 title="Eliminar puesto personalizado"
                               >
@@ -434,7 +440,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                       Cancelar
                     </button>
                     <button
-                      type="submit"
+                      type="submit" [class.perm-locked]="!canManage()" [class.perm-locked]="!canManage()"
                       [disabled]="userForm.invalid"
                       class="px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm disabled:opacity-50"
                     >
@@ -489,7 +495,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                           } @else {
                             <button
                               type="button"
-                              (click)="toggleUserActive(usr)"
+                              [class.perm-locked]="!canManage()" (click)="toggleUserActive(usr)"
                               class="px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
                               [class]="usr.active === false
                                 ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
@@ -720,7 +726,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                   Cancelar
                 </button>
                 <button
-                  type="submit"
+                  type="submit" [class.perm-locked]="!canManage()"
                   [disabled]="roleForm.invalid"
                   class="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm disabled:opacity-50"
                 >
@@ -823,7 +829,10 @@ export class RolesManagementModal {
     return name.slice(0, 2).toUpperCase();
   }
 
+  readonly canManage = computed(() => this.riskService.hasPermission('canManageRoles'));
+
   togglePermission(role: OrganizationalRole, permKey: keyof UserPermissions) {
+    if (!this.riskService.requirePermission(['canManageRoles'], 'administrar puestos y permisos')) return;
     const currentVal = role.permissions[permKey];
     const newPermissions = {
       ...role.permissions,
@@ -836,6 +845,7 @@ export class RolesManagementModal {
   }
 
   toggleUserActive(usr: UserProfile) {
+    if (!this.riskService.requirePermission(['canManageRoles'], 'administrar puestos y permisos')) return;
     this.riskService.updateUserProfile(usr.id, { active: usr.active === false });
   }
 
@@ -862,6 +872,7 @@ export class RolesManagementModal {
   }
 
   onCreateRole() {
+    if (!this.riskService.requirePermission(['canManageRoles'], 'administrar puestos y permisos')) return;
     if (this.roleForm.invalid) return;
     const v = this.roleForm.value;
 
@@ -911,6 +922,7 @@ export class RolesManagementModal {
   }
 
   onCreateUser() {
+    if (!this.riskService.requirePermission(['canManageRoles'], 'administrar puestos y permisos')) return;
     if (this.userForm.invalid) return;
     const v = this.userForm.value;
     const selectedRole = this.riskService.organizationalRoles().find(r => r.id === v.roleId);
@@ -951,6 +963,7 @@ export class RolesManagementModal {
   }
 
   async onDeleteRole(roleId: string) {
+    if (!this.riskService.requirePermission(['canManageRoles'], 'administrar puestos y permisos')) return;
     try {
       const role = this.riskService.organizationalRoles().find(r => r.id === roleId);
       const title = role ? role.title : 'Puesto';
