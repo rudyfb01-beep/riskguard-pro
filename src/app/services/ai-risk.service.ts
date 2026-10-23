@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import { CatalogService } from './catalog.service';
 
 export interface AIAnalysisResult {
   title: string;
@@ -30,6 +31,7 @@ export interface AIAnalysisResult {
 })
 export class AiRiskService {
   private http = inject(HttpClient);
+  private cat = inject(CatalogService);
 
   async analyzeIncidencia(
     incidencia: string,
@@ -42,7 +44,8 @@ export class AiRiskService {
           incidencia,
           falencia: incidencia,
           processHint,
-          incidentType
+          incidentType,
+          currency: this.cat.currency(),
         })
       );
       if (response && response.data) {
@@ -107,7 +110,8 @@ export class AiRiskService {
       const response = await firstValueFrom(
         this.http.post<{ success: boolean; summary: string }>('/api/ai/generate-executive-summary', {
           metrics,
-          topRisks
+          topRisks,
+          currency: this.cat.currency(),
         })
       );
       return response?.summary || 'Resumen generado con éxito.';

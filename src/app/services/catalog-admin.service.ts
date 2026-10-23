@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { CatalogService } from './catalog.service';
 import { RiskDataService } from './risk-data.service';
 import { ResilienceService } from './resilience.service';
-import { PersistenceService } from './persistence.service';
+import { PersistenceService, apiFetch } from './persistence.service';
 import {
   AccountingAccount, BusinessProcess, GeneralParameters, OrgArea, ProviderCatalogs, RiskAppetite, RiskScale,
   normalizeAccounts, normalizeGeneralParameters, normalizeProviderCatalogs, normalizeRiskAppetite, normalizeRiskScale,
@@ -288,5 +288,47 @@ export class CatalogAdminService {
     await this.rs.appendAuditLog('CONFIGURACIÓN_PARÁMETROS', 'Mantenedor', 'PROVEEDORES',
       `Catálogos de proveedores actualizados: ${clean.categories.length} categorías, ${clean.clauses.length} cláusulas`
       + `${added.length ? `; cláusulas nuevas: ${added.join(', ')}` : ''}${gone.length ? `; quitadas: ${gone.join(', ')}` : ''}.`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cambio de moneda con conversión de montos
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Cambia la moneda de registro y convierte todos los montos guardados con el tipo de cambio
+   * indicado (pesos por dólar). Con base de datos lo hace el servidor en una transacción y la app recarga.
+   */
+  async convertCurrency(to: 'CLP' | 'USD', rate: number): Promise<void> {
+    this.guard();
+    const from = this.cat.currency();
+    if (from === to) return;
+    if (!Number.isFinite(rate) || rate < 100 || rate > 5000) throw new CatalogValidationError('Ingresa un tipo de cambio en pesos por dólar entre 100 y 5.000.');
+
+    if (this.persistence.mode() === 'database') {
+      await this.persistence.flush();
+      const resp = await apiFetch('/api/admin/convert-currency', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, rate }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new CatalogValidationError(data?.error || `Error ${resp.status} al convertir los montos.`);
+      await this.persistence.reload();
+      return;
+    }
+
+    // Modo demostración: conversión local.
+    const f = to === 'CLP' ? rate : 1 / rate;
+    const r = (v: number | undefined) => (typeof v === 'number' ? (to === 'CLP' ? Math.round(v * f) : Math.round(v * f * 100) / 100) : v);
+    this.rs.risks.update(list => list.map(x => ({
+      ...x, financialExposureUSD: r(x.financialExposureUSD)!, residualExposureUSD: r(x.residualExposureUSD)!,
+      mitigationPlan: { ...x.mitigationPlan, budgetUSD: r(x.mitigationPlan.budgetUSD)! },
+    })));
+    this.rs.flaws.update(list => list.map(x => ({ ...x, realLossAmountUSD: r(x.realLossAmountUSD), recoveredAmountUSD: r(x.recoveredAmountUSD) })));
+    this.res.providers.update(list => list.map(x => ({ ...x, annualCostUSD: r(x.annualCostUSD)! })));
+    this.rs.lossRegistrationThresholdUSD.update(v => r(v)!);
+    const ap = this.cat.riskAppetite();
+    this.cat.riskAppetiteRaw.set({ ...ap, limits: ap.limits.map(l => ({ ...l, annualLossLimit: r(l.annualLossLimit) })) });
+    this.cat.generalParameters.set({ ...this.cat.params(), currency: to });
+    await this.rs.appendAuditLog('CONFIGURACIÓN_PARÁMETROS', 'Mantenedor', 'MONEDA',
+      `Moneda de registro ${from} → ${to} con conversión de montos (tipo de cambio ${rate} CLP/USD).`);
   }
 }

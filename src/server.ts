@@ -69,6 +69,7 @@ function getAiClient(): GoogleGenAI | null {
 const handleAnalyzeIncidencia = async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { falencia, incidencia, processHint, incidentType } = req.body;
+    const currency = req.body?.currency === 'CLP' ? 'pesos chilenos (CLP)' : 'dólares (USD)';
     const desc = incidencia || falencia;
     if (!desc || typeof desc !== 'string') {
       res.status(400).json({ error: 'La descripción de la incidencia o evento es requerida.' });
@@ -89,7 +90,7 @@ Devuelve un JSON estrictamente válido con la siguiente estructura:
   "category": "Una de: Fraude Interno | Fraude Externo | Fallas Tecnológicas | Ejecución y Procesos | Prácticas Laborales | Daño a Activos Físicos | Cumplimiento Normativo",
   "inherentLikelihood": número entero del 1 al 4 (1: Improbable, 2: Posible, 3: Probable, 4: Frecuente),
   "inherentImpact": número entero del 1 al 4 (1: Menor, 2: Moderado, 3: Mayor, 4: Catastrófico),
-  "financialExposureEstUSD": estimación numérica en USD de pérdida potencial,
+  "financialExposureEstUSD": estimación numérica en ${currency} de pérdida potencial (solo el número),
   "technicalDescription": "Descripción ejecutiva del mecanismo de falla",
   "suggestedControls": [
     {
@@ -142,7 +143,7 @@ Devuelve un JSON estrictamente válido con la siguiente estructura:
         process: processHint || 'Operaciones Centrales',
         inherentLikelihood: 4,
         inherentImpact: 4,
-        financialExposureEstUSD: 125000,
+        financialExposureEstUSD: req.body?.currency === 'CLP' ? 120_000_000 : 125000,
         technicalDescription: `Vulnerabilidad identificada a partir de deficiencia o evento reportado: ${desc}`,
         suggestedControls: [
           {
@@ -186,11 +187,13 @@ app.post('/api/ai/analyze-falencia', handleAnalyzeIncidencia);
 app.post('/api/ai/generate-executive-summary', async (req, res): Promise<void> => {
   try {
     const { metrics, topRisks } = req.body;
+    const currency = req.body?.currency === 'CLP' ? 'pesos chilenos (CLP)' : 'dólares (USD)';
     const ai = getAiClient();
     if (ai) {
       const prompt = `Genera un dictamen ejecutivo formal para el Comité de Auditoría y Riesgos basado en estos datos de gestión operacional:
 Métricas: ${JSON.stringify(metrics)}
 Top Riesgos: ${JSON.stringify(topRisks)}
+Los montos están expresados en ${currency}.
 
 Escribe un resumen en español de 2 párrafos concisos y de alto nivel gerencial destacando el apetito de riesgo, la efectividad global de los controles y 3 recomendaciones clave.`;
 

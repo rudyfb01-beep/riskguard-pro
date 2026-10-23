@@ -1383,7 +1383,7 @@ export class RiskDataService {
     const inherentI = Math.max(1, Math.min(4, riskData.inherentImpact || 2));
     const inherentScore = inherentL * inherentI;
     const inherentLevel = this.calculateRiskLevel(inherentL, inherentI);
-    const inherentExposure = riskData.financialExposureUSD || 100000;
+    const inherentExposure = riskData.financialExposureUSD || (this.currencyCode() === 'CLP' ? 100_000_000 : 100000);
     const controlIds = riskData.controlIds || [];
 
     const residual = this.calculateResidual(inherentL, inherentI, inherentExposure, controlIds);
@@ -1949,7 +1949,7 @@ export class RiskDataService {
       'REPORTE_INCIDENCIA',
       'Incidencia',
       newFlaw.id,
-      `Registro de incidencia (${newFlaw.incidentType}) en proceso ${newFlaw.process}: "${newFlaw.title}". Severidad: ${newFlaw.severity}.${newFlaw.realLossAmountUSD ? ` Pérdida real: $${newFlaw.realLossAmountUSD} USD.` : ''}`
+      `Registro de incidencia (${newFlaw.incidentType}) en proceso ${newFlaw.process}: "${newFlaw.title}". Severidad: ${newFlaw.severity}.${newFlaw.realLossAmountUSD ? ` Pérdida real: ${this.catalog.formatMoney(newFlaw.realLossAmountUSD)}.` : ''}`
     );
     return newFlaw;
   }
@@ -1970,7 +1970,7 @@ export class RiskDataService {
       'ACTUALIZACION_INCIDENCIA',
       'Incidencia',
       id,
-      `Actualización de incidencia/evento "${updated.title}". Tipo: ${updated.incidentType || 'No especificado'}. Pérdida real: $${updated.realLossAmountUSD || 0} USD.`
+      `Actualización de incidencia/evento "${updated.title}". Tipo: ${updated.incidentType || 'No especificado'}. Pérdida real: ${this.catalog.formatMoney(updated.realLossAmountUSD || 0)}.`
     );
     return updated;
   }

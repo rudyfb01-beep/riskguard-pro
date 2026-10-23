@@ -8,11 +8,12 @@ import { ResilienceService } from '../services/resilience.service';
 import { SecurityService } from '../services/security.service';
 import { AiRiskService, AIAnalysisResult } from '../services/ai-risk.service';
 import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine, IncidentType, OperationalFlaw } from '../models/risk.model';
+import { MoneyPipe } from '../utils/money.pipe';
 
 @Component({
   selector: 'app-flaw-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, MatIconModule],
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule, MoneyPipe],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden my-6">
@@ -448,7 +449,7 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
                 </div>
                 <div>
                   <span class="text-slate-400 block text-[10px] uppercase">Exposición Est.</span>
-                  <span class="font-bold font-mono text-emerald-700">\${{ ai.financialExposureEstUSD | number:'1.0-0' }}</span>
+                  <span class="font-bold font-mono text-emerald-700">{{ ai.financialExposureEstUSD | money }}</span>
                 </div>
               </div>
 
@@ -780,8 +781,8 @@ export class FlawModal {
         category: (val.baselCategory as BaselCategory) || (ai?.category as BaselCategory) || 'Ejecución y Procesos',
         inherentLikelihood: ai?.inherentLikelihood || (val.severity === 'Crítica' ? 4 : 3),
         inherentImpact: ai?.inherentImpact || (val.severity === 'Crítica' ? 4 : 3),
-        financialExposureUSD: lossAmount > 0 ? lossAmount * 2 : (ai?.financialExposureEstUSD || 120000),
-        description: `${val.description}\n\n[Tipo de Evento]: ${val.incidentType || 'Incidencia Operativa'}\n[Impacto Registrado]: $${lossAmount} USD\n[Análisis Técnico]: ${ai?.technicalDescription || 'Identificado y registrado en Incidentes y Pérdidas.'}`
+        financialExposureUSD: lossAmount > 0 ? lossAmount * 2 : (ai?.financialExposureEstUSD || (this.riskService.currencyCode() === 'CLP' ? 120_000_000 : 120000)),
+        description: `${val.description}\n\n[Tipo de Evento]: ${val.incidentType || 'Incidencia Operativa'}\n[Impacto Registrado]: ${this.riskService.catalog.formatMoney(lossAmount)}\n[Análisis Técnico]: ${ai?.technicalDescription || 'Identificado y registrado en Incidentes y Pérdidas.'}`
       });
       this.closeModal.emit();
     } finally {

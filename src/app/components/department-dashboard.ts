@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { Risk } from '../models/risk.model';
+import { MoneyPipe } from '../utils/money.pipe';
 
 @Component({
   selector: 'app-department-dashboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, MoneyPipe],
   template: `
     <div class="space-y-6">
       
@@ -68,7 +69,7 @@ import { Risk } from '../models/risk.model';
               <div>
                 <div class="leading-tight font-medium">{{ d.process }}</div>
                 <div class="text-[10px] opacity-75 font-mono">
-                  {{ d.risksCount }} riesgos · \${{ d.residualExposureUSD | number:'1.0-0' }}
+                  {{ d.risksCount }} riesgos · {{ d.residualExposureUSD | money }}
                 </div>
               </div>
             </button>
@@ -134,10 +135,10 @@ import { Risk } from '../models/risk.model';
               <mat-icon class="text-sm text-slate-400">attach_money</mat-icon>
             </div>
             <div class="text-xl font-bold font-mono text-slate-900">
-              \${{ dept.residualExposureUSD | number:'1.0-0' }}
+              {{ dept.residualExposureUSD | money }}
             </div>
             <div class="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-              <span>Bruta: \${{ dept.inherentExposureUSD | number:'1.0-0' }}</span>
+              <span>Bruta: {{ dept.inherentExposureUSD | money }}</span>
               <span class="text-emerald-700 font-semibold font-mono">{{ dept.mitigationPct }}% mitigado</span>
             </div>
           </div>
@@ -183,11 +184,11 @@ import { Risk } from '../models/risk.model';
               <mat-icon class="text-sm text-slate-400">account_balance_wallet</mat-icon>
             </div>
             <div class="text-xl font-bold font-mono text-rose-700">
-              \${{ deptNetLossUSD() | number:'1.0-0' }}
+              {{ deptNetLossUSD() | money }}
             </div>
             <div class="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
               <span>{{ deptIncidents().length }} incidentes reportados</span>
-              <span class="text-slate-400 font-mono">Recup: \${{ deptRecoveredUSD() | number:'1.0-0' }}</span>
+              <span class="text-slate-400 font-mono">Recup: {{ deptRecoveredUSD() | money }}</span>
             </div>
           </div>
 
@@ -333,7 +334,7 @@ import { Risk } from '../models/risk.model';
                           <h5 class="text-xs font-semibold text-slate-900 mt-1">{{ r.title }}</h5>
                         </div>
                         <div class="text-right shrink-0">
-                          <span class="font-mono font-bold text-xs text-slate-900 block">\${{ r.residualExposureUSD | number:'1.0-0' }}</span>
+                          <span class="font-mono font-bold text-xs text-slate-900 block">{{ r.residualExposureUSD | money }}</span>
                           <span class="text-[10px] text-slate-400">Exp. Neta</span>
                         </div>
                       </div>
@@ -414,13 +415,13 @@ import { Risk } from '../models/risk.model';
                           <span class="font-semibold text-slate-800">{{ inc.title }}</span>
                         </div>
                         <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
-                          Pérdida: \${{ inc.realLossAmountUSD || 0 | number:'1.0-0' }}
+                          Pérdida: {{ (inc.realLossAmountUSD || 0) | money }}
                         </span>
                       </div>
                       <p class="text-slate-600 text-[11px]">{{ inc.description }}</p>
                       <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100">
                         <span>Fecha: {{ inc.reportedAt }} · {{ inc.severity }}</span>
-                        <span class="text-emerald-700 font-medium">Recuperado: \${{ inc.recoveredAmountUSD || 0 | number:'1.0-0' }}</span>
+                        <span class="text-emerald-700 font-medium">Recuperado: {{ (inc.recoveredAmountUSD || 0) | money }}</span>
                       </div>
                     </div>
                   }
@@ -500,8 +501,8 @@ import { Risk } from '../models/risk.model';
                         {{ d.criticalRisksCount }}
                       </span>
                     </td>
-                    <td class="py-3 px-3 text-right font-mono text-slate-500">\${{ d.inherentExposureUSD | number:'1.0-0' }}</td>
-                    <td class="py-3 px-3 text-right font-mono font-bold text-slate-900">\${{ d.residualExposureUSD | number:'1.0-0' }}</td>
+                    <td class="py-3 px-3 text-right font-mono text-slate-500">{{ d.inherentExposureUSD | money }}</td>
+                    <td class="py-3 px-3 text-right font-mono font-bold text-slate-900">{{ d.residualExposureUSD | money }}</td>
                     <td class="py-3 px-3 text-center font-mono font-bold text-emerald-700">{{ d.mitigationPct }}%</td>
                     <td class="py-3 px-3 text-center font-mono">
                       <span class="font-bold" [class]="d.avgControlEffectiveness >= 80 ? 'text-emerald-700' : 'text-amber-700'">

@@ -4,11 +4,12 @@ import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angula
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { BaselCategory, Risk } from '../models/risk.model';
+import { MoneyPipe } from '../utils/money.pipe';
 
 @Component({
   selector: 'app-risk-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, MatIconModule],
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule, MoneyPipe],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden my-6">
@@ -237,7 +238,7 @@ import { BaselCategory, Risk } from '../models/risk.model';
               </div>
               <div>
                 <span class="text-slate-500 block text-[11px]">Exposición Residual:</span>
-                <span class="font-bold font-mono text-emerald-900">\${{ calculatedResidual().residualExposureUSD | number:'1.0-0' }}</span>
+                <span class="font-bold font-mono text-emerald-900">{{ calculatedResidual().residualExposureUSD | money }}</span>
               </div>
               <div>
                 <span class="text-slate-500 block text-[11px]">Nivel de Tolerancia:</span>
@@ -340,7 +341,7 @@ export class RiskModal implements OnInit {
     process: new FormControl(this.riskService.catalog.processNames()[0] ?? '', [Validators.required]),
     description: new FormControl(''),
     category: new FormControl<BaselCategory>('Fallas Tecnológicas', [Validators.required]),
-    financialExposureUSD: new FormControl(150000, [Validators.required, Validators.min(0)]),
+    financialExposureUSD: new FormControl(this.riskService.currencyCode() === 'CLP' ? 150_000_000 : 150000, [Validators.required, Validators.min(0)]),
     responsible: new FormControl('Ing. Carlos Mendoza'),
     inherentLikelihood: new FormControl(3, [Validators.required]),
     inherentImpact: new FormControl(3, [Validators.required]),

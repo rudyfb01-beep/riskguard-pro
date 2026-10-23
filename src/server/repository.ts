@@ -731,3 +731,56 @@ export async function importLedgerBlock(c: PoolClient, e: AuditLogEntry): Promis
 }
 
 export { withTransaction };
+
+// -----------------------------------------------------------------------------
+// Cambio de moneda de registro con conversión de montos
+// -----------------------------------------------------------------------------
+
+export interface CurrencyConversionResult { from: string; to: string; rate: number; risks: number; flaws: number; providers: number }
+
+/**
+ * Convierte todos los montos guardados a la nueva moneda en una sola transacción:
+ * exposición de riesgos y presupuesto de sus planes, pérdidas y recuperos, costo de proveedores,
+ * umbral de la base de pérdidas y límites de pérdida del apetito. `rate` = pesos por dólar.
+ */
+export async function convertCurrency(to: 'CLP' | 'USD', rate: number, actor: { name: string; role: string }, ip: string): Promise<CurrencyConversionResult> {
+  return withTransaction(async c => {
+    await c.query('SELECT pg_advisory_xact_lock(727004)');
+    const gp = await c.query(`SELECT value FROM system_settings WHERE key = 'general_parameters'`);
+    const params = (gp.rows[0]?.value ?? {}) as Record<string, unknown>;
+    const from = params['currency'] === 'CLP' ? 'CLP' : 'USD';
+    if (from === to) throw Object.assign(new Error(`Los montos ya están en ${to}.`), { status: 400 });
+    const f = to === 'CLP' ? rate : 1 / rate;
+    const d = to === 'CLP' ? 0 : 2;
+
+    const risks = await c.query(
+      `UPDATE risks SET financial_exposure_usd = ROUND(financial_exposure_usd * $1::numeric, $2::int),
+              residual_exposure_usd = ROUND(residual_exposure_usd * $1::numeric, $2::int),
+              mitigation_plan = CASE WHEN mitigation_plan ? 'budgetUSD' AND jsonb_typeof(mitigation_plan->'budgetUSD') = 'number'
+                THEN jsonb_set(mitigation_plan, '{budgetUSD}', to_jsonb(ROUND((mitigation_plan->>'budgetUSD')::numeric * $1::numeric, $2::int)))
+                ELSE mitigation_plan END`, [f, d]);
+    const flaws = await c.query(
+      `UPDATE operational_flaws SET real_loss_amount_usd = ROUND(COALESCE(real_loss_amount_usd, 0) * $1::numeric, $2::int),
+              recovered_amount_usd = ROUND(COALESCE(recovered_amount_usd, 0) * $1::numeric, $2::int)`, [f, d]);
+    const providers = await c.query(`UPDATE service_providers SET annual_cost_usd = ROUND(annual_cost_usd * $1::numeric, $2::int)`, [f, d]);
+    await c.query(
+      `UPDATE system_settings SET value = to_jsonb(ROUND((value #>> '{}')::numeric * $1::numeric, $2::int)), updated_at = CURRENT_TIMESTAMP
+        WHERE key = 'loss_registration_threshold_usd' AND jsonb_typeof(value) = 'number'`, [f, d]);
+
+    const ap = await c.query(`SELECT value FROM system_settings WHERE key = 'risk_appetite'`);
+    if (ap.rows[0]?.value && Array.isArray(ap.rows[0].value.limits)) {
+      const v = ap.rows[0].value;
+      v.limits = v.limits.map((l: { annualLossLimit?: number }) => (typeof l.annualLossLimit === 'number'
+        ? { ...l, annualLossLimit: Number((l.annualLossLimit * f).toFixed(d)) } : l));
+      await saveSetting('risk_appetite', v, c);
+    }
+    await saveSetting('general_parameters', { ...params, currency: to }, c);
+
+    await appendLedger({
+      id: `log-currency-${Date.now()}`, userName: actor.name, userRole: actor.role, action: 'CONFIGURACIÓN_PARÁMETROS',
+      entityType: 'Mantenedor', entityCode: 'MONEDA',
+      details: `Moneda de registro ${from} → ${to} con conversión de montos (tipo de cambio ${rate} CLP/USD): ${risks.rowCount} riesgos, ${flaws.rowCount} incidentes, ${providers.rowCount} proveedores, umbral de pérdidas y límites de apetito.`,
+    }, ip, c);
+    return { from, to, rate, risks: risks.rowCount ?? 0, flaws: flaws.rowCount ?? 0, providers: providers.rowCount ?? 0 };
+  });
+}

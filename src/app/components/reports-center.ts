@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { AiRiskService } from '../services/ai-risk.service';
+import { MoneyPipe } from '../utils/money.pipe';
 
 export type ReportType =
   | 'dictamen-directorio'
@@ -13,7 +14,7 @@ export type ReportType =
 @Component({
   selector: 'app-reports-center',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, MoneyPipe],
   template: `
     <div class="space-y-6">
 
@@ -204,7 +205,7 @@ export type ReportType =
             <div class="border border-slate-200 p-3 rounded-lg bg-white">
               <span class="text-slate-500 block text-[11px]">Exposición Bruta Inherente</span>
               <span class="text-base font-bold font-mono text-slate-900 tabular-nums">
-                \${{ reportMetrics().inherentUSD | number:'1.0-0' }} {{ riskService.currencyCode() }}
+                {{ reportMetrics().inherentUSD | money }}
               </span>
               <span class="text-[10px] text-slate-400 block">Sin aplicación de controles</span>
             </div>
@@ -212,7 +213,7 @@ export type ReportType =
             <div class="border border-slate-200 p-3 rounded-lg bg-white">
               <span class="text-slate-500 block text-[11px]">Exposición Neta Residual</span>
               <span class="text-base font-bold font-mono text-slate-900 tabular-nums">
-                \${{ reportMetrics().residualUSD | number:'1.0-0' }} {{ riskService.currencyCode() }}
+                {{ reportMetrics().residualUSD | money }}
               </span>
               <span class="text-[10px] text-slate-400 block">Exposición real asumida</span>
             </div>
@@ -222,7 +223,7 @@ export type ReportType =
               <span class="text-base font-bold font-mono text-emerald-700 tabular-nums">
                 {{ reportMetrics().mitigationPct }}%
               </span>
-              <span class="text-[10px] text-emerald-700 block">-\${{ reportMetrics().mitigatedUSD | number:'1.0-0' }} {{ riskService.currencyCode() }} mitigados</span>
+              <span class="text-[10px] text-emerald-700 block">{{ -(reportMetrics().mitigatedUSD) | money }} mitigados</span>
             </div>
 
             <div class="border border-slate-200 p-3 rounded-lg bg-white">
@@ -250,7 +251,7 @@ export type ReportType =
                   <div>
                     <div class="flex justify-between text-[11px] mb-0.5">
                       <span class="text-slate-600">Exposición Inherente</span>
-                      <span class="font-mono font-bold">\${{ reportMetrics().inherentUSD | number:'1.0-0' }}</span>
+                      <span class="font-mono font-bold">{{ reportMetrics().inherentUSD | money }}</span>
                     </div>
                     <div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
                       <div class="bg-slate-300 h-full w-full"></div>
@@ -260,7 +261,7 @@ export type ReportType =
                   <div>
                     <div class="flex justify-between text-[11px] mb-0.5">
                       <span class="text-slate-600">Exposición Residual (Post-Controles)</span>
-                      <span class="font-mono font-bold text-emerald-700">\${{ reportMetrics().residualUSD | number:'1.0-0' }}</span>
+                      <span class="font-mono font-bold text-emerald-700">{{ reportMetrics().residualUSD | money }}</span>
                     </div>
                     <div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
                       <div
@@ -333,7 +334,7 @@ export type ReportType =
                       {{ r.residualScore }} ({{ r.residualLevel }})
                     </td>
                     <td class="py-2 px-3 text-right font-mono font-medium text-slate-900">
-                      \${{ r.residualExposureUSD | number:'1.0-0' }}
+                      {{ r.residualExposureUSD | money }}
                     </td>
                     <td class="py-2 px-3 text-[11px]">
                       <span class="font-medium text-slate-800">{{ r.mitigationPlan.title }}</span>
@@ -376,10 +377,10 @@ export type ReportType =
                     </td>
                     <td class="py-2 px-3 text-slate-700">{{ inc.process }}</td>
                     <td class="py-2 px-3 text-slate-600 font-mono">{{ inc.reportedAt }}</td>
-                    <td class="py-2 px-3 text-right font-mono text-rose-700 font-semibold">\${{ inc.realLossAmountUSD || 0 | number:'1.0-0' }}</td>
-                    <td class="py-2 px-3 text-right font-mono text-emerald-700 font-semibold">\${{ inc.recoveredAmountUSD || 0 | number:'1.0-0' }}</td>
+                    <td class="py-2 px-3 text-right font-mono text-rose-700 font-semibold">{{ (inc.realLossAmountUSD || 0) | money }}</td>
+                    <td class="py-2 px-3 text-right font-mono text-emerald-700 font-semibold">{{ (inc.recoveredAmountUSD || 0) | money }}</td>
                     <td class="py-2 px-3 text-right font-mono font-bold text-slate-900">
-                      \${{ ((inc.realLossAmountUSD || 0) - (inc.recoveredAmountUSD || 0)) | number:'1.0-0' }}
+                      {{ ((inc.realLossAmountUSD || 0) - (inc.recoveredAmountUSD || 0)) | money }}
                     </td>
                     <td class="py-2 px-3">
                       <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-800">

@@ -9,6 +9,7 @@ import {
   ProviderCriticality,
   ServiceProvider,
 } from '../models/resilience.model';
+import { MoneyPipe } from '../utils/money.pipe';
 
 const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100';
 
@@ -16,7 +17,7 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 tex
 @Component({
   selector: 'app-providers-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, MoneyPipe],
   template: `
     <div class="space-y-4">
       <!-- Header -->
@@ -60,7 +61,7 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 tex
         <div class="bg-white p-3.5 rounded-xl border border-sky-200 bg-sky-50/30"><span class="text-[11px] font-semibold text-sky-800 block">En la nube</span><span class="text-2xl font-bold font-mono text-sky-800">{{ kpis().cloud }}</span></div>
         <div class="bg-white p-3.5 rounded-xl border border-amber-200 bg-amber-50/30"><span class="text-[11px] font-semibold text-amber-800 block">Datos en el extranjero</span><span class="text-2xl font-bold font-mono text-amber-900">{{ kpis().abroad }}</span></div>
         <div class="bg-white p-3.5 rounded-xl border border-rose-300"><span class="text-[11px] font-semibold text-rose-800 block">Alertas altas</span><span class="text-2xl font-bold font-mono text-rose-700">{{ kpis().highAlerts }}</span></div>
-        <div class="bg-white p-3.5 rounded-xl border border-slate-200"><span class="text-[11px] font-semibold text-slate-500 block">Costo anual</span><span class="text-xl font-bold font-mono text-slate-900">\${{ kpis().annualCostUSD | number:'1.0-0' }}</span><span class="text-[10px] text-slate-500 ml-1">{{ rs.currencyCode() }}</span></div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200"><span class="text-[11px] font-semibold text-slate-500 block">Costo anual</span><span class="text-xl font-bold font-mono text-slate-900">{{ kpis().annualCostUSD | money }}</span></div>
       </div>
 
       <!-- Alertas -->
