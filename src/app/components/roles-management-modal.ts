@@ -156,6 +156,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                       <th class="py-3 px-3 text-center" title="Registrar y evaluar proveedores">Proveed.</th>
                       <th class="py-3 px-3 text-center" title="Mantener BIA, planes y pruebas de continuidad">BCP</th>
                       <th class="py-3 px-3 text-center" title="Activos de información, vulnerabilidades y autoevaluación de seguridad">Seguridad</th>
+                      <th class="py-3 px-3 text-center" title="Áreas, procesos y parámetros generales">Mantened.</th>
                       <th class="py-3 px-4 text-right">Acción</th>
                     </tr>
                   </thead>
@@ -328,6 +329,18 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                             title="Alternar permiso de seguridad de la información"
                           >
                             <mat-icon class="text-sm">{{ role.permissions.canManageInfoSecurity ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canManageCatalogs')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canManageCatalogs ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de administrar mantenedores"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canManageCatalogs ? 'check' : 'remove' }}</mat-icon>
                           </button>
                         </td>
 
@@ -583,13 +596,17 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
 
                 <div>
                   <label for="role-dept" class="block font-semibold text-slate-700 mb-1">Departamento / Área de la Organización</label>
-                  <input
+                  <select
                     id="role-dept"
                     formControlName="department"
-                    type="text"
-                    placeholder="Ej. Ciberseguridad & TI, Operaciones, Legal"
                     class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-1 focus:ring-emerald-500"
-                  />
+                  >
+                    <option value="" disabled>Selecciona un área</option>
+                    @for (a of riskService.catalog.areaOptions(roleForm.value.department ?? undefined); track a) {
+                      <option [value]="a">{{ a }}</option>
+                    }
+                  </select>
+                  <span class="block text-[10px] text-slate-500 mt-1">Las áreas se administran en Mantenedores.</span>
                 </div>
 
                 <div class="sm:col-span-2">
@@ -714,6 +731,14 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                       <span class="text-[11px] text-slate-500">Activos, vulnerabilidades y autoevaluación</span>
                     </div>
                   </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canManageCatalogs" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Administrar Mantenedores</span>
+                      <span class="text-[11px] text-slate-500">Áreas, procesos y parámetros generales</span>
+                    </div>
+                  </label>
                 </div>
               </div>
 
@@ -786,7 +811,8 @@ export class RolesManagementModal {
     canManageRegulatoryReports: [false],
     canManageProviders: [false],
     canManageContinuity: [false],
-    canManageInfoSecurity: [false]
+    canManageInfoSecurity: [false],
+    canManageCatalogs: [false]
   });
 
   readonly userForm = this.fb.group({
@@ -817,7 +843,8 @@ export class RolesManagementModal {
       { key: 'regulatory', label: 'CMF/ANCI', granted: !!p.canManageRegulatoryReports },
       { key: 'providers', label: 'Proveedores', granted: !!p.canManageProviders },
       { key: 'continuity', label: 'Continuidad', granted: !!p.canManageContinuity },
-      { key: 'infosec', label: 'Seguridad', granted: !!p.canManageInfoSecurity }
+      { key: 'infosec', label: 'Seguridad', granted: !!p.canManageInfoSecurity },
+      { key: 'catalogs', label: 'Mantenedores', granted: !!p.canManageCatalogs }
     ];
   }
 
@@ -894,7 +921,8 @@ export class RolesManagementModal {
         canManageRegulatoryReports: !!v.canManageRegulatoryReports,
         canManageProviders: !!v.canManageProviders,
         canManageContinuity: !!v.canManageContinuity,
-        canManageInfoSecurity: !!v.canManageInfoSecurity
+        canManageInfoSecurity: !!v.canManageInfoSecurity,
+        canManageCatalogs: !!v.canManageCatalogs
       }
     });
 
@@ -915,7 +943,8 @@ export class RolesManagementModal {
       canManageRegulatoryReports: false,
       canManageProviders: false,
       canManageContinuity: false,
-      canManageInfoSecurity: false
+      canManageInfoSecurity: false,
+      canManageCatalogs: false
     });
 
     this.activeTab.set('roles');

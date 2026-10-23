@@ -74,7 +74,7 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
                   <mat-icon class="text-rose-600 text-sm mt-0.5">paid</mat-icon>
                   <div>
                     <div class="text-xs font-bold leading-tight">Evento de Pérdida Real</div>
-                    <div class="text-[11px] text-slate-500 leading-snug">Impacto financiero o contable cuantificado en USD</div>
+                    <div class="text-[11px] text-slate-500 leading-snug">Impacto financiero o contable cuantificado en {{ riskService.currencyCode() }}</div>
                   </div>
                 </button>
 
@@ -135,15 +135,9 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
                   formControlName="process"
                   class="w-full text-xs rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >
-                  <option value="Tesorería">Tesorería</option>
-                  <option value="Operaciones de Pago">Operaciones de Pago</option>
-                  <option value="Ciberseguridad & TI">Ciberseguridad & TI</option>
-                  <option value="Infraestructura Cloud">Infraestructura Cloud</option>
-                  <option value="Gestión Humana">Gestión Humana</option>
-                  <option value="Cumplimiento Legal">Cumplimiento Legal</option>
-                  <option value="Créditos y Cobranza">Créditos y Cobranza</option>
-                  <option value="Captaciones y Ahorro">Captaciones y Ahorro</option>
-                  <option value="Atención a Socios y Sucursales">Atención a Socios y Sucursales</option>
+                  @for (proc of riskService.catalog.processOptions(form.value.process ?? undefined); track proc) {
+                    <option [value]="proc">{{ proc }}</option>
+                  }
                 </select>
               </div>
 
@@ -169,7 +163,7 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
               <div class="flex items-center justify-between">
                 <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                   <mat-icon class="text-sm text-emerald-600">attach_money</mat-icon>
-                  <span>Impacto Financiero de la Incidencia (USD)</span>
+                  <span>Impacto Financiero de la Incidencia ({{ riskService.currencyCode() }})</span>
                 </span>
                 @if (form.get('incidentType')?.value === 'Evento de Pérdida Real') {
                   <span class="text-[10px] bg-rose-100 text-rose-800 font-semibold px-2 py-0.5 rounded">
@@ -181,7 +175,7 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label for="loss-amount" class="block text-[11px] font-medium text-slate-600 mb-1">
-                    Monto de Pérdida Real ($ USD)
+                    Monto de Pérdida Real ({{ riskService.currencyCode() }})
                   </label>
                   <input
                     id="loss-amount"
@@ -196,7 +190,7 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
 
                 <div>
                   <label for="recovered-amount" class="block text-[11px] font-medium text-slate-600 mb-1">
-                    Pérdida Recuperada ($ USD)
+                    Pérdida Recuperada ({{ riskService.currencyCode() }})
                   </label>
                   <input
                     id="recovered-amount"
@@ -550,7 +544,7 @@ export class FlawModal {
   form = new FormGroup({
     incidentType: new FormControl<IncidentType>('Falla de Control', [Validators.required]),
     title: new FormControl('', [Validators.required, Validators.minLength(5)]),
-    process: new FormControl('Tesorería', [Validators.required]),
+    process: new FormControl(this.riskService.catalog.processNames()[0] ?? '', [Validators.required]),
     severity: new FormControl<'Crítica' | 'Alta' | 'Media' | 'Baja'>('Alta', [Validators.required]),
     description: new FormControl('', [Validators.required, Validators.minLength(10)]),
     realLossAmountUSD: new FormControl<number>(0),
@@ -612,7 +606,7 @@ export class FlawModal {
         this.form.reset({
           incidentType: 'Falla de Control',
           title: '',
-          process: 'Tesorería',
+          process: this.riskService.catalog.processNames()[0] ?? '',
           severity: 'Alta',
           description: '',
           realLossAmountUSD: 0,

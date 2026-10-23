@@ -18,6 +18,7 @@ import {
 } from '../app/models/risk.model';
 import { BiaProcess, ContinuityPlan, ContinuityTest, ServiceProvider } from '../app/models/resilience.model';
 import { InformationAsset, SecurityAssessmentItem, Vulnerability } from '../app/models/security.model';
+import { BusinessProcess, OrgArea } from '../app/models/catalog.model';
 
 /**
  * Repositorio PostgreSQL: convierte los objetos que usa la aplicación en filas
@@ -29,16 +30,18 @@ type Row = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** Entidades que la API permite guardar, en orden de dependencias (claves foráneas). */
 export const ENTITY_ORDER = [
-  'roles', 'users', 'controls', 'risks', 'providers', 'regulatory-milestones',
+  'areas', 'processes', 'roles', 'users', 'controls', 'risks', 'providers', 'regulatory-milestones',
   'flaws', 'alerts', 'audits', 'kris', 'bia', 'plans', 'continuity-tests',
   'info-assets', 'vulnerabilities', 'security-assessment',
 ] as const;
 export type EntityName = typeof ENTITY_ORDER[number];
 
-export const SETTING_KEYS = ['current_industry', 'global_notification_preferences', 'loss_registration_threshold_usd', 'apr_operational_inputs'] as const;
+export const SETTING_KEYS = ['current_industry', 'global_notification_preferences', 'loss_registration_threshold_usd', 'apr_operational_inputs', 'general_parameters'] as const;
 export type SettingKey = typeof SETTING_KEYS[number];
 
 export interface BootstrapData {
+  areas: OrgArea[];
+  processes: BusinessProcess[];
   roles: OrganizationalRole[];
   users: UserProfile[];
   controls: Control[];
@@ -130,7 +133,7 @@ export async function loadAll(): Promise<BootstrapData> {
   const [
     roles, users, controls, tests, risks, riskControls, providers, milestones, flaws, regReports, regSubs, regUpdates,
     alerts, audits, findings, kris, bia, biaProviders, plans, planProcesses, ctests, ledger, settings,
-    infoAssets, vulns, secItems,
+    infoAssets, vulns, secItems, areas, processes,
   ] = await Promise.all([
     q('SELECT * FROM organizational_roles ORDER BY created_at, id'),
     q('SELECT * FROM user_profiles ORDER BY created_at, id'),
@@ -158,6 +161,8 @@ export async function loadAll(): Promise<BootstrapData> {
     q('SELECT * FROM info_assets ORDER BY code'),
     q('SELECT * FROM vulnerabilities ORDER BY code'),
     q('SELECT * FROM security_assessment_items ORDER BY code'),
+    q('SELECT * FROM org_areas ORDER BY name'),
+    q('SELECT * FROM business_processes ORDER BY code'),
   ]);
 
   const testsBy = groupBy(tests, 'control_id');
@@ -170,6 +175,11 @@ export async function loadAll(): Promise<BootstrapData> {
   const planProcBy = groupBy(planProcesses, 'plan_id');
 
   return {
+    areas: areas.map((r): OrgArea => ({ id: r.id, name: r.name, manager: r.manager ?? '', description: r.description ?? '', active: r.active })),
+    processes: processes.map((r): BusinessProcess => ({
+      id: r.id, code: r.code, name: r.name, areaId: opt(r.area_id), owner: r.owner ?? '', businessLine: opt(r.business_line),
+      criticality: r.criticality, description: r.description ?? '', active: r.active,
+    })),
     roles: roles.map(roleFromRow),
     users: users.map(userFromRow),
     controls: controls.map(r => controlFromRow(r, testsBy.get(r.id) ?? [])),
@@ -372,6 +382,30 @@ function ledgerFromRow(r: Row): AuditLogEntry {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const savers: Record<EntityName, (c: PoolClient, o: any) => Promise<void>> = {
+  async areas(c, o: OrgArea) {
+    const prev = await c.query('SELECT name FROM org_areas WHERE id = $1', [o.id]);
+    await upsertRow(c, 'org_areas', 'id', {
+      id: o.id, name: o.name.trim(), manager: o.manager || null, description: o.description || null, active: o.active !== false,
+    });
+    const oldName: string | undefined = prev.rows[0]?.name;
+    if (oldName && oldName !== o.name.trim()) {
+      // Los puestos y usuarios guardan el nombre del área.
+      await c.query('UPDATE organizational_roles SET department = $2 WHERE department = $1', [oldName, o.name.trim()]);
+      await c.query('UPDATE user_profiles SET department = $2 WHERE department = $1', [oldName, o.name.trim()]);
+    }
+  },
+
+  async processes(c, o: BusinessProcess) {
+    const prev = await c.query('SELECT name FROM business_processes WHERE id = $1', [o.id]);
+    const name = o.name.trim();
+    await upsertRow(c, 'business_processes', 'id', {
+      id: o.id, code: o.code, name, area_id: o.areaId || null, owner: o.owner || null, business_line: o.businessLine ?? null,
+      criticality: o.criticality, description: o.description || null, active: o.active !== false,
+    });
+    const oldName: string | undefined = prev.rows[0]?.name;
+    if (oldName && oldName !== name) await renameProcessReferences(c, oldName, name);
+  },
+
   async roles(c, o: OrganizationalRole) {
     await upsertRow(c, 'organizational_roles', 'id', {
       id: o.id, title: o.title, department: o.department, description: o.description ?? '', badge: o.badge,
@@ -571,7 +605,40 @@ const savers: Record<EntityName, (c: PoolClient, o: any) => Promise<void>> = {
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+/** Actualiza el nombre del proceso en todo lo que lo referencia. */
+async function renameProcessReferences(c: PoolClient, oldName: string, newName: string) {
+  for (const table of ['risks', 'controls', 'operational_flaws', 'anomaly_alerts', 'kri_definitions', 'audit_findings']) {
+    await c.query(`UPDATE ${table} SET process = $2 WHERE process = $1`, [oldName, newName]);
+  }
+  await c.query('UPDATE service_providers SET supported_processes = array_replace(supported_processes, $1, $2) WHERE $1 = ANY(supported_processes)', [oldName, newName]);
+  await c.query(
+    `UPDATE periodic_audits SET scope = (SELECT jsonb_agg(CASE WHEN v = to_jsonb($1::text) THEN to_jsonb($2::text) ELSE v END) FROM jsonb_array_elements(scope) v)
+      WHERE scope @> jsonb_build_array($1::text)`, [oldName, newName]);
+}
+
+/** Cuántos registros usan un proceso o un área (no se permite eliminarlos si están en uso). */
+export async function countReferences(entity: 'processes' | 'areas', id: string): Promise<number> {
+  const pool = getPool()!;
+  if (entity === 'areas') {
+    const r = await pool.query(
+      `SELECT (SELECT count(*) FROM business_processes WHERE area_id = $1)
+            + (SELECT count(*) FROM organizational_roles r JOIN org_areas a ON a.id = $1 WHERE r.department = a.name)
+            + (SELECT count(*) FROM user_profiles u JOIN org_areas a ON a.id = $1 WHERE u.department = a.name) AS n`, [id]);
+    return Number(r.rows[0].n);
+  }
+  const p = await pool.query('SELECT name FROM business_processes WHERE id = $1', [id]);
+  if (!p.rows.length) return 0;
+  const name = p.rows[0].name;
+  const r = await pool.query(
+    `SELECT (SELECT count(*) FROM risks WHERE process = $1) + (SELECT count(*) FROM controls WHERE process = $1)
+          + (SELECT count(*) FROM operational_flaws WHERE process = $1) + (SELECT count(*) FROM kri_definitions WHERE process = $1)
+          + (SELECT count(*) FROM anomaly_alerts WHERE process = $1) + (SELECT count(*) FROM audit_findings WHERE process = $1) AS n`, [name]);
+  return Number(r.rows[0].n);
+}
+
 const TABLE_BY_ENTITY: Record<EntityName, { table: string; pk: string }> = {
+  areas: { table: 'org_areas', pk: 'id' },
+  processes: { table: 'business_processes', pk: 'id' },
   roles: { table: 'organizational_roles', pk: 'id' },
   users: { table: 'user_profiles', pk: 'id' },
   controls: { table: 'controls', pk: 'id' },

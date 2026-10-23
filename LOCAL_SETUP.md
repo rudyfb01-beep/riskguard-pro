@@ -179,6 +179,29 @@ con una cadena aleatoria larga.
   cálculo de APR. Son formatos internos; el formato oficial de archivos del MSI CACs se puede
   agregar cuando se disponga de su especificación.
 
+## Mantenedores
+
+En **Configuración → Mantenedores** (permiso "Administrar mantenedores", que por defecto tiene el
+Jefe de Riesgo Operacional) se administran:
+
+- **Procesos:** código, nombre, área, dueño, línea de negocio CAC y criticidad. Alimentan las listas
+  de riesgos, controles, incidentes, KRIs, auditorías y el mapa de calor. Renombrar un proceso
+  actualiza todos los registros que lo usan; un proceso en uso no se puede eliminar, solo
+  desactivar (deja de aparecer para registros nuevos).
+- **Áreas:** nombre, responsable y descripción. Los puestos eligen su área de esta lista;
+  renombrar un área actualiza puestos y usuarios.
+- **Parámetros generales:** moneda de registro (CLP o USD; cambiarla no convierte montos ya
+  registrados), días de aviso antes del vencimiento de contratos, frecuencia de evaluación de
+  proveedores por criticidad y plazos para corregir vulnerabilidades por severidad.
+
+Una instalación nueva parte con 10 áreas y 14 procesos de referencia para una cooperativa y con
+la moneda en CLP; las instalaciones existentes conservan USD y se cargan con los procesos que ya
+usan sus datos.
+
+Las **auditorías** (plan, alcance, hallazgos y su subsanación) se registran en Auditorías
+Periódicas con el permiso "Ejecutar auditorías". El puntaje de cada auditoría se calcula de sus
+hallazgos.
+
 ## Variables de entorno
 
 | Variable | Descripción |
@@ -219,17 +242,15 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 
 ## Limitaciones conocidas
 
-- Algunos botones siguen visibles para cargos sin permiso (por ejemplo, "Registrar Incidencia"
-  para el Consejo). El servidor rechaza el guardado y la app muestra el error, pero conviene
-  ocultarlos.
 - Si dos personas editan **el mismo** registro a la vez, prevalece el último guardado.
-- Los montos se registran en USD.
+- Cambiar la moneda en Parámetros generales no convierte los montos ya registrados.
 
 ## Modelo de datos (principales tablas)
 
 | Área | Tablas |
 | :--- | :--- |
 | Gobierno y accesos | `organizational_roles`, `user_profiles` |
+| Mantenedores | `org_areas`, `business_processes`, `system_settings` (`general_parameters`) |
 | Riesgos y controles | `risks`, `risk_controls`, `controls`, `control_test_executions` |
 | Incidentes y pérdidas | `operational_flaws` (con campos de base de pérdidas) |
 | Reporte CMF / ANCI | `regulatory_milestone_templates`, `regulatory_reports`, `regulatory_submissions`, `regulatory_report_updates` |

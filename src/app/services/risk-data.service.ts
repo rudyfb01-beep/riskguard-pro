@@ -1,4 +1,5 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { CatalogService } from './catalog.service';
 import {
   Control,
   OperationalFlaw,
@@ -548,17 +549,18 @@ export class RiskDataService {
   readonly matrixSelectedCell = signal<{ likelihood: number; impact: number } | null>(null);
   readonly heatmapSelectedProcess = signal<string>('TODOS');
 
-  readonly defaultProcesses = [
-    'Operaciones de Pago',
-    'Tesorería',
-    'Ciberseguridad & TI',
-    'Infraestructura Cloud',
-    'Cumplimiento Legal',
-    'Gestión Humana',
-    'Gobierno y Control',
-    'Cadena de Suministro'
-  ];
+  /** Mantenedores (áreas, procesos, parámetros). */
+  readonly catalog = inject(CatalogService);
 
+  /** Moneda de registro de montos (Mantenedores → Parámetros generales). */
+  readonly currencyCode = computed(() => this.catalog.currency());
+
+  /** Procesos activos del mantenedor (para filtros y listas). */
+  get defaultProcesses(): string[] {
+    return this.catalog.processNames();
+  }
+
+  /** Íconos de los procesos de ejemplo; el resto usa uno genérico. */
   readonly processMetadata: Record<string, { icon: string; owner: string; department: string }> = {
     'Operaciones de Pago': {
       icon: 'payments',
@@ -809,10 +811,12 @@ export class RiskDataService {
         grid.push(row);
       }
 
-      const meta = this.processMetadata[proc] || {
-        icon: 'business_center',
-        owner: 'Responsable de Proceso',
-        department: 'Área Operativa'
+      const catalogProc = this.catalog.processByName(proc);
+      const legacy = this.processMetadata[proc];
+      const meta = {
+        icon: legacy?.icon ?? 'account_tree',
+        owner: catalogProc?.owner || legacy?.owner || 'Sin dueño asignado',
+        department: this.catalog.areaById(catalogProc?.areaId)?.name || legacy?.department || 'Sin área asignada',
       };
 
       summaries.push({
@@ -1333,7 +1337,7 @@ export class RiskDataService {
     try { this.ensure(permissions, action); return true; } catch { return false; }
   }
 
-  private ensure(permissions: (keyof UserPermissions)[], action: string): void {
+  ensure(permissions: (keyof UserPermissions)[], action: string): void {
     if (this.canAny(...permissions)) return;
     const message = `Tu cargo (${this.currentProfile().role}) no tiene permiso para ${action}.`;
     this.permissionNotice.set({ message, at: Date.now() });
@@ -2019,6 +2023,72 @@ export class RiskDataService {
   }
 
   // Register audit findings or review
+  /** Puntaje de cumplimiento: 100 menos descuentos por hallazgo (mismo criterio que antes). */
+  auditScore(findings: AuditFinding[]): number {
+    const d = findings.filter(f => f.type === 'No Conformidad Mayor').length * 15
+      + findings.filter(f => f.type === 'No Conformidad Menor').length * 8
+      + findings.filter(f => f.type === 'Observación').length * 3;
+    return Math.max(0, 100 - d);
+  }
+
+  /** Promedio de las auditorías finalizadas o aprobadas (null si no hay). */
+  readonly globalAuditScore = computed<number | null>(() => {
+    const done = this.audits().filter(a => a.status === 'Finalizada' || a.status === 'Aprobada');
+    return done.length ? Math.round(done.reduce((s, a) => s + a.complianceScore, 0) / done.length) : null;
+  });
+
+  nextAuditCode(): string {
+    const year = new Date().getFullYear();
+    const max = this.audits().reduce((m, a) => {
+      const mm = a.code.match(/(\d+)$/);
+      return a.code.includes(String(year)) && mm ? Math.max(m, Number(mm[1])) : m;
+    }, 0);
+    return `AUD-${year}-${String(max + 1).padStart(2, '0')}`;
+  }
+
+  /** Crea o actualiza una auditoría (plan, alcance, estado). El puntaje se calcula de los hallazgos. */
+  async saveAudit(data: PeriodicAudit) {
+    this.ensure(['canExecuteAudits'], 'registrar o editar auditorías');
+    const prev = this.audits().find(a => a.id === data.id);
+    const audit: PeriodicAudit = { ...data, complianceScore: this.auditScore(data.findings) };
+    this.audits.update(list => (prev ? list.map(a => (a.id === audit.id ? audit : a)) : [...list, audit]));
+    await this.appendAuditLog(prev ? 'MODIFICACIÓN_AUDITORÍA' : 'AUDITORÍA_REGISTRADA', 'Auditoría', audit.code,
+      prev ? `Auditoría ${audit.code} actualizada${prev.status !== audit.status ? `: estado ${prev.status} → ${audit.status}` : ''}.`
+        : `Auditoría planificada: ${audit.code} "${audit.title}" (${audit.type}, ${audit.period}). Auditor líder: ${audit.leadAuditor}.`);
+  }
+
+  async deleteAudit(auditId: string) {
+    this.ensure(['canExecuteAudits'], 'eliminar auditorías');
+    const audit = this.audits().find(a => a.id === auditId);
+    if (!audit) return;
+    this.audits.update(list => list.filter(a => a.id !== auditId));
+    await this.appendAuditLog('MODIFICACIÓN_AUDITORÍA', 'Auditoría', audit.code, `Auditoría eliminada: ${audit.code} "${audit.title}" (${audit.findings.length} hallazgos).`);
+  }
+
+  /** Crea o actualiza un hallazgo y recalcula el puntaje. */
+  async saveAuditFinding(auditId: string, finding: AuditFinding) {
+    this.ensure(['canExecuteAudits'], 'registrar hallazgos de auditoría');
+    const audit = this.audits().find(a => a.id === auditId);
+    if (!audit) return;
+    const exists = audit.findings.some(f => f.id === finding.id);
+    const findings = exists ? audit.findings.map(f => (f.id === finding.id ? finding : f)) : [...audit.findings, finding];
+    const score = this.auditScore(findings);
+    this.audits.update(list => list.map(a => (a.id === auditId ? { ...a, findings, complianceScore: score } : a)));
+    await this.appendAuditLog(exists ? 'MODIFICACIÓN_AUDITORÍA' : 'AUDITORÍA_REGISTRADA', 'Auditoría', audit.code,
+      `${exists ? 'Hallazgo actualizado' : 'Hallazgo registrado'} (${finding.type}, ${finding.status}) en ${audit.code}: "${finding.description.slice(0, 120)}". Puntaje ${score}%.`);
+  }
+
+  async deleteAuditFinding(auditId: string, findingId: string) {
+    this.ensure(['canExecuteAudits'], 'eliminar hallazgos de auditoría');
+    const audit = this.audits().find(a => a.id === auditId);
+    const finding = audit?.findings.find(f => f.id === findingId);
+    if (!audit || !finding) return;
+    const findings = audit.findings.filter(f => f.id !== findingId);
+    const score = this.auditScore(findings);
+    this.audits.update(list => list.map(a => (a.id === auditId ? { ...a, findings, complianceScore: score } : a)));
+    await this.appendAuditLog('MODIFICACIÓN_AUDITORÍA', 'Auditoría', audit.code, `Hallazgo eliminado en ${audit.code}: "${finding.description.slice(0, 120)}". Puntaje ${score}%.`);
+  }
+
   async addAuditFinding(auditId: string, finding: Omit<AuditFinding, 'id'>) {
     this.ensure(['canExecuteAudits'], 'registrar hallazgos de auditoría');
     const audit = this.audits().find(a => a.id === auditId);
@@ -2118,7 +2188,7 @@ export class RiskDataService {
     if (type === 'risks' || type === 'complete') {
       csvContent += 'MATRIZ DE GESTIÓN DE RIESGO OPERACIONAL - CUSTODIA RISK\n';
       csvContent += `Fecha de Exportación:;${new Date().toLocaleString()};Generado Por:;${this.currentProfile().name} (${this.currentProfile().role})\n\n`;
-      csvContent += 'Código;Título;Proceso;Categoría Basilea;Riesgo Inherente Prob;Riesgo Inherente Imp;Score Inherente;Nivel Inherente;Exposición USD;Controles Aplicados;Score Residual;Nivel Residual;Exposición Residual USD;Estado;Plan de Mitigación;Avance Plan %\n';
+      csvContent += `Código;Título;Proceso;Categoría Basilea;Riesgo Inherente Prob;Riesgo Inherente Imp;Score Inherente;Nivel Inherente;Exposición ${this.currencyCode()};Controles Aplicados;Score Residual;Nivel Residual;Exposición Residual ${this.currencyCode()};Estado;Plan de Mitigación;Avance Plan %\n`;
 
       this.risks().forEach(r => {
         const controlsStr = r.controlIds.map(cId => {
@@ -2144,8 +2214,8 @@ export class RiskDataService {
     if (type === 'loss_database' || type === 'complete') {
       const q = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
       csvContent += 'BASE DE PÉRDIDAS OPERACIONALES\n';
-      csvContent += `Umbral de registro (USD):;${this.lossRegistrationThresholdUSD()}\n`;
-      csvContent += 'ID;Título;Línea de Negocio;Categoría Basilea (N1);Subcategoría (N2);Proceso;Fecha Ocurrencia;Fecha Descubrimiento;Fecha Contabilización;Cuenta Contable;Pérdida Bruta USD;Recuperaciones USD;Pérdida Neta USD;Sobre Umbral;Frontera Riesgo de Crédito;Reporte CMF;Reporte ANCI\n';
+      csvContent += `Umbral de registro (${this.currencyCode()}):;${this.lossRegistrationThresholdUSD()}\n`;
+      csvContent += `ID;Título;Línea de Negocio;Categoría Basilea (N1);Subcategoría (N2);Proceso;Fecha Ocurrencia;Fecha Descubrimiento;Fecha Contabilización;Cuenta Contable;Pérdida Bruta ${this.currencyCode()};Recuperaciones ${this.currencyCode()};Pérdida Neta ${this.currencyCode()};Sobre Umbral;Frontera Riesgo de Crédito;Reporte CMF;Reporte ANCI\n`;
       this.lossDatabase().forEach(f => {
         csvContent += [
           q(f.id), q(f.title), q(f.businessLine), q(f.baselCategory ?? f.aiSuggestedCategory), q(f.baselSubcategory), q(f.process),

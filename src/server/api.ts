@@ -2,7 +2,7 @@ import express from 'express';
 import { getPool } from './db';
 import { ensureDatabase } from './bootstrap-db';
 import {
-  appendLedger, deleteEntity, EntityName, isEntity, loadAll, saveEntity, saveSetting, SETTING_KEYS, SettingKey,
+  appendLedger, countReferences, deleteEntity, EntityName, isEntity, loadAll, saveEntity, saveSetting, SETTING_KEYS, SettingKey,
 } from './repository';
 import {
   AuthError, clearSessionCookie, clientIp, currentUser, destroySession, getSessionUser, hasAny, readSessionCookie,
@@ -23,6 +23,8 @@ export function getDbReady(force = false) {
 
 /** Permisos que autorizan guardar o eliminar cada entidad (basta uno). */
 const WRITE_PERMISSIONS: Record<EntityName, (keyof UserPermissions)[]> = {
+  areas: ['canManageCatalogs'],
+  processes: ['canManageCatalogs'],
   roles: ['canManageRoles'],
   users: ['canManageRoles'],
   controls: ['canEvaluateControls', 'canEditRisks'],
@@ -47,6 +49,7 @@ const SETTING_PERMISSIONS: Record<SettingKey, (keyof UserPermissions)[]> = {
   global_notification_preferences: ['canConfigureKRIs'],
   loss_registration_threshold_usd: ['canManageRegulatoryReports'],
   apr_operational_inputs: ['canManageRegulatoryReports'],
+  general_parameters: ['canManageCatalogs'],
 };
 
 /** Mensajes comprensibles para errores de PostgreSQL frecuentes. */
@@ -227,6 +230,13 @@ dataApi.delete('/data/:entity/:id', async (req, res) => {
       }
       if (await wouldLeaveNoAdmin(id, null)) {
         res.status(409).json({ error: 'Debe quedar al menos un usuario activo con permiso para administrar cargos.' });
+        return;
+      }
+    }
+    if (entity === 'areas' || entity === 'processes') {
+      const n = await countReferences(entity, id);
+      if (n > 0) {
+        res.status(409).json({ error: `No se puede eliminar: hay ${n} registro(s) que lo usan. Puedes desactivarlo.` });
         return;
       }
     }

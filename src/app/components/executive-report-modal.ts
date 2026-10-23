@@ -108,13 +108,13 @@ import { AiRiskService } from '../services/ai-risk.service';
               <div class="border border-slate-200 p-3 rounded-lg bg-white">
                 <span class="text-slate-500 block text-[11px]">Exposición Bruta Inherente</span>
                 <span class="text-base font-bold font-mono text-slate-900 tabular-nums">
-                  \${{ riskService.metrics().totalInherentExposureUSD | number:'1.0-0' }} USD
+                  \${{ riskService.metrics().totalInherentExposureUSD | number:'1.0-0' }} {{ riskService.currencyCode() }}
                 </span>
               </div>
               <div class="border border-slate-200 p-3 rounded-lg bg-white">
                 <span class="text-slate-500 block text-[11px]">Exposición Neta Residual</span>
                 <span class="text-base font-bold font-mono text-slate-900 tabular-nums">
-                  \${{ riskService.metrics().totalResidualExposureUSD | number:'1.0-0' }} USD
+                  \${{ riskService.metrics().totalResidualExposureUSD | number:'1.0-0' }} {{ riskService.currencyCode() }}
                 </span>
               </div>
               <div class="border border-slate-200 p-3 rounded-lg bg-white">
@@ -122,7 +122,7 @@ import { AiRiskService } from '../services/ai-risk.service';
                 <span class="text-base font-bold font-mono text-emerald-700 tabular-nums">
                   {{ riskService.metrics().mitigationEfficiencyPct }}%
                 </span>
-                <span class="text-[10px] text-slate-500 block">-\${{ riskService.metrics().mitigatedUSD | number:'1.0-0' }} USD</span>
+                <span class="text-[10px] text-slate-500 block">-\${{ riskService.metrics().mitigatedUSD | number:'1.0-0' }} {{ riskService.currencyCode() }}</span>
               </div>
               <div class="border border-slate-200 p-3 rounded-lg bg-white">
                 <span class="text-slate-500 block text-[11px]">Salud Operacional (OHI)</span>

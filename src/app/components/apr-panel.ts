@@ -134,7 +134,7 @@ type YearField = Exclude<keyof AprYear, 'year'>;
           <div class="px-4 py-3 border-t border-slate-200 grid grid-cols-2 md:grid-cols-5 gap-3 items-end">
             <label class="block"><span class="block text-[10px] font-medium text-slate-600 mb-0.5">Valor UF ($)</span><input type="number" step="0.01" [value]="draft().ufValueClp" [disabled]="!canManage()" (input)="setParam('ufValueClp', +$any($event.target).value)" class="w-full text-xs font-mono rounded-lg border border-slate-300 px-2 py-1 disabled:bg-slate-50" /></label>
             <label class="block"><span class="block text-[10px] font-medium text-slate-600 mb-0.5">Años mínimos para ILM</span><input type="number" min="1" [value]="draft().minLossYears" [disabled]="!canManage()" (input)="setParam('minLossYears', +$any($event.target).value)" class="w-full text-xs font-mono rounded-lg border border-slate-300 px-2 py-1 disabled:bg-slate-50" /></label>
-            <label class="block"><span class="block text-[10px] font-medium text-slate-600 mb-0.5">Tipo de cambio CLP/USD</span><input type="number" [value]="draft().usdToClp" [disabled]="!canManage()" (input)="setParam('usdToClp', +$any($event.target).value)" class="w-full text-xs font-mono rounded-lg border border-slate-300 px-2 py-1 disabled:bg-slate-50" /></label>
+            @if (rs.currencyCode() !== 'CLP') { <label class="block"><span class="block text-[10px] font-medium text-slate-600 mb-0.5">Tipo de cambio CLP/USD</span><input type="number" [value]="draft().usdToClp" [disabled]="!canManage()" (input)="setParam('usdToClp', +$any($event.target).value)" class="w-full text-xs font-mono rounded-lg border border-slate-300 px-2 py-1 disabled:bg-slate-50" /></label> }
             <label class="block"><span class="block text-[10px] font-medium text-slate-600 mb-0.5">Patrimonio / APR (%)</span><input type="number" step="0.5" [value]="draft().capitalRatio * 100" [disabled]="!canManage()" (input)="setParam('capitalRatio', +$any($event.target).value / 100)" class="w-full text-xs font-mono rounded-lg border border-slate-300 px-2 py-1 disabled:bg-slate-50" /></label>
             <label class="flex items-center gap-2 text-xs pb-1"><input type="checkbox" [checked]="draft().useIlm" [disabled]="!canManage()" (change)="setParam('useIlm', $any($event.target).checked)" class="rounded" /> Usar ILM con pérdidas</label>
           </div>
@@ -184,7 +184,7 @@ type YearField = Exclude<keyof AprYear, 'year'>;
         <div class="px-4 py-3 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-2">
           <div>
             <h2 class="text-sm font-bold text-slate-900">Historial de pérdidas operacionales por año</h2>
-            <p class="text-[11px] text-slate-500">Base para el componente de pérdidas. Basilea exige 10 años de datos de calidad (5 en transición). Sobre el umbral de registro de {{ rs.lossRegistrationThresholdUSD() | number:'1.0-0' }} USD.</p>
+            <p class="text-[11px] text-slate-500">Base para el componente de pérdidas. Basilea exige 10 años de datos de calidad (5 en transición). Sobre el umbral de registro de {{ rs.lossRegistrationThresholdUSD() | number:'1.0-0' }} {{ rs.currencyCode() }}.</p>
           </div>
           <div class="flex gap-3 text-[11px]">
             <span class="px-2 py-1 rounded-lg bg-slate-100">Años con datos: <strong>{{ q().yearsAvailable }}</strong></span>
@@ -194,7 +194,7 @@ type YearField = Exclude<keyof AprYear, 'year'>;
         </div>
         <table class="w-full text-xs">
           <thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-            <tr><th class="text-left py-2 px-3">Año</th><th class="text-right py-2 px-3">Eventos</th><th class="text-right py-2 px-3">Sobre umbral</th><th class="text-right py-2 px-3">Bruta USD</th><th class="text-right py-2 px-3">Recuperada USD</th><th class="text-right py-2 px-3">Neta USD</th><th class="text-right py-2 px-3">Neta MM$</th><th class="text-right py-2 px-3">Incompletos</th></tr>
+            <tr><th class="text-left py-2 px-3">Año</th><th class="text-right py-2 px-3">Eventos</th><th class="text-right py-2 px-3">Sobre umbral</th><th class="text-right py-2 px-3">Bruta {{ rs.currencyCode() }}</th><th class="text-right py-2 px-3">Recuperada {{ rs.currencyCode() }}</th><th class="text-right py-2 px-3">Neta {{ rs.currencyCode() }}</th><th class="text-right py-2 px-3">Neta MM$</th><th class="text-right py-2 px-3">Incompletos</th></tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
             @for (h of apr.lossHistory(); track h.year) {
@@ -205,7 +205,7 @@ type YearField = Exclude<keyof AprYear, 'year'>;
                 <td class="py-2 px-3 text-right font-mono text-rose-700">{{ h.gross | number:'1.0-0' }}</td>
                 <td class="py-2 px-3 text-right font-mono text-emerald-700">{{ h.recovered | number:'1.0-0' }}</td>
                 <td class="py-2 px-3 text-right font-mono font-bold">{{ h.net | number:'1.0-0' }}</td>
-                <td class="py-2 px-3 text-right font-mono">{{ h.net * inp().usdToClp / 1000000 | number:'1.1-1' }}</td>
+                <td class="py-2 px-3 text-right font-mono">{{ h.net * apr.lossToClp() / 1000000 | number:'1.1-1' }}</td>
                 <td class="py-2 px-3 text-right font-mono" [class.text-amber-700]="h.incomplete > 0">{{ h.incomplete }}</td>
               </tr>
             } @empty {

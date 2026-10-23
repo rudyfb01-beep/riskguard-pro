@@ -60,7 +60,7 @@ import { BaselCategory, Risk } from '../models/risk.model';
                 formControlName="process"
                 class="w-full text-xs rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
-                @for (proc of processes; track proc) {
+                @for (proc of processOptions(); track proc) {
                   <option [value]="proc">{{ proc }}</option>
                 }
               </select>
@@ -100,7 +100,7 @@ import { BaselCategory, Risk } from '../models/risk.model';
 
             <div>
               <label for="risk-exposure" class="block text-xs font-semibold text-slate-700 mb-1">
-                Exposición Estimada (USD)
+                Exposición Estimada ({{ riskService.currencyCode() }})
               </label>
               <input
                 id="risk-exposure"
@@ -324,16 +324,10 @@ export class RiskModal implements OnInit {
 
   readonly selectedControls = signal<string[]>([]);
 
-  readonly processes = [
-    'Operaciones de Pago',
-    'Tesorería',
-    'Ciberseguridad & TI',
-    'Infraestructura Cloud',
-    'Cumplimiento Legal',
-    'Gestión Humana',
-    'Cadena de Suministro',
-    'Gobierno y Control'
-  ];
+  /** Procesos del mantenedor (más el actual si fue desactivado). */
+  processOptions(): string[] {
+    return this.riskService.catalog.processOptions(this.form?.value.process ?? undefined);
+  }
 
   readonly baselCategories: BaselCategory[] = [
     'Fraude Interno',
@@ -347,7 +341,7 @@ export class RiskModal implements OnInit {
 
   form = new FormGroup({
     title: new FormControl('', [Validators.required, Validators.minLength(5)]),
-    process: new FormControl('Operaciones de Pago', [Validators.required]),
+    process: new FormControl(this.riskService.catalog.processNames()[0] ?? '', [Validators.required]),
     description: new FormControl(''),
     category: new FormControl<BaselCategory>('Fallas Tecnológicas', [Validators.required]),
     financialExposureUSD: new FormControl(150000, [Validators.required, Validators.min(0)]),

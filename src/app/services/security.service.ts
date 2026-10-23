@@ -7,7 +7,6 @@ import {
   InformationAsset,
   SecurityAlert,
   SecurityAssessmentItem,
-  VULN_SLA_DAYS,
   VulnSeverity,
   Vulnerability,
 } from '../models/security.model';
@@ -101,7 +100,7 @@ export class SecurityService {
   }
 
   dueDateFor(severity: VulnSeverity, detectedDate: string): string {
-    return addDays(detectedDate, VULN_SLA_DAYS[severity]);
+    return addDays(detectedDate, this.rs.catalog.params().vulnSlaDays[severity]);
   }
 
   nextVulnCode(): string {

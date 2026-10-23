@@ -13,6 +13,7 @@ import {
 import { SEED_BIA, SEED_PLANS, SEED_PROVIDERS, SEED_TESTS } from '../data/resilience-seed';
 
 /** Meses entre evaluaciones según criticidad del proveedor. */
+/** Valores por defecto; los vigentes están en Mantenedores → Parámetros generales. */
 export const ASSESSMENT_FREQUENCY_MONTHS: Record<ProviderCriticality, number> = {
   'Crítico': 12,
   'Alto': 12,
@@ -64,7 +65,7 @@ export class ResilienceService {
   }
 
   nextAssessmentDue(p: ServiceProvider): Date | null {
-    return p.lastAssessmentDate ? addMonths(p.lastAssessmentDate, ASSESSMENT_FREQUENCY_MONTHS[p.criticality]) : null;
+    return p.lastAssessmentDate ? addMonths(p.lastAssessmentDate, this.rs.catalog.params().providerAssessmentMonths[p.criticality]) : null;
   }
 
   daysToContractEnd(p: ServiceProvider): number {
@@ -90,7 +91,7 @@ export class ResilienceService {
         if (p.status !== 'En término') {
           alerts.push({ providerId: p.id, type: 'Contrato vencido', severity: 'Alta', detail: `Contrato vencido hace ${-days} días.` });
         }
-      } else if (days <= CONTRACT_EXPIRY_WARNING_DAYS) {
+      } else if (days <= this.rs.catalog.params().contractExpiryWarningDays) {
         alerts.push({ providerId: p.id, type: 'Contrato por vencer', severity: days <= 30 ? 'Alta' : 'Media', detail: `Contrato vence en ${days} días (${p.contractEnd}).` });
       }
       if (p.status === 'En término') continue;

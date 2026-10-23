@@ -350,8 +350,12 @@ export interface AuditLogEntry {
     | 'REGISTRO_VULNERABILIDAD'
     | 'ACTUALIZACIÓN_VULNERABILIDAD'
     | 'AUTOEVALUACIÓN_SEGURIDAD'
-    | 'CONFIGURACIÓN_APR';
-  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad';
+    | 'CONFIGURACIÓN_APR'
+    | 'MANTENEDOR_AREA'
+    | 'MANTENEDOR_PROCESO'
+    | 'CONFIGURACIÓN_PARÁMETROS'
+    | 'MODIFICACIÓN_AUDITORÍA';
+  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor';
   entityCode: string;
   details: string;
   ipAddress: string;
@@ -420,6 +424,8 @@ export interface UserPermissions {
   canManageContinuity?: boolean;
   /** Mantener activos de información, vulnerabilidades y la autoevaluación de seguridad. */
   canManageInfoSecurity?: boolean;
+  /** Mantener áreas, procesos y parámetros generales. */
+  canManageCatalogs?: boolean;
 }
 
 export interface OrganizationalRole {

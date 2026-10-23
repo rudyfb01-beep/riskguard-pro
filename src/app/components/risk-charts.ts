@@ -55,7 +55,7 @@ import { Risk } from '../models/risk.model';
               <div class="flex items-center gap-2">
                 <mat-icon class="text-emerald-600 text-sm">paid</mat-icon>
                 <h3 class="text-sm font-bold text-slate-900">
-                  Exposición Financiera por Proceso (USD)
+                  Exposición Financiera por Proceso ({{ riskService.currencyCode() }})
                 </h3>
               </div>
               <span class="text-[11px] font-mono font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">

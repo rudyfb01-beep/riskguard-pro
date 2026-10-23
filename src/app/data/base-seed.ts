@@ -1,4 +1,5 @@
 import { OrganizationalRole, RegulatoryMilestoneTemplate, UserPermissions } from '../models/risk.model';
+import { BusinessProcess, OrgArea } from '../models/catalog.model';
 
 // Datos base: se cargan en una instalación nueva aunque no se usen datos de ejemplo.
 
@@ -18,6 +19,7 @@ function grant(...keys: (keyof UserPermissions)[]): UserPermissions {
     canManageProviders: false,
     canManageContinuity: false,
     canManageInfoSecurity: false,
+    canManageCatalogs: false,
   };
   for (const k of keys) base[k] = true;
   return base;
@@ -26,7 +28,7 @@ function grant(...keys: (keyof UserPermissions)[]): UserPermissions {
 const ALL_PERMISSIONS: (keyof UserPermissions)[] = [
   'canEditRisks', 'canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canConvertFlaws',
   'canAcknowledgeAlerts', 'canConfigureKRIs', 'canManageRoles', 'canExportReports', 'canManageRegulatoryReports',
-  'canManageProviders', 'canManageContinuity', 'canManageInfoSecurity',
+  'canManageProviders', 'canManageContinuity', 'canManageInfoSecurity', 'canManageCatalogs',
 ];
 
 /**
@@ -138,4 +140,49 @@ export const DEFAULT_REGULATORY_MILESTONES: RegulatoryMilestoneTemplate[] = [
   { id: 'anci-alerta-temprana', authority: 'ANCI', name: 'Alerta temprana a la ANCI (CSIRT Nacional)', deadlineMinutes: 3 * 60, enabled: true, basis: 'conocimiento' },
   { id: 'anci-segundo-informe', authority: 'ANCI', name: 'Segundo informe a la ANCI', deadlineMinutes: 72 * 60, enabled: true, basis: 'conocimiento' },
   { id: 'anci-informe-final', authority: 'ANCI', name: 'Informe final a la ANCI', deadlineMinutes: 15 * 24 * 60, enabled: true, basis: 'conocimiento' },
+];
+
+// -----------------------------------------------------------------------------
+// Mantenedores: áreas y mapa de procesos de referencia para una cooperativa
+// -----------------------------------------------------------------------------
+
+const area = (id: string, name: string, description: string): OrgArea => ({ id, name, manager: '', description, active: true });
+
+/** Áreas base. Incluyen las de los cargos de gobierno para que los puestos queden asociados. */
+export const DEFAULT_AREAS: OrgArea[] = [
+  area('area-gobierno', 'Gobierno Corporativo', 'Consejo de Administración, Junta de Vigilancia y comités.'),
+  area('area-gerencia-general', 'Gerencia General', ''),
+  area('area-riesgos', 'Gerencia de Riesgos', 'Riesgo operacional, de crédito, de mercado y de liquidez.'),
+  area('area-comercial', 'Gerencia Comercial', 'Captaciones, créditos, socios y sucursales.'),
+  area('area-operaciones', 'Gerencia de Operaciones y Tecnología', 'Operaciones, medios de pago, tecnología y proveedores.'),
+  area('area-finanzas', 'Gerencia de Finanzas', 'Tesorería, inversiones y contabilidad.'),
+  area('area-seguridad', 'Seguridad de la Información y Ciberseguridad', ''),
+  area('area-cumplimiento', 'Cumplimiento y Prevención de Lavado de Activos', ''),
+  area('area-personas', 'Gerencia de Personas', ''),
+  area('area-auditoria', 'Auditoría Interna', 'Reporta al Consejo de Administración.'),
+];
+
+const proc = (
+  n: number, name: string, areaId: string, businessLine: BusinessProcess['businessLine'], criticality: BusinessProcess['criticality'], description = ''
+): BusinessProcess => ({
+  id: `proc-${String(n).padStart(2, '0')}`, code: `PRC-${String(n).padStart(2, '0')}`, name, areaId, owner: '',
+  businessLine, criticality, description, active: true,
+});
+
+/** Mapa de procesos de referencia para una CAC (se ajusta en Mantenedores). */
+export const COOPERATIVE_PROCESSES: BusinessProcess[] = [
+  proc(1, 'Captaciones y ahorro', 'area-comercial', 'Captaciones y Ahorro', 'Crítico', 'Depósitos, cuentas de ahorro y libretas.'),
+  proc(2, 'Otorgamiento de créditos', 'area-comercial', 'Créditos de Consumo', 'Crítico', 'Evaluación, aprobación, curse y desembolso.'),
+  proc(3, 'Cobranza y normalización', 'area-comercial', 'Créditos de Consumo', 'Alto'),
+  proc(4, 'Socios y cuotas de participación', 'area-comercial', 'Cuotas de Participación', 'Alto', 'Ingreso, retiro de socios y remanentes.'),
+  proc(5, 'Atención a socios y sucursales', 'area-comercial', 'Soporte Corporativo', 'Alto'),
+  proc(6, 'Medios y canales de pago', 'area-operaciones', 'Medios y Canales de Pago', 'Crítico', 'Transferencias, tarjetas, recaudación y canales digitales.'),
+  proc(7, 'Tesorería e inversiones', 'area-finanzas', 'Tesorería e Inversiones', 'Crítico'),
+  proc(8, 'Contabilidad y reportes regulatorios', 'area-finanzas', 'Soporte Corporativo', 'Alto'),
+  proc(9, 'Tecnología e infraestructura', 'area-operaciones', 'Soporte Corporativo', 'Crítico'),
+  proc(10, 'Ciberseguridad', 'area-seguridad', 'Soporte Corporativo', 'Crítico'),
+  proc(11, 'Proveedores y externalización', 'area-operaciones', 'Soporte Corporativo', 'Alto'),
+  proc(12, 'Prevención de lavado de activos y cumplimiento', 'area-cumplimiento', 'Soporte Corporativo', 'Alto'),
+  proc(13, 'Gestión de personas', 'area-personas', 'Soporte Corporativo', 'Medio'),
+  proc(14, 'Gobierno corporativo y gestión de riesgos', 'area-riesgos', 'Soporte Corporativo', 'Alto'),
 ];
