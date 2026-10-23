@@ -72,6 +72,13 @@ export class CatalogService {
 
   readonly currency = computed(() => this.params().currency);
 
+  /** Monto con el símbolo de la moneda de registro: $1.234.567 (CLP) o US$1.234.567 (USD). */
+  formatMoney(value: number | null | undefined): string {
+    const n = Number(value ?? 0);
+    const abs = Math.abs(Number.isFinite(n) ? n : 0).toLocaleString('es-CL', { maximumFractionDigits: 0 });
+    return `${n < 0 ? '-' : ''}${this.currency() === 'CLP' ? '$' : 'US$'}${abs}`;
+  }
+
   readonly activeAreas = computed(() => this.areas().filter(a => a.active).sort((a, b) => a.name.localeCompare(b.name, 'es')));
   readonly activeProcesses = computed(() => this.processes().filter(p => p.active).sort((a, b) => a.code.localeCompare(b.code)));
   /** Nombres de procesos activos, para listas de selección. */

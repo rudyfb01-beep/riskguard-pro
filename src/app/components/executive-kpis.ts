@@ -2,11 +2,12 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
+import { MoneyPipe } from '../utils/money.pipe';
 
 @Component({
   selector: 'app-executive-kpis',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, MoneyPipe],
   template: `
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
       
@@ -17,10 +18,10 @@ import { RiskDataService } from '../services/risk-data.service';
           <mat-icon class="text-slate-400 text-lg">attach_money</mat-icon>
         </div>
         <div class="text-2xl font-bold font-mono text-slate-900 tabular-nums">
-          \${{ riskService.metrics().totalResidualExposureUSD | number:'1.0-0' }}
+          {{ riskService.metrics().totalResidualExposureUSD | money }}
         </div>
         <div class="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
-          <span class="text-emerald-700 font-semibold font-mono tabular-nums">-\${{ riskService.metrics().mitigatedUSD | number:'1.0-0' }}</span>
+          <span class="text-emerald-700 font-semibold font-mono tabular-nums">{{ -(riskService.metrics().mitigatedUSD) | money }}</span>
           <span>mitigados por controles</span>
         </div>
       </div>
@@ -35,7 +36,7 @@ import { RiskDataService } from '../services/risk-data.service';
           {{ riskService.metrics().mitigationEfficiencyPct }}%
         </div>
         <div class="mt-2 text-xs text-slate-500 flex items-center justify-between">
-          <span>Inherente: \${{ riskService.metrics().totalInherentExposureUSD | number:'1.0-0' }}</span>
+          <span>Inherente: {{ riskService.metrics().totalInherentExposureUSD | money }}</span>
         </div>
       </div>
 

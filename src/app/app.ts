@@ -27,6 +27,7 @@ import { SecurityPanel } from './components/security-panel';
 import { AprPanel } from './components/apr-panel';
 import { CatalogsPanel } from './components/catalogs-panel';
 import { AuditsPanel } from './components/audits-panel';
+import { MoneyPipe } from './utils/money.pipe';
 import { Control, KriDefinition, OperationalFlaw, Risk } from './models/risk.model';
 
 export type ActiveTab =
@@ -76,6 +77,7 @@ export type ActiveTab =
     AprPanel,
     CatalogsPanel,
     AuditsPanel,
+    MoneyPipe,
     LoginScreen,
   ],
   templateUrl: './app.html',

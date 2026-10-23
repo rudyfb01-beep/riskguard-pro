@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { Risk } from '../models/risk.model';
+import { MoneyPipe } from '../utils/money.pipe';
 
 @Component({
   selector: 'app-risk-charts',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, MoneyPipe],
   template: `
     <div class="space-y-6">
       
@@ -72,8 +73,8 @@ import { Risk } from '../models/risk.model';
                       {{ item.process }}
                     </span>
                     <div class="text-[11px] font-mono text-slate-600 space-x-2">
-                      <span class="text-slate-400">Inh: \${{ item.inherentExposureUSD | number:'1.0-0' }}</span>
-                      <span class="font-bold text-slate-900">Res: \${{ item.residualExposureUSD | number:'1.0-0' }}</span>
+                      <span class="text-slate-400">Inh: {{ item.inherentExposureUSD | money }}</span>
+                      <span class="font-bold text-slate-900">Res: {{ item.residualExposureUSD | money }}</span>
                       <span class="text-emerald-700 font-semibold">(-{{ item.mitigationPct }}%)</span>
                     </div>
                   </div>
@@ -244,14 +245,14 @@ import { Risk } from '../models/risk.model';
               <div class="p-3 bg-rose-50 rounded-lg border border-rose-100">
                 <span class="text-[10px] text-rose-700 uppercase font-bold block">Pérdida Bruta</span>
                 <span class="text-base font-extrabold font-mono text-rose-800">
-                  \${{ incidentLossStats().grossUSD | number:'1.0-0' }}
+                  {{ incidentLossStats().grossUSD | money }}
                 </span>
                 <span class="text-[10px] text-slate-500 block">Total contabilizado</span>
               </div>
               <div class="p-3 bg-emerald-50 rounded-lg border border-emerald-100">
                 <span class="text-[10px] text-emerald-700 uppercase font-bold block">Recuperado</span>
                 <span class="text-base font-extrabold font-mono text-emerald-800">
-                  \${{ incidentLossStats().recoveredUSD | number:'1.0-0' }}
+                  {{ incidentLossStats().recoveredUSD | money }}
                 </span>
                 <span class="text-[10px] text-emerald-700 block font-medium">
                   {{ incidentLossStats().recoveryPct }}% recuperado
@@ -268,7 +269,7 @@ import { Risk } from '../models/risk.model';
                 <div class="text-xs space-y-1">
                   <div class="flex justify-between text-slate-700">
                     <span class="font-medium truncate max-w-[180px]">{{ item.process }}</span>
-                    <span class="font-mono font-bold text-slate-900">\${{ item.netLossUSD | number:'1.0-0' }}</span>
+                    <span class="font-mono font-bold text-slate-900">{{ item.netLossUSD | money }}</span>
                   </div>
                   <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                     <div
@@ -283,7 +284,7 @@ import { Risk } from '../models/risk.model';
 
           <div class="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between">
             <span>Incidentes reportados: {{ riskService.flaws().length }}</span>
-            <span class="text-rose-700 font-semibold font-mono">Pérdida neta: \${{ incidentLossStats().netUSD | number:'1.0-0' }}</span>
+            <span class="text-rose-700 font-semibold font-mono">Pérdida neta: {{ incidentLossStats().netUSD | money }}</span>
           </div>
         </div>
 

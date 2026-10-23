@@ -327,7 +327,7 @@ type SubTab = CatalogTab;
           <fieldset class="grid grid-cols-1 lg:grid-cols-2 gap-4" [disabled]="!canManage()">
             <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
               <h2 class="text-sm font-bold text-slate-900 flex items-center gap-1.5"><mat-icon class="text-base text-emerald-600">payments</mat-icon> Moneda de registro</h2>
-              <p class="text-[11px] text-slate-600">Moneda en que se ingresan pérdidas, exposiciones y costos. Cambiarla no convierte los montos ya registrados: solo cambia etiquetas, reportes y el cálculo del APR (en CLP no se aplica tipo de cambio).</p>
+              <p class="text-[11px] text-slate-600">Moneda en que se ingresan y muestran todos los montos: exposición de riesgos, pérdidas y recuperos, costos de proveedores, umbral de la base de pérdidas, límites de apetito, reportes, exportaciones y APR.</p>
               <div class="flex gap-2">
                 @for (c of currencies; track c.code) {
                   <label class="flex-1 p-3 rounded-xl border cursor-pointer text-xs" [class]="pd.currency === c.code ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'">
@@ -337,7 +337,16 @@ type SubTab = CatalogTab;
                 }
               </div>
               @if (pd.currency !== cat.params().currency) {
-                <p class="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">Los montos existentes quedarán expresados en {{ pd.currency }} sin convertirse. Úsalo al iniciar el registro o tras convertir los datos.</p>
+                <div class="text-[11px] bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2 text-amber-900">
+                  <span class="font-semibold block">¿Qué hacer con los montos ya registrados en {{ cat.params().currency }}?</span>
+                  <label class="flex items-start gap-2"><input type="radio" name="convmode" class="mt-0.5" [checked]="convertAmounts()" (change)="convertAmounts.set(true)" />
+                    <span>Convertirlos a {{ pd.currency }} con este tipo de cambio:
+                      <input type="number" min="100" max="5000" step="0.01" class="w-24 ml-1 text-xs rounded border border-amber-300 px-1.5 py-0.5 font-mono bg-white" [value]="exchangeRate()" (input)="exchangeRate.set(+$any($event.target).value)" /> pesos por dólar
+                    </span></label>
+                  <label class="flex items-start gap-2"><input type="radio" name="convmode" class="mt-0.5" [checked]="!convertAmounts()" (change)="convertAmounts.set(false)" />
+                    <span>No convertir: los montos ya están expresados en {{ pd.currency }} (solo cambia la moneda que se muestra).</span></label>
+                  <span class="block text-amber-800">Se convierten riesgos y presupuestos de mitigación, pérdidas y recuperos, costos de proveedores, el umbral de la base de pérdidas y los límites de pérdida del apetito. Queda registrado en la bitácora. Los parámetros del APR ya están en pesos y no cambian.</span>
+                </div>
               }
             </div>
 
@@ -658,10 +667,17 @@ export class CatalogsPanel {
     this.paramEdits.set(null);
   }
 
+  /** Al cambiar de moneda: convertir montos (por defecto) con este tipo de cambio. */
+  readonly convertAmounts = signal(true);
+  readonly exchangeRate = signal(950);
+
   async saveParams() {
     const d = this.paramEdits();
     if (!d) return;
     try {
+      if (d.currency !== this.cat.currency() && this.convertAmounts()) {
+        await this.admin.convertCurrency(d.currency, this.exchangeRate());
+      }
       await this.admin.saveParameters(d);
       this.paramEdits.set(null);
       this.notify.emit('Parámetros generales guardados.');

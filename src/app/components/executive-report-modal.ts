@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { AiRiskService } from '../services/ai-risk.service';
+import { MoneyPipe } from '../utils/money.pipe';
 
 @Component({
   selector: 'app-executive-report-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, MoneyPipe],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto">
       <div class="bg-white rounded-2xl shadow-2xl border border-slate-300 w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden my-4">
@@ -108,13 +109,13 @@ import { AiRiskService } from '../services/ai-risk.service';
               <div class="border border-slate-200 p-3 rounded-lg bg-white">
                 <span class="text-slate-500 block text-[11px]">Exposición Bruta Inherente</span>
                 <span class="text-base font-bold font-mono text-slate-900 tabular-nums">
-                  \${{ riskService.metrics().totalInherentExposureUSD | number:'1.0-0' }} {{ riskService.currencyCode() }}
+                  {{ riskService.metrics().totalInherentExposureUSD | money }}
                 </span>
               </div>
               <div class="border border-slate-200 p-3 rounded-lg bg-white">
                 <span class="text-slate-500 block text-[11px]">Exposición Neta Residual</span>
                 <span class="text-base font-bold font-mono text-slate-900 tabular-nums">
-                  \${{ riskService.metrics().totalResidualExposureUSD | number:'1.0-0' }} {{ riskService.currencyCode() }}
+                  {{ riskService.metrics().totalResidualExposureUSD | money }}
                 </span>
               </div>
               <div class="border border-slate-200 p-3 rounded-lg bg-white">
@@ -122,7 +123,7 @@ import { AiRiskService } from '../services/ai-risk.service';
                 <span class="text-base font-bold font-mono text-emerald-700 tabular-nums">
                   {{ riskService.metrics().mitigationEfficiencyPct }}%
                 </span>
-                <span class="text-[10px] text-slate-500 block">-\${{ riskService.metrics().mitigatedUSD | number:'1.0-0' }} {{ riskService.currencyCode() }}</span>
+                <span class="text-[10px] text-slate-500 block">{{ -(riskService.metrics().mitigatedUSD) | money }}</span>
               </div>
               <div class="border border-slate-200 p-3 rounded-lg bg-white">
                 <span class="text-slate-500 block text-[11px]">Salud Operacional (OHI)</span>
@@ -168,7 +169,7 @@ import { AiRiskService } from '../services/ai-risk.service';
                         {{ r.residualScore }} ({{ r.residualLevel }})
                       </td>
                       <td class="py-2 px-3 text-right font-mono font-medium text-slate-900">
-                        \${{ r.residualExposureUSD | number:'1.0-0' }}
+                        {{ r.residualExposureUSD | money }}
                       </td>
                       <td class="py-2 px-3 text-[11px]">
                         <span class="font-medium text-slate-800">{{ r.mitigationPlan.title }}</span>
@@ -264,11 +265,17 @@ export class ExecutiveReportModal {
   });
 
   readonly isGeneratingAi = signal<boolean>(false);
-  readonly executiveSummaryText = signal<string>(
-    `Durante el periodo evaluado, la organización mantiene una exposición residual neta controlada de $385,000 USD frente a una exposición inherente bruta de $2,580,000 USD, lo que representa una tasa global de mitigación del 85% gracias a la efectividad promedio del 85% en el catálogo de controles operacionales.
+  readonly executiveSummaryText = signal<string>(this.defaultSummary());
 
-Se recomienda al Comité de Riesgos mantener supervisión prioritaria sobre los incidentes derivados de fallas de infraestructura en la pasarela de pagos y culminar la entrega de llaves de hardware FIDO2 en Tesorería antes del cierre del trimestre.`
-  );
+  /** Resumen base con las cifras actuales (en la moneda de registro). */
+  private defaultSummary(): string {
+    const m = this.riskService.metrics();
+    const fmt = (v: number) => this.riskService.catalog.formatMoney(v);
+    const pct = m.totalInherentExposureUSD > 0 ? Math.round((m.mitigatedUSD / m.totalInherentExposureUSD) * 100) : 0;
+    return `Durante el periodo evaluado, la organización mantiene una exposición residual neta de ${fmt(m.totalResidualExposureUSD)} frente a una exposición inherente bruta de ${fmt(m.totalInherentExposureUSD)}, lo que representa una mitigación del ${pct}% gracias a los controles operacionales vigentes.
+
+Se recomienda al Comité de Riesgos mantener supervisión prioritaria sobre los riesgos fuera del apetito aprobado y sobre los incidentes con pérdidas relevantes del periodo.`;
+  }
 
   async regenerateSummary() {
     this.isGeneratingAi.set(true);

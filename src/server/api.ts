@@ -2,7 +2,7 @@ import express from 'express';
 import { getPool } from './db';
 import { ensureDatabase } from './bootstrap-db';
 import {
-  appendLedger, countReferences, deleteEntity, EntityName, isEntity, loadAll, saveEntity, saveSetting, SETTING_KEYS, SettingKey,
+  appendLedger, convertCurrency, countReferences, deleteEntity, EntityName, isEntity, loadAll, saveEntity, saveSetting, SETTING_KEYS, SettingKey,
 } from './repository';
 import {
   AuthError, clearSessionCookie, clientIp, currentUser, destroySession, getSessionUser, hasAny, readSessionCookie,
@@ -146,7 +146,7 @@ dataApi.post('/auth/logout', async (req, res) => {
 // -----------------------------------------------------------------------------
 
 /** Sin DATABASE_URL la app funciona en modo demostración: no hay API de datos. */
-dataApi.use(['/data', '/ledger', '/settings'], async (req, res, next) => {
+dataApi.use(['/data', '/ledger', '/settings', '/admin'], async (req, res, next) => {
   if (!getPool()) {
     if (req.method === 'GET' && req.baseUrl.endsWith('/data') && req.path === '/') {
       res.json({ mode: 'demo' });
@@ -293,5 +293,27 @@ dataApi.put('/settings/:key', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(422).json({ error: friendlyDbError(err) });
+  }
+});
+
+/** Cambia la moneda de registro convirtiendo todos los montos guardados. */
+dataApi.post('/admin/convert-currency', async (req, res) => {
+  if (!authorize(res, ['canManageCatalogs'], 'la moneda de registro')) return;
+  const to = req.body?.to;
+  const rate = Number(req.body?.rate);
+  if (to !== 'CLP' && to !== 'USD') {
+    res.status(400).json({ error: 'Moneda no válida (CLP o USD).' });
+    return;
+  }
+  if (!Number.isFinite(rate) || rate < 100 || rate > 5000) {
+    res.status(400).json({ error: 'Ingresa un tipo de cambio en pesos por dólar entre 100 y 5.000.' });
+    return;
+  }
+  try {
+    const user = currentUser(res)!;
+    res.json(await convertCurrency(to, rate, { name: user.name, role: user.role }, clientIp(req)));
+  } catch (err) {
+    const status = (err as { status?: number }).status ?? 422;
+    res.status(status).json({ error: status === 422 ? friendlyDbError(err) : (err as Error).message });
   }
 });

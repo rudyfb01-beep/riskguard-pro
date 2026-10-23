@@ -283,6 +283,12 @@ export class PersistenceService {
     });
   }
 
+  /** Espera lo pendiente y recarga todo desde el servidor (tras operaciones hechas en el servidor). */
+  async reload(): Promise<void> {
+    await this.flush();
+    await this.reloadAll();
+  }
+
   /** Recarga todos los datos desde el servidor (tras cambios que el servidor propaga). */
   private async reloadAll(): Promise<void> {
     const resp = await apiFetch('/api/data');

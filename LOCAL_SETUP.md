@@ -190,8 +190,7 @@ Jefe de Riesgo Operacional) se administran:
   desactivar (deja de aparecer para registros nuevos).
 - **Áreas:** nombre, responsable y descripción. Los puestos eligen su área de esta lista;
   renombrar un área actualiza puestos y usuarios.
-- **Parámetros generales:** moneda de registro (CLP o USD; cambiarla no convierte montos ya
-  registrados), días de aviso antes del vencimiento de contratos, frecuencia de evaluación de
+- **Parámetros generales:** moneda de registro (CLP o USD), días de aviso antes del vencimiento de contratos, frecuencia de evaluación de
   proveedores por criticidad y plazos para corregir vulnerabilidades por severidad.
 
 - **Escala de riesgo:** nombre y criterio de cada nivel de probabilidad e impacto (1 a 4). Se
@@ -212,6 +211,13 @@ Fuera de Mantenedores, con los permisos de cada módulo:
   escriben aparte.
 - **Lista de verificación de seguridad:** en Seguridad de la Información → Autoevaluación se
   pueden agregar, editar o quitar requisitos (permiso "Seguridad de la Información").
+
+**Moneda:** la moneda elegida se aplica en toda la aplicación (montos en pantallas, reportes,
+exportaciones, bitácora, análisis con IA y APR). Al cambiarla se puede convertir todo lo registrado
+con un tipo de cambio (pesos por dólar): exposición y presupuestos de riesgos, pérdidas y recuperos,
+costos de proveedores, umbral de la base de pérdidas y límites del apetito. La conversión se hace en
+el servidor en una sola transacción y queda en la bitácora. También se puede cambiar sin convertir,
+si los montos ya estaban expresados en la nueva moneda.
 
 Una instalación nueva parte con 10 áreas y 14 procesos de referencia para una cooperativa y con
 la moneda en CLP; las instalaciones existentes conservan USD y se cargan con los procesos que ya
@@ -262,7 +268,6 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 ## Limitaciones conocidas
 
 - Si dos personas editan **el mismo** registro a la vez, prevalece el último guardado.
-- Cambiar la moneda en Parámetros generales no convierte los montos ya registrados.
 
 ## Modelo de datos (principales tablas)
 

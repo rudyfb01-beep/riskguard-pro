@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { ProcessHeatmapSummary, Risk, RiskLevel } from '../models/risk.model';
+import { MoneyPipe } from '../utils/money.pipe';
 
 @Component({
   selector: 'app-process-heatmap',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, MoneyPipe],
   template: `
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-5">
       
@@ -142,7 +143,7 @@ import { ProcessHeatmapSummary, Risk, RiskLevel } from '../models/risk.model';
                   </div>
                   <div>
                     <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-medium">Exposición</span>
-                    <span class="text-xs font-mono font-bold text-slate-900">\${{ exposure | number:'1.0-0' }}</span>
+                    <span class="text-xs font-mono font-bold text-slate-900">{{ exposure | money }}</span>
                   </div>
                   <div>
                     <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-medium">Mitigación</span>
@@ -225,7 +226,7 @@ import { ProcessHeatmapSummary, Risk, RiskLevel } from '../models/risk.model';
                                           {{ rsk.title }}
                                         </div>
                                         <div class="text-[9px] text-emerald-400 flex items-center justify-between mt-0.5">
-                                          <span>\${{ rsk.residualExposureUSD | number:'1.0-0' }}</span>
+                                          <span>{{ rsk.residualExposureUSD | money }}</span>
                                           <span class="font-semibold flex items-center gap-0.5">
                                             <span>Ir</span>
                                             <mat-icon class="text-[9px]">arrow_forward</mat-icon>
@@ -380,12 +381,12 @@ import { ProcessHeatmapSummary, Risk, RiskLevel } from '../models/risk.model';
 
                   <!-- Inherent Exposure -->
                   <td class="py-3 px-3 text-right font-mono text-slate-600">
-                    \${{ summary.inherentExposureUSD | number:'1.0-0' }}
+                    {{ summary.inherentExposureUSD | money }}
                   </td>
 
                   <!-- Residual Exposure -->
                   <td class="py-3 px-3 text-right font-mono font-bold text-slate-900">
-                    \${{ summary.residualExposureUSD | number:'1.0-0' }}
+                    {{ summary.residualExposureUSD | money }}
                   </td>
 
                   <!-- Mitigation % -->
@@ -565,7 +566,7 @@ import { ProcessHeatmapSummary, Risk, RiskLevel } from '../models/risk.model';
                                       {{ rsk.title }}
                                     </div>
                                     <div class="text-[10px] text-emerald-400 flex items-center justify-between mt-1">
-                                      <span>\${{ rsk.residualExposureUSD | number:'1.0-0' }}</span>
+                                      <span>{{ rsk.residualExposureUSD | money }}</span>
                                       <span class="font-semibold flex items-center gap-0.5">
                                         <span>Ir</span>
                                         <mat-icon class="text-[10px]">arrow_forward</mat-icon>
@@ -606,11 +607,11 @@ import { ProcessHeatmapSummary, Risk, RiskLevel } from '../models/risk.model';
                   <div class="space-y-2 text-xs">
                     <div class="flex items-center justify-between">
                       <span class="text-slate-500">Exposición Inherente:</span>
-                      <span class="font-mono font-bold text-slate-800">\${{ activeSummary.inherentExposureUSD | number:'1.0-0' }}</span>
+                      <span class="font-mono font-bold text-slate-800">{{ activeSummary.inherentExposureUSD | money }}</span>
                     </div>
                     <div class="flex items-center justify-between">
                       <span class="text-slate-500">Exposición Residual:</span>
-                      <span class="font-mono font-bold text-emerald-700">\${{ activeSummary.residualExposureUSD | number:'1.0-0' }}</span>
+                      <span class="font-mono font-bold text-emerald-700">{{ activeSummary.residualExposureUSD | money }}</span>
                     </div>
                     <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                       <div class="bg-emerald-600 h-2 rounded-full" [style.width.%]="activeSummary.mitigationPct"></div>
