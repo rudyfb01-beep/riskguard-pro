@@ -740,6 +740,12 @@ export const DEMO_FLAWS: OperationalFlaw[] = [
     recoveredAmountUSD: 3000,
     impactedSystemOrAccount: 'Cuentas de ahorro de socios / Canal web',
     affectedAssetIds: ['ast-2', 'ast-1'],
+    cyber: {
+      isCyber: true, threatType: 'Phishing / ingeniería social', malware: 'Sitio falso cooperativa-socios[.]com; kit de phishing con captura de OTP',
+      protection: 'Bloqueo del dominio, reseteo de claves y doble factor reforzado', industryAlertAt: '2026-09-02T15:10:00.000Z',
+      industryAlertChannel: 'Plataforma de alertas de la industria y CSIRT', forensicRequired: true, forensicBy: '', forensicSummary: '',
+      lessonsLearned: 'Monitoreo de dominios similares y campaña de concientización a socios.',
+    },
     aiSuggestedCategory: 'Fraude Externo',
     aiSuggestedControls: ['Segundo factor de autenticación en transferencias', 'Monitoreo de dominios similares (takedown)'],
     businessLine: 'Captaciones y Ahorro',

@@ -26,6 +26,7 @@ import { ContinuityPanel } from './components/continuity-panel';
 import { SecurityPanel } from './components/security-panel';
 import { AprPanel } from './components/apr-panel';
 import { CatalogsPanel } from './components/catalogs-panel';
+import { CompliancePanel } from './components/compliance-panel';
 import { AuditsPanel } from './components/audits-panel';
 import { MoneyPipe } from './utils/money.pipe';
 import { Control, KriDefinition, OperationalFlaw, Risk } from './models/risk.model';
@@ -44,6 +45,7 @@ export type ActiveTab =
   | 'seguridad-informacion'
   | 'apr-operacional'
   | 'mantenedores'
+  | 'cumplimiento-ran'
   | 'alertas-kri'
   | 'auditorias'
   | 'bitacora'
@@ -76,6 +78,7 @@ export type ActiveTab =
     SecurityPanel,
     AprPanel,
     CatalogsPanel,
+    CompliancePanel,
     AuditsPanel,
     MoneyPipe,
     LoginScreen,
@@ -176,6 +179,8 @@ export class App {
         return { title: 'Bitácora Inalterable (Ledger)', section: 'Supervisión & Auditoría', icon: 'lock' };
       case 'reportes-pdf':
         return { title: 'Centro de Reportes & PDF', section: 'Gobernanza & Cumplimiento', icon: 'picture_as_pdf' };
+      case 'cumplimiento-ran':
+        return { title: 'Cumplimiento RAN', section: 'Gobernanza & Cumplimiento', icon: 'policy' };
       case 'mantenedores':
         return { title: 'Mantenedores', section: 'Configuración', icon: 'tune' };
     }
@@ -276,6 +281,11 @@ export class App {
 
   setTab(tab: ActiveTab) {
     this.activeTab.set(tab);
+  }
+
+  /** Navega a un módulo desde la matriz de cumplimiento (ignora pestañas desconocidas). */
+  openModule(tab: string) {
+    this.setTab(tab as ActiveTab);
   }
 
   readonly selectedDepartmentForPdf = signal<string>('TODOS');

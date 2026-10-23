@@ -9,6 +9,7 @@ import { SecurityService } from '../services/security.service';
 import { AiRiskService, AIAnalysisResult } from '../services/ai-risk.service';
 import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine, IncidentType, OperationalFlaw } from '../models/risk.model';
 import { MoneyPipe } from '../utils/money.pipe';
+import { CyberIncidentInfo, EMPTY_CYBER } from '../models/compliance.model';
 
 @Component({
   selector: 'app-flaw-modal',
@@ -337,6 +338,37 @@ import { MoneyPipe } from '../utils/money.pipe';
               </label>
             </div>
 
+            <!-- Ciberseguridad (RAN 20-10 4.2 y RAN 20-8 §1.3) -->
+            @let cy = cyber();
+            <div class="p-4 rounded-xl border border-violet-200 bg-violet-50/40 space-y-3">
+              <label class="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
+                <input type="checkbox" class="rounded" [checked]="cy.isCyber" (change)="setCyber('isCyber', $any($event.target).checked)" />
+                <mat-icon class="text-sm text-violet-700">shield</mat-icon> Incidente de ciberseguridad (base de incidentes RAN 20-10)
+              </label>
+              @if (cy.isCyber) {
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Tipo de amenaza</span><input [class]="inputCls" list="cyber-threats" [value]="cy.threatType" (input)="setCyber('threatType', $any($event.target).value)" />
+                    <datalist id="cyber-threats">@for (t of threatTypes; track t) { <option [value]="t"></option> }</datalist></label>
+                  <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Software malicioso / indicadores de compromiso</span><input [class]="inputCls" [value]="cy.malware" (input)="setCyber('malware', $any($event.target).value)" /></label>
+                  <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Mecanismo de protección identificado</span><input [class]="inputCls" [value]="cy.protection" (input)="setCyber('protection', $any($event.target).value)" /></label>
+                  <div class="sm:col-span-2 p-2.5 rounded-lg bg-white border border-violet-100 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <span class="sm:col-span-2 text-[11px] font-semibold text-slate-700">Alerta a la industria (RAN 20-8 §1.3)</span>
+                    <label class="block"><span class="block text-[10px] text-slate-600 mb-0.5">Enviada el (fecha y hora)</span><input type="datetime-local" [class]="inputCls" [value]="localOf(cy.industryAlertAt)" (input)="setCyber('industryAlertAt', isoOf($any($event.target).value))" /></label>
+                    <label class="block"><span class="block text-[10px] text-slate-600 mb-0.5">Medio (plataforma de la industria, CSIRT, correo)</span><input [class]="inputCls" [value]="cy.industryAlertChannel" (input)="setCyber('industryAlertChannel', $any($event.target).value)" /></label>
+                  </div>
+                  <div class="sm:col-span-2 p-2.5 rounded-lg bg-white border border-violet-100 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <label class="sm:col-span-3 flex items-center gap-2 text-[11px] font-semibold text-slate-700"><input type="checkbox" class="rounded" [checked]="cy.forensicRequired" (change)="setCyber('forensicRequired', $any($event.target).checked)" /> Incidente relevante: requiere análisis forense independiente</label>
+                    @if (cy.forensicRequired) {
+                      <label class="block"><span class="block text-[10px] text-slate-600 mb-0.5">Fecha del informe forense</span><input type="date" [class]="inputCls" [value]="cy.forensicDate ?? ''" (input)="setCyber('forensicDate', $any($event.target).value || undefined)" /></label>
+                      <label class="block"><span class="block text-[10px] text-slate-600 mb-0.5">Realizado por</span><input [class]="inputCls" [value]="cy.forensicBy" (input)="setCyber('forensicBy', $any($event.target).value)" /></label>
+                      <label class="block"><span class="block text-[10px] text-slate-600 mb-0.5">Conclusión</span><input [class]="inputCls" [value]="cy.forensicSummary" (input)="setCyber('forensicSummary', $any($event.target).value)" /></label>
+                    }
+                  </div>
+                  <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Lecciones aprendidas</span><textarea rows="2" [class]="inputCls" [value]="cy.lessonsLearned" (input)="setCyber('lessonsLearned', $any($event.target).value)"></textarea></label>
+                </div>
+              }
+            </div>
+
             <!-- Reporte Regulatorio CMF / ANCI -->
             <div class="p-3.5 rounded-xl space-y-3 border"
               [class]="form.get('reportCMF')?.value || form.get('reportANCI')?.value ? 'bg-rose-50/40 border-rose-200' : 'bg-white border-slate-200'">
@@ -542,6 +574,23 @@ export class FlawModal {
   /** Activos de información afectados (fuera del formulario reactivo por ser una lista). */
   readonly affectedAssetIds = signal<string[]>([]);
 
+  /** Datos de ciberseguridad del incidente (RAN 20-10 4.2 y 20-8 §1.3). */
+  readonly cyber = signal<CyberIncidentInfo>({ ...EMPTY_CYBER });
+  readonly threatTypes = ['Ransomware', 'Malware', 'Phishing / ingeniería social', 'Denegación de servicio (DDoS)', 'Acceso no autorizado', 'Fuga de información', 'Fraude en canales digitales', 'Vulneración de proveedor'];
+  readonly inputCls = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500';
+
+  setCyber<K extends keyof CyberIncidentInfo>(k: K, v: CyberIncidentInfo[K]) {
+    this.cyber.update(c => ({ ...c, [k]: v }));
+  }
+
+  isoOf(v: string): string | undefined {
+    return v ? new Date(v).toISOString() : undefined;
+  }
+
+  localOf(iso?: string): string {
+    return iso ? toLocalInput(iso) : '';
+  }
+
   readonly incidentToEdit = input<OperationalFlaw | null>(null);
   readonly closeModal = output<void>();
 
@@ -609,6 +658,7 @@ export class FlawModal {
           occurredAt: toLocalInput(rr?.occurredAt ?? rr?.awarenessAt ?? new Date().toISOString()),
         });
         this.affectedAssetIds.set([...(inc.affectedAssetIds ?? [])]);
+        this.cyber.set({ ...EMPTY_CYBER, ...(inc.cyber ?? {}) });
         if (inc.aiAnalysis) {
           this.aiResult.set(inc.aiAnalysis as unknown as AIAnalysisResult);
         }
@@ -639,6 +689,7 @@ export class FlawModal {
         });
         this.aiResult.set(null);
         this.affectedAssetIds.set([]);
+        this.cyber.set({ ...EMPTY_CYBER });
       }
     });
   }
@@ -720,6 +771,7 @@ export class FlawModal {
       creditRiskBoundary: !!val.creditRiskBoundary,
       providerId: val.providerId || undefined,
       affectedAssetIds: this.affectedAssetIds(),
+      cyber: this.cyber().isCyber ? this.cyber() : undefined,
     };
   }
 

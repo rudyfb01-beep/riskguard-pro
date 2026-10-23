@@ -227,6 +227,31 @@ Las **auditorías** (plan, alcance, hallazgos y su subsanación) se registran en
 Periódicas con el permiso "Ejecutar auditorías". El puntaje de cada auditoría se calcula de sus
 hallazgos.
 
+## Cumplimiento RAN 20-7, 20-8, 20-9 y 20-10
+
+Estos capítulos de la RAN aplican a las cooperativas a través del Capítulo CAC-3 de la NCG 567 (el
+"Directorio" de la RAN corresponde al Consejo de Administración). En **Gobernanza & Cumplimiento →
+Cumplimiento RAN** está la matriz de 71 requisitos por numeral (20-7: 20, 20-8: 6, 20-9: 23,
+20-10: 22). Cada requisito muestra el módulo que lo soporta, una verificación automática con los
+datos del sistema y un estado sugerido; Cumplimiento registra el estado, la evidencia, el
+responsable, el plan de acción y la fecha de revisión (con aviso cuando vence según su frecuencia).
+La matriz se exporta a Excel. Evaluar requiere el permiso de reportes regulatorios (CMF/ANCI).
+
+Datos que la aplicación registra para soportar los requisitos:
+
+| Capítulo | Dónde | Qué se registra |
+| :--- | :--- | :--- |
+| 20-7 | Proveedores → Antecedentes RAN 20-7 | Criterios de actividad significativa o estratégica, centros de datos principal y de contingencia, procesamiento en el exterior (contingencia en Chile o dispensa del Consejo e informe independiente), riesgo país, subcontratistas, pruebas de continuidad y de seguridad del proveedor, auditoría, debida diligencia reforzada para la nube (a–g). Las 15 cláusulas mínimas de contrato del Anexo 1 están en el catálogo de proveedores. El catastro exportable incluye estas columnas. |
+| 20-8 | Reporte CMF / ANCI, Incidentes | Reporte inicial (30 minutos desde la ocurrencia), actualizaciones y cierre; comunicación a socios con fecha y canal (§1.2); alerta a la industria de incidentes de ciberseguridad (§1.3). |
+| 20-9 | Continuidad del negocio | RTO aprobado por el Consejo y análisis de riesgos (RIA) por proceso; escenarios mínimos que cubre cada plan y retorno a la normalidad; escenario probado, simulación de indisponibilidad de sitio (online/batch) y análisis previo; tabla de cobertura de los 5 escenarios. |
+| 20-10 | Seguridad de la Información | Activos de infraestructura crítica; pruebas de seguridad (pentest, hacking ético, restauración, plan de respuesta, crisis) con informe al Consejo; base de incidentes de ciberseguridad con análisis forense y lecciones aprendidas; autoevaluación. |
+
+Los requisitos de gobierno (políticas, estrategia, informes al Consejo, capacitación, auditorías,
+sitios de procesamiento) se cumplen con documentos y actas de la cooperativa: la matriz registra esa
+evidencia, no la reemplaza. La RAN 20-7 tiene una actualización en consulta (abril de 2026) que
+agregaría el archivo I28 de servicios externalizados (semestral para cooperativas); se incorporará
+cuando se publique la versión definitiva.
+
 ## Variables de entorno
 
 | Variable | Descripción |
@@ -282,7 +307,8 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 | Auditoría | `periodic_audits`, `audit_findings`, `crypto_audit_ledger` |
 | Terceros | `service_providers` |
 | Continuidad | `bia_processes`, `bia_process_providers`, `continuity_plans`, `continuity_plan_processes`, `continuity_tests` |
-| Seguridad de la información | `info_assets`, `vulnerabilities`, `security_assessment_items` |
+| Seguridad de la información | `info_assets`, `vulnerabilities`, `security_assessment_items`, `security_tests` |
+| Cumplimiento RAN | `compliance_requirements` (y columnas `ran207`, `ran209`, `cyber` en proveedores, continuidad e incidentes) |
 | Ajustes | `system_settings` |
 
 Vistas de apoyo a reportes: `v_loss_database`, `v_regulatory_deadlines`, `v_provider_rto_gaps`,

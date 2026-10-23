@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { downloadCsv } from '../utils/csv';
+import { CLOUD_DUE_DILIGENCE, EMPTY_RAN207, ProviderRan207, SIGNIFICANCE_CRITERIA, Subcontractor } from '../models/compliance.model';
 import { ResilienceService } from '../services/resilience.service';
 import {
   ProviderAlert,
@@ -262,6 +263,77 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 tex
                   <textarea rows="2" [class]="inputCls" placeholder="Estrategia de salida, proveedor alternativo, plazos y devolución de datos..." [value]="d.exitPlanNotes || ''" (input)="set('exitPlanNotes', $any($event.target).value)"></textarea>
                 }
               </div>
+
+              <!-- Antecedentes RAN 20-7 -->
+              @let ran = d.ran207 ?? emptyRan;
+              <div class="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/30 space-y-3">
+                <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5"><mat-icon class="text-sm text-emerald-700">policy</mat-icon> Antecedentes RAN 20-7</span>
+
+                <div>
+                  <span class="block text-[11px] font-medium text-slate-600 mb-1">Actividad significativa o estratégica: marque los criterios que aplican (I.2)</span>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    @for (c of significance; track c.key) {
+                      <label class="flex items-start gap-2 text-[11px] text-slate-700"><input type="checkbox" class="mt-0.5 rounded" [checked]="ran.significance.includes(c.key)" (change)="toggleSignificance(c.key, $any($event.target).checked)" />{{ c.label }}</label>
+                    }
+                  </div>
+                  @if (ran.significance.length && d.criticality !== 'Crítico') {
+                    <p class="text-[10px] text-amber-800 mt-1">Cumple criterios de actividad significativa: considere clasificarlo como Crítico.</p>
+                  }
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Centro de datos principal (ciudad, país) (III.1.m)</span><input [class]="inputCls" [value]="ran.primarySite" (input)="setRan('primarySite', $any($event.target).value)" /></label>
+                  <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Centro de contingencia (ciudad, país)</span><input [class]="inputCls" [value]="ran.contingencySite" (input)="setRan('contingencySite', $any($event.target).value)" /></label>
+                </div>
+
+                @if (d.dataLocation === 'Extranjero') {
+                  <div class="p-2.5 rounded-lg bg-white border border-slate-200 space-y-2">
+                    <span class="text-[11px] font-semibold text-slate-700">Procesamiento en el exterior (IV y III.5)</span>
+                    <label class="flex items-center gap-2 text-[11px]"><input type="checkbox" class="rounded" [checked]="ran.contingencyInChile" (change)="setRan('contingencyInChile', $any($event.target).checked)" /> Tiene sitio de contingencia en Chile</label>
+                    @if (!ran.contingencyInChile) {
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <label class="block"><span class="block text-[10px] text-slate-600 mb-0.5">Dispensa del Consejo (fecha)</span><input type="date" [class]="inputCls" [value]="ran.boardWaiverDate ?? ''" (input)="setRan('boardWaiverDate', $any($event.target).value || undefined)" /></label>
+                        <label class="block"><span class="block text-[10px] text-slate-600 mb-0.5">Informe anual de empresa independiente (fecha)</span><input type="date" [class]="inputCls" [value]="ran.independentReportDate ?? ''" (input)="setRan('independentReportDate', $any($event.target).value || undefined)" /></label>
+                      </div>
+                    }
+                    <label class="flex items-center gap-2 text-[11px]"><input type="checkbox" class="rounded" [checked]="ran.investmentGradeCountry" (change)="setRan('investmentGradeCountry', $any($event.target).checked)" /> País con clasificación de riesgo en grado de inversión</label>
+                    @if (!ran.investmentGradeCountry) {
+                      <textarea rows="2" [class]="inputCls" placeholder="Análisis documentado del Consejo sobre leyes de protección de datos del país..." [value]="ran.countryRiskAnalysis" (input)="setRan('countryRiskAnalysis', $any($event.target).value)"></textarea>
+                    }
+                  </div>
+                }
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <label class="block"><span class="block text-[10px] font-medium text-slate-600 mb-1">Última prueba de continuidad del proveedor (III.3)</span><input type="date" [class]="inputCls" [value]="ran.providerContinuityTestDate ?? ''" (input)="setRan('providerContinuityTestDate', $any($event.target).value || undefined)" /></label>
+                  <label class="block"><span class="block text-[10px] font-medium text-slate-600 mb-1">Última prueba de vulnerabilidades / pentest (III.4)</span><input type="date" [class]="inputCls" [value]="ran.providerSecurityTestDate ?? ''" (input)="setRan('providerSecurityTestDate', $any($event.target).value || undefined)" /></label>
+                  <label class="block"><span class="block text-[10px] font-medium text-slate-600 mb-1">Última auditoría o revisión independiente (III.1.i)</span><input type="date" [class]="inputCls" [value]="ran.lastAuditDate ?? ''" (input)="setRan('lastAuditDate', $any($event.target).value || undefined)" /></label>
+                </div>
+
+                @if (d.usesSubcontractors) {
+                  <div class="space-y-1.5">
+                    <span class="block text-[11px] font-medium text-slate-600">Subcontratistas (III.1.k)</span>
+                    @for (s of ran.subcontractors; track $index; let i = $index) {
+                      <div class="grid grid-cols-12 gap-1.5 items-center">
+                        <input class="col-span-4 text-xs rounded-lg border border-slate-300 px-2 py-1" placeholder="Nombre" [value]="s.name" (input)="setSub(i, 'name', $any($event.target).value)" />
+                        <input class="col-span-2 text-xs rounded-lg border border-slate-300 px-2 py-1" placeholder="País" [value]="s.country" (input)="setSub(i, 'country', $any($event.target).value)" />
+                        <input class="col-span-3 text-xs rounded-lg border border-slate-300 px-2 py-1" placeholder="Servicio" [value]="s.service" (input)="setSub(i, 'service', $any($event.target).value)" />
+                        <label class="col-span-2 flex items-center gap-1 text-[10px]"><input type="checkbox" class="rounded" [checked]="s.meetsConditions" (change)="setSub(i, 'meetsConditions', $any($event.target).checked)" />Conforme</label>
+                        <button type="button" (click)="removeSub(i)" class="col-span-1 text-slate-400 hover:text-rose-600 cursor-pointer"><mat-icon class="text-sm">close</mat-icon></button>
+                      </div>
+                    }
+                    <button type="button" (click)="addSub()" class="text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer flex items-center gap-0.5"><mat-icon class="text-sm">add</mat-icon>Agregar subcontratista</button>
+                  </div>
+                }
+
+                @if (d.isCloud && (d.criticality === 'Crítico' || ran.significance.length)) {
+                  <div class="space-y-1">
+                    <span class="block text-[11px] font-medium text-slate-600">Debida diligencia reforzada para servicio crítico en la nube (V)</span>
+                    @for (c of cloudDd; track c.key) {
+                      <label class="flex items-start gap-2 text-[11px] text-slate-700"><input type="checkbox" class="mt-0.5 rounded" [checked]="!!ran.cloudDueDiligence[c.key]" (change)="setCloudDd(c.key, $any($event.target).checked)" />{{ c.label }}</label>
+                    }
+                  </div>
+                }
+              </div>
             </fieldset>
 
             <!-- Columna lateral -->
@@ -364,7 +436,10 @@ export class ProvidersPanel {
       ['Código', 'Proveedor', 'RUT', 'Servicio', 'Categoría', 'Criticidad', 'Estado', 'Responsable', 'Procesos que soporta',
        'Nube', 'Modelo', 'Ubicación datos', 'País', 'Datos de socios', 'Subcontrata', 'Inicio contrato', 'Término contrato',
        `Costo anual ${this.rs.currencyCode()}`, 'RTO comprometido (h)', 'Última evaluación', 'Puntaje', 'Próxima evaluación', 'Plan de salida',
-       ...clauseLabels, 'Procesos críticos BIA dependientes', 'Alertas'],
+       ...clauseLabels, 'Procesos críticos BIA dependientes', 'Alertas',
+       'Actividad significativa (criterios RAN 20-7)', 'Centro de datos principal', 'Centro de contingencia', 'Contingencia en Chile',
+       'Dispensa del Consejo', 'Informe independiente', 'País grado de inversión', 'Subcontratistas', 'Prueba continuidad proveedor',
+       'Prueba seguridad proveedor', 'Última auditoría', 'Debida diligencia nube (a–g)'],
       ...this.res.providers().map(p => [
         p.code, p.name, p.taxId, p.serviceDescription, p.category, p.criticality, p.status, p.internalOwner, p.supportedProcesses.join(', '),
         p.isCloud ? 'Sí' : 'No', p.cloudModel ?? '', p.dataLocation, p.dataCountry ?? '', p.handlesMemberData ? 'Sí' : 'No',
@@ -373,6 +448,7 @@ export class ProvidersPanel {
         p.hasExitPlan ? 'Sí' : 'No', ...this.clauses.map(c => (p.clauses[c.key] ? 'Sí' : 'No')),
         this.res.dependentProcesses(p.id).map(b => b.name).join(', '),
         this.alertsFor(p.id).map(a => a.type).join(', '),
+        ...this.ran207Columns(p),
       ]),
     ];
     downloadCsv(`Registro_externalizacion_${new Date().toISOString().slice(0, 10)}.csv`, rows);
@@ -422,6 +498,51 @@ export class ProvidersPanel {
 
   set<K extends keyof ServiceProvider>(key: K, value: ServiceProvider[K]) {
     this.draft.update(d => (d ? { ...d, [key]: value } : d));
+  }
+
+  private ran207Columns(p: ServiceProvider): string[] {
+    const r = p.ran207;
+    if (!r) return Array(12).fill('');
+    return [
+      SIGNIFICANCE_CRITERIA.filter(c => r.significance.includes(c.key)).map(c => c.label).join(' | ') || 'No',
+      r.primarySite, r.contingencySite, r.contingencyInChile ? 'Sí' : 'No', r.boardWaiverDate ?? '', r.independentReportDate ?? '',
+      r.investmentGradeCountry ? 'Sí' : 'No', r.subcontractors.map(s => `${s.name} (${s.country}, ${s.service}${s.meetsConditions ? '' : ', no conforme'})`).join('; '),
+      r.providerContinuityTestDate ?? '', r.providerSecurityTestDate ?? '', r.lastAuditDate ?? '',
+      p.isCloud ? `${CLOUD_DUE_DILIGENCE.filter(c => r.cloudDueDiligence[c.key]).length}/7` : 'N/A',
+    ];
+  }
+
+  // --- Antecedentes RAN 20-7
+  readonly emptyRan = EMPTY_RAN207;
+  readonly significance = SIGNIFICANCE_CRITERIA;
+  readonly cloudDd = CLOUD_DUE_DILIGENCE;
+
+  private updRan(fn: (r: ProviderRan207) => ProviderRan207) {
+    this.draft.update(d => (d ? { ...d, ran207: fn(structuredClone(d.ran207 ?? EMPTY_RAN207)) } : d));
+  }
+
+  setRan<K extends keyof ProviderRan207>(k: K, v: ProviderRan207[K]) {
+    this.updRan(r => ({ ...r, [k]: v }));
+  }
+
+  toggleSignificance(key: string, on: boolean) {
+    this.updRan(r => ({ ...r, significance: on ? [...r.significance, key] : r.significance.filter(x => x !== key) }));
+  }
+
+  setCloudDd(key: string, on: boolean) {
+    this.updRan(r => ({ ...r, cloudDueDiligence: { ...r.cloudDueDiligence, [key]: on } }));
+  }
+
+  addSub() {
+    this.updRan(r => ({ ...r, subcontractors: [...r.subcontractors, { name: '', country: '', service: '', meetsConditions: false }] }));
+  }
+
+  setSub<K extends keyof Subcontractor>(i: number, k: K, v: Subcontractor[K]) {
+    this.updRan(r => ({ ...r, subcontractors: r.subcontractors.map((s, j) => (j === i ? { ...s, [k]: v } : s)) }));
+  }
+
+  removeSub(i: number) {
+    this.updRan(r => ({ ...r, subcontractors: r.subcontractors.filter((_, j) => j !== i) }));
   }
 
   setClause(key: string, value: boolean) {

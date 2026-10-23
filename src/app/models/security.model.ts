@@ -38,6 +38,7 @@ export interface InformationAsset {
   providerId?: string;            // si lo opera un proveedor externo
   biaProcessIds: string[];        // procesos críticos que soporta
   lastReviewDate: string;         // YYYY-MM-DD
+  criticalInfrastructure?: boolean; // forma parte de la infraestructura crítica (RAN 20-10 §5)
 }
 
 export type VulnSeverity = 'Crítica' | 'Alta' | 'Media' | 'Baja';

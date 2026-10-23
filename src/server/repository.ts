@@ -19,6 +19,7 @@ import {
 import { BiaProcess, ContinuityPlan, ContinuityTest, ServiceProvider } from '../app/models/resilience.model';
 import { InformationAsset, SecurityAssessmentItem, Vulnerability } from '../app/models/security.model';
 import { BusinessProcess, OrgArea } from '../app/models/catalog.model';
+import { ComplianceRequirement, SecurityTest } from '../app/models/compliance.model';
 
 /**
  * Repositorio PostgreSQL: convierte los objetos que usa la aplicación en filas
@@ -32,7 +33,7 @@ type Row = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 export const ENTITY_ORDER = [
   'areas', 'processes', 'roles', 'users', 'controls', 'risks', 'providers', 'regulatory-milestones',
   'flaws', 'alerts', 'audits', 'kris', 'bia', 'plans', 'continuity-tests',
-  'info-assets', 'vulnerabilities', 'security-assessment',
+  'info-assets', 'vulnerabilities', 'security-assessment', 'compliance', 'security-tests',
 ] as const;
 export type EntityName = typeof ENTITY_ORDER[number];
 
@@ -59,6 +60,8 @@ export interface BootstrapData {
   infoAssets: InformationAsset[];
   vulnerabilities: Vulnerability[];
   securityAssessment: SecurityAssessmentItem[];
+  compliance: ComplianceRequirement[];
+  securityTests: SecurityTest[];
   ledger: AuditLogEntry[];
   settings: Partial<Record<SettingKey, unknown>>;
 }
@@ -134,7 +137,7 @@ export async function loadAll(): Promise<BootstrapData> {
   const [
     roles, users, controls, tests, risks, riskControls, providers, milestones, flaws, regReports, regSubs, regUpdates,
     alerts, audits, findings, kris, bia, biaProviders, plans, planProcesses, ctests, ledger, settings,
-    infoAssets, vulns, secItems, areas, processes,
+    infoAssets, vulns, secItems, areas, processes, compliance, secTests,
   ] = await Promise.all([
     q('SELECT * FROM organizational_roles ORDER BY created_at, id'),
     q('SELECT * FROM user_profiles ORDER BY created_at, id'),
@@ -164,6 +167,8 @@ export async function loadAll(): Promise<BootstrapData> {
     q('SELECT * FROM security_assessment_items ORDER BY code'),
     q('SELECT * FROM org_areas ORDER BY name'),
     q('SELECT * FROM business_processes ORDER BY code'),
+    q('SELECT * FROM compliance_requirements ORDER BY chapter, id'),
+    q('SELECT * FROM security_tests ORDER BY test_date DESC'),
   ]);
 
   const testsBy = groupBy(tests, 'control_id');
@@ -201,6 +206,15 @@ export async function loadAll(): Promise<BootstrapData> {
     infoAssets: infoAssets.map(assetFromRow),
     vulnerabilities: vulns.map(vulnFromRow),
     securityAssessment: secItems.map(assessmentFromRow),
+    compliance: compliance.map((x): ComplianceRequirement => ({
+      id: x.id, chapter: x.chapter, numeral: x.numeral, title: x.title, requirement: x.requirement, module: opt(x.module),
+      autoCheck: opt(x.auto_check), frequency: x.frequency, status: x.status, evidence: x.evidence ?? '', owner: x.owner ?? '',
+      actionPlan: x.action_plan ?? '', dueDate: opt(x.due_date), lastReviewDate: opt(x.last_review_date), reviewedBy: opt(x.reviewed_by),
+    })),
+    securityTests: secTests.map((x): SecurityTest => ({
+      id: x.id, date: x.test_date, type: x.type, scope: x.scope, executedBy: x.executed_by ?? '', result: x.result,
+      findings: x.findings ?? '', reportedToBoardDate: opt(x.reported_to_board_date),
+    })),
     settings: Object.fromEntries(settings.filter(s => (SETTING_KEYS as readonly string[]).includes(s.key)).map(s => [s.key, s.value])),
   };
 }
@@ -260,7 +274,7 @@ function providerFromRow(r: Row): ServiceProvider {
     usesSubcontractors: r.uses_subcontractors, contractStart: r.contract_start ?? '', contractEnd: r.contract_end,
     annualCostUSD: r.annual_cost_usd, clauses: r.clauses, lastAssessmentDate: opt(r.last_assessment_date),
     assessmentScore: opt(r.assessment_score), hasExitPlan: r.has_exit_plan, exitPlanNotes: opt(r.exit_plan_notes),
-    committedRtoHours: opt(r.committed_rto_hours),
+    committedRtoHours: opt(r.committed_rto_hours), ran207: opt(r.ran207),
   };
 }
 
@@ -286,7 +300,7 @@ function flawFromRow(r: Row, rep: Row | undefined, subs: Row[], upds: Row[]): Op
     businessLine: opt(r.business_line), baselCategory: opt(r.basel_category), baselSubcategory: opt(r.basel_subcategory),
     occurrenceDate: opt(r.occurrence_date), discoveryDate: opt(r.discovery_date), accountingDate: opt(r.accounting_date),
     accountingAccount: opt(r.accounting_account), creditRiskBoundary: r.credit_risk_boundary,
-    regulatoryReport: report, providerId: opt(r.provider_id), affectedAssetIds: r.affected_asset_ids ?? [],
+    regulatoryReport: report, providerId: opt(r.provider_id), affectedAssetIds: r.affected_asset_ids ?? [], cyber: opt(r.cyber),
   };
 }
 
@@ -324,7 +338,7 @@ function biaFromRow(r: Row, providerIds: string[]): BiaProcess {
     id: r.id, name: r.name, owner: r.owner ?? '', businessLine: r.business_line, description: r.description ?? '',
     impact: { financial: r.impact_financial, members: r.impact_members, regulatory: r.impact_regulatory, reputational: r.impact_reputational },
     mtpdHours: r.mtpd_hours, rtoHours: r.rto_hours, rpoHours: r.rpo_hours, systems: r.systems ?? [], providerIds,
-    minimumStaff: r.minimum_staff, alternateSite: r.alternate_site ?? '', lastReviewDate: r.last_review_date,
+    minimumStaff: r.minimum_staff, alternateSite: r.alternate_site ?? '', lastReviewDate: r.last_review_date, ran209: opt(r.ran209),
   };
 }
 
@@ -332,6 +346,7 @@ function planFromRow(r: Row, processIds: string[]): ContinuityPlan {
   return {
     id: r.id, code: r.code, name: r.name, type: r.type, processIds, owner: r.owner ?? '', version: r.version,
     approvedBy: r.approved_by ?? '', approvalDate: r.approval_date ?? '', nextReviewDate: r.next_review_date, status: r.status,
+    ran209: opt(r.ran209),
   };
 }
 
@@ -339,6 +354,7 @@ function continuityTestFromRow(r: Row): ContinuityTest {
   return {
     id: r.id, planId: r.plan_id, date: r.test_date, type: r.type, scenario: r.scenario, processId: opt(r.bia_process_id),
     achievedRtoHours: opt(r.achieved_rto_hours), result: r.result, findings: r.findings ?? '', actions: r.actions ?? '',
+    ran209: opt(r.ran209),
   };
 }
 
@@ -348,7 +364,7 @@ function assetFromRow(r: Row): InformationAsset {
     custodian: r.custodian ?? '', classification: r.classification,
     cia: { confidentiality: r.confidentiality, integrity: r.integrity, availability: r.availability },
     handlesPersonalData: r.handles_personal_data, location: r.location, providerId: opt(r.provider_id),
-    biaProcessIds: r.bia_process_ids ?? [], lastReviewDate: r.last_review_date,
+    biaProcessIds: r.bia_process_ids ?? [], lastReviewDate: r.last_review_date, criticalInfrastructure: !!r.critical_infrastructure,
   };
 }
 
@@ -466,6 +482,7 @@ const savers: Record<EntityName, (c: PoolClient, o: any) => Promise<void>> = {
       contract_start: dateOrNull(o.contractStart), contract_end: o.contractEnd, annual_cost_usd: o.annualCostUSD ?? 0,
       clauses: json(o.clauses), last_assessment_date: dateOrNull(o.lastAssessmentDate), assessment_score: o.assessmentScore ?? null,
       has_exit_plan: o.hasExitPlan, exit_plan_notes: o.exitPlanNotes ?? null, committed_rto_hours: o.committedRtoHours ?? null,
+      ran207: o.ran207 ? json(o.ran207) : null,
     });
   },
 
@@ -488,7 +505,7 @@ const savers: Record<EntityName, (c: PoolClient, o: any) => Promise<void>> = {
       occurrence_date: dateOrNull(o.occurrenceDate), discovery_date: dateOrNull(o.discoveryDate),
       accounting_date: dateOrNull(o.accountingDate), accounting_account: o.accountingAccount ?? null,
       credit_risk_boundary: !!o.creditRiskBoundary, provider_id: o.providerId ?? null,
-      affected_asset_ids: o.affectedAssetIds ?? [],
+      affected_asset_ids: o.affectedAssetIds ?? [], cyber: o.cyber ? json(o.cyber) : null,
     });
     const r = o.regulatoryReport;
     if (!r) {
@@ -551,7 +568,7 @@ const savers: Record<EntityName, (c: PoolClient, o: any) => Promise<void>> = {
       impact_financial: o.impact.financial, impact_members: o.impact.members, impact_regulatory: o.impact.regulatory,
       impact_reputational: o.impact.reputational, mtpd_hours: o.mtpdHours, rto_hours: o.rtoHours, rpo_hours: o.rpoHours,
       systems: o.systems ?? [], minimum_staff: o.minimumStaff ?? 0, alternate_site: o.alternateSite || null,
-      last_review_date: o.lastReviewDate,
+      last_review_date: o.lastReviewDate, ran209: o.ran209 ? json(o.ran209) : null,
     }, false);
     await c.query('DELETE FROM bia_process_providers WHERE bia_process_id = $1', [o.id]);
     for (const pid of new Set(o.providerIds ?? [])) {
@@ -563,6 +580,7 @@ const savers: Record<EntityName, (c: PoolClient, o: any) => Promise<void>> = {
     await upsertRow(c, 'continuity_plans', 'id', {
       id: o.id, code: o.code, name: o.name, type: o.type, owner: o.owner || null, version: o.version,
       approved_by: o.approvedBy || null, approval_date: dateOrNull(o.approvalDate), next_review_date: o.nextReviewDate, status: o.status,
+      ran209: o.ran209 ? json(o.ran209) : null,
     }, false);
     await c.query('DELETE FROM continuity_plan_processes WHERE plan_id = $1', [o.id]);
     for (const bid of new Set(o.processIds ?? [])) {
@@ -576,7 +594,7 @@ const savers: Record<EntityName, (c: PoolClient, o: any) => Promise<void>> = {
       custodian: o.custodian || null, classification: o.classification, confidentiality: o.cia.confidentiality,
       integrity: o.cia.integrity, availability: o.cia.availability, handles_personal_data: o.handlesPersonalData,
       location: o.location, provider_id: o.providerId ?? null, bia_process_ids: o.biaProcessIds ?? [],
-      last_review_date: o.lastReviewDate,
+      last_review_date: o.lastReviewDate, critical_infrastructure: !!o.criticalInfrastructure,
     });
   },
 
@@ -601,7 +619,24 @@ const savers: Record<EntityName, (c: PoolClient, o: any) => Promise<void>> = {
     await upsertRow(c, 'continuity_tests', 'id', {
       id: o.id, plan_id: o.planId, test_date: o.date, type: o.type, scenario: o.scenario, bia_process_id: o.processId ?? null,
       achieved_rto_hours: o.achievedRtoHours ?? null, result: o.result, findings: o.findings || null, actions: o.actions || null,
+      ran209: o.ran209 ? json(o.ran209) : null,
     }, false);
+  },
+
+  async compliance(c, o: ComplianceRequirement) {
+    await upsertRow(c, 'compliance_requirements', 'id', {
+      id: o.id, chapter: o.chapter, numeral: o.numeral, title: o.title, requirement: o.requirement, module: o.module ?? null,
+      auto_check: o.autoCheck ?? null, frequency: o.frequency, status: o.status, evidence: o.evidence || null, owner: o.owner || null,
+      action_plan: o.actionPlan || null, due_date: dateOrNull(o.dueDate), last_review_date: dateOrNull(o.lastReviewDate),
+      reviewed_by: o.reviewedBy ?? null,
+    });
+  },
+
+  async 'security-tests'(c, o: SecurityTest) {
+    await upsertRow(c, 'security_tests', 'id', {
+      id: o.id, test_date: o.date, type: o.type, scope: o.scope, executed_by: o.executedBy || null, result: o.result,
+      findings: o.findings || null, reported_to_board_date: dateOrNull(o.reportedToBoardDate),
+    });
   },
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -656,6 +691,8 @@ const TABLE_BY_ENTITY: Record<EntityName, { table: string; pk: string }> = {
   'info-assets': { table: 'info_assets', pk: 'id' },
   vulnerabilities: { table: 'vulnerabilities', pk: 'id' },
   'security-assessment': { table: 'security_assessment_items', pk: 'id' },
+  compliance: { table: 'compliance_requirements', pk: 'id' },
+  'security-tests': { table: 'security_tests', pk: 'id' },
 };
 
 export function isEntity(name: string): name is EntityName {

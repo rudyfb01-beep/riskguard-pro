@@ -1,3 +1,4 @@
+import type { CyberIncidentInfo } from './compliance.model';
 export type BaselCategory =
   | 'Fraude Interno'
   | 'Fraude Externo'
@@ -191,6 +192,8 @@ export interface Ran208Details {
   informant?: string;                // nombre y cargo de quien informa
   endedAt?: string;                  // ISO: término del incidente
   memberNotice?: string;             // §1.2: comunicación a socios/usuarios
+  memberNoticeAt?: string;           // ISO: primera comunicación a socios/usuarios
+  memberNoticeChannel?: string;      // canal (web, app, correo, sucursales, prensa)
 }
 
 export interface RegulatorySubmission {
@@ -259,6 +262,7 @@ export interface OperationalFlaw {
 
   /** Activos de información afectados (ciberincidentes). */
   affectedAssetIds?: string[];
+  cyber?: CyberIncidentInfo;   // ciberseguridad: alerta a la industria, forense y lecciones aprendidas
 }
 
 export type OperationalIncident = OperationalFlaw;
@@ -354,7 +358,9 @@ export interface AuditLogEntry {
     | 'MANTENEDOR_AREA'
     | 'MANTENEDOR_PROCESO'
     | 'CONFIGURACIÓN_PARÁMETROS'
-    | 'MODIFICACIÓN_AUDITORÍA';
+    | 'MODIFICACIÓN_AUDITORÍA'
+    | 'EVALUACIÓN_CUMPLIMIENTO'
+    | 'ANTECEDENTES_RAN';
   entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor';
   entityCode: string;
   details: string;
