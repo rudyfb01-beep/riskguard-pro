@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { ResilienceService } from '../services/resilience.service';
+import { BiaRan209, MIN_SCENARIOS, PlanRan209, TestRan209 } from '../models/compliance.model';
 import { SecurityService } from '../services/security.service';
 import { CAC_BUSINESS_LINES } from '../models/risk.model';
 import {
@@ -153,6 +154,20 @@ type SubTab = 'bia' | 'planes' | 'pruebas';
 
         <!-- Planes -->
         @case ('planes') {
+          <div class="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
+            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-800 flex items-center gap-1.5"><mat-icon class="text-sm text-emerald-700">policy</mat-icon> Escenarios mínimos (RAN 20-9 I.8 e I.10): cobertura y pruebas de los últimos 12 meses</div>
+            <table class="w-full text-xs min-w-[640px]">
+              <tbody class="divide-y divide-slate-100">
+                @for (c of scenarioCoverage(); track c.scenario) {
+                  <tr>
+                    <td class="py-2 px-4 font-medium text-slate-800">{{ c.scenario }}</td>
+                    <td class="py-2 px-3 text-[11px]" [class]="c.plans.length ? 'text-slate-700' : 'text-rose-700 font-semibold'">{{ c.plans.length ? 'Planes: ' + c.plans.join(', ') : 'Sin plan vigente que lo cubra' }}</td>
+                    <td class="py-2 px-3 text-[11px] text-right" [class]="c.tested ? 'text-emerald-700 font-semibold' : 'text-rose-700 font-semibold'">{{ c.tested ? 'Probado ' + c.lastTest : (c.lastTest ? 'Prueba vencida (' + c.lastTest + ')' : 'Sin prueba') }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
             @for (pl of res.plans(); track pl.id) {
               @let last = res.lastTest(pl.id);
@@ -296,6 +311,15 @@ type SubTab = 'bia' | 'planes' | 'pruebas';
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Fecha de revisión del BIA</span><input type="date" [class]="inputCls" [value]="d.lastReviewDate" (input)="setBia('lastReviewDate', $any($event.target).value)" /></label>
             </div>
 
+            @let br = d.ran209 ?? emptyBia;
+            <div class="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/30 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <span class="sm:col-span-2 text-xs font-bold text-slate-800 flex items-center gap-1.5"><mat-icon class="text-sm text-emerald-700">policy</mat-icon> RAN 20-9 I.7: aprobación del RTO y análisis de riesgos</span>
+              <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">RTO aprobado por el Consejo (fecha)</span><input type="date" [class]="inputCls" [value]="br.rtoApprovedDate ?? ''" (input)="setBiaRan('rtoApprovedDate', $any($event.target).value || undefined)" /></label>
+              <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Acta o sesión</span><input [class]="inputCls" placeholder="Ej. Sesión N° 512" [value]="br.rtoApprovalRef" (input)="setBiaRan('rtoApprovalRef', $any($event.target).value)" /></label>
+              <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Análisis de riesgos (RIA): fecha</span><input type="date" [class]="inputCls" [value]="br.riaDate ?? ''" (input)="setBiaRan('riaDate', $any($event.target).value || undefined)" /></label>
+              <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Resultado del RIA</span><input [class]="inputCls" placeholder="Riesgos principales y tratamiento" [value]="br.riaSummary" (input)="setBiaRan('riaSummary', $any($event.target).value)" /></label>
+            </div>
+
             <div class="p-3.5 rounded-xl border border-slate-200 space-y-1.5">
               <span class="text-xs font-bold text-slate-800">Proveedores de los que depende</span>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-1">
@@ -347,6 +371,14 @@ type SubTab = 'bia' | 'planes' | 'pruebas';
                 </select></label>
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Fecha de aprobación</span><input type="date" [class]="inputCls" [value]="d.approvalDate" (input)="setPlan('approvalDate', $any($event.target).value)" /></label>
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Próxima revisión</span><input type="date" [class]="inputCls" [value]="d.nextReviewDate" (input)="setPlan('nextReviewDate', $any($event.target).value)" /></label>
+            </div>
+            @let pr = d.ran209 ?? emptyPlan;
+            <div class="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/30 space-y-1.5">
+              <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5"><mat-icon class="text-sm text-emerald-700">policy</mat-icon> Escenarios que cubre (RAN 20-9 I.8)</span>
+              @for (sc of scenarios; track sc) {
+                <label class="flex items-center gap-2 text-[11px] text-slate-700"><input type="checkbox" class="rounded" [checked]="pr.scenarios.includes(sc)" (change)="togglePlanScenario(sc, $any($event.target).checked)" />{{ sc }}</label>
+              }
+              <label class="flex items-center gap-2 text-[11px] text-slate-700 pt-1 border-t border-emerald-100"><input type="checkbox" class="rounded" [checked]="pr.returnToNormal" (change)="setPlanRan('returnToNormal', $any($event.target).checked)" /> Incluye procedimiento de retorno a la operación normal (I.9)</label>
             </div>
             <div class="p-3.5 rounded-xl border border-slate-200 space-y-1.5">
               <span class="text-xs font-bold text-slate-800">Procesos cubiertos</span>
@@ -403,6 +435,23 @@ type SubTab = 'bia' | 'planes' | 'pruebas';
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">RTO logrado (horas)</span><input type="number" min="0" step="0.5" [class]="inputCls" [value]="d.achievedRtoHours ?? ''" (input)="setTest('achievedRtoHours', $any($event.target).value === '' ? undefined : +$any($event.target).value)" /></label>
               <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Hallazgos</span><textarea rows="2" [class]="inputCls" [value]="d.findings" (input)="setTest('findings', $any($event.target).value)"></textarea></label>
               <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Acciones de mejora</span><textarea rows="2" [class]="inputCls" [value]="d.actions" (input)="setTest('actions', $any($event.target).value)"></textarea></label>
+            </div>
+            @let tr = d.ran209 ?? emptyTest;
+            <div class="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/30 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <span class="sm:col-span-2 text-xs font-bold text-slate-800 flex items-center gap-1.5"><mat-icon class="text-sm text-emerald-700">policy</mat-icon> RAN 20-9 I.10–I.11</span>
+              <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Escenario mínimo que prueba</span>
+                <select [class]="inputCls" (change)="setTestRan('scenario', $any($event.target).value || undefined)">
+                  <option value="" [selected]="!tr.scenario">Otro escenario</option>
+                  @for (sc of scenarios; track sc) { <option [value]="sc" [selected]="sc === tr.scenario">{{ sc }}</option> }
+                </select></label>
+              <label class="flex items-center gap-2 text-[11px] text-slate-700"><input type="checkbox" class="rounded" [checked]="tr.siteUnavailability" (change)="setTestRan('siteUnavailability', $any($event.target).checked)" /> Simula la indisponibilidad del sitio de procesamiento</label>
+              @if (tr.siteUnavailability) {
+                <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Procesos probados</span>
+                  <select [class]="inputCls" (change)="setTestRan('processingMode', $any($event.target).value)">
+                    @for (m of processingModes; track m) { <option [value]="m" [selected]="m === tr.processingMode">{{ m }}</option> }
+                  </select></label>
+                <label class="flex items-center gap-2 text-[11px] text-slate-700"><input type="checkbox" class="rounded" [checked]="tr.priorRiskAnalysis" (change)="setTestRan('priorRiskAnalysis', $any($event.target).checked)" /> Con análisis de riesgos previo</label>
+              }
             </div>
             @if (testRtoGap(d); as gap) {
               <p class="text-[11px] text-rose-700 flex items-center gap-1"><mat-icon class="text-xs">error</mat-icon> {{ gap }}</p>
@@ -521,6 +570,46 @@ export class ContinuityPanel {
     this.biaDraft.set({ ...b, impact: { ...b.impact }, systems: [...b.systems], providerIds: [...b.providerIds] });
   }
   setBia<K extends keyof BiaProcess>(key: K, value: BiaProcess[K]) { this.biaDraft.update(d => (d ? { ...d, [key]: value } : d)); }
+
+  // --- RAN 20-9
+  readonly scenarios = MIN_SCENARIOS;
+  readonly processingModes: NonNullable<TestRan209['processingMode']>[] = ['Online y batch', 'Online', 'Batch'];
+  readonly emptyBia: BiaRan209 = { rtoApprovalRef: '', riaSummary: '' };
+  readonly emptyPlan: PlanRan209 = { scenarios: [], returnToNormal: false };
+  readonly emptyTest: TestRan209 = { siteUnavailability: false, priorRiskAnalysis: false };
+
+  setBiaRan<K extends keyof BiaRan209>(k: K, v: BiaRan209[K]) {
+    this.biaDraft.update(d => (d ? { ...d, ran209: { ...(d.ran209 ?? this.emptyBia), [k]: v } } : d));
+  }
+
+  setPlanRan<K extends keyof PlanRan209>(k: K, v: PlanRan209[K]) {
+    this.planDraft.update(d => (d ? { ...d, ran209: { ...(d.ran209 ?? this.emptyPlan), [k]: v } } : d));
+  }
+
+  togglePlanScenario(sc: string, on: boolean) {
+    const cur = this.planDraft()?.ran209?.scenarios ?? [];
+    this.setPlanRan('scenarios', on ? [...cur, sc] : cur.filter(x => x !== sc));
+  }
+
+  setTestRan<K extends keyof TestRan209>(k: K, v: TestRan209[K]) {
+    this.testDraft.update(d => {
+      if (!d) return d;
+      const next = { ...(d.ran209 ?? this.emptyTest), [k]: v };
+      if (k === 'siteUnavailability' && v && !next.processingMode) next.processingMode = 'Online y batch';
+      return { ...d, ran209: next };
+    });
+  }
+
+  /** Cobertura de los escenarios mínimos: planes vigentes que los cubren y última prueba (12 meses). */
+  readonly scenarioCoverage = computed(() => {
+    const yearAgo = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
+    return MIN_SCENARIOS.map(sc => ({
+      scenario: sc,
+      plans: this.res.plans().filter(p => p.status === 'Vigente' && p.ran209?.scenarios.includes(sc)).map(p => p.code),
+      lastTest: this.res.tests().filter(t => t.ran209?.scenario === sc).map(t => t.date).sort().reverse()[0] as string | undefined,
+      tested: this.res.tests().some(t => t.ran209?.scenario === sc && t.date >= yearAgo),
+    }));
+  });
   setImpact(key: keyof BiaImpact, value: number) { this.biaDraft.update(d => (d ? { ...d, impact: { ...d.impact, [key]: value } } : d)); }
   toggleProvider(id: string, on: boolean) {
     this.biaDraft.update(d => (d ? { ...d, providerIds: on ? [...d.providerIds, id] : d.providerIds.filter(x => x !== id) } : d));

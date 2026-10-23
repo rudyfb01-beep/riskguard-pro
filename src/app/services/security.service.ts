@@ -10,7 +10,8 @@ import {
   VulnSeverity,
   Vulnerability,
 } from '../models/security.model';
-import { BASE_ASSESSMENT_ITEMS, DEMO_ASSESSMENT, DEMO_ASSETS, DEMO_VULNERABILITIES } from '../data/security-seed';
+import { BASE_ASSESSMENT_ITEMS, DEMO_ASSESSMENT, DEMO_ASSETS, DEMO_SECURITY_TESTS, DEMO_VULNERABILITIES } from '../data/security-seed';
+import { SecurityTest, SecurityTestType } from '../models/compliance.model';
 
 const DAY = 86_400_000;
 const toDate = (s: string) => new Date(s + 'T00:00:00');
@@ -38,6 +39,40 @@ export class SecurityService {
   );
 
   readonly today = signal(new Date().toISOString().slice(0, 10));
+
+  // ---------------------------------------------------------------------------
+  // Pruebas de seguridad (RAN 20-10 4.1 y 4.2)
+  // ---------------------------------------------------------------------------
+
+  readonly securityTests = signal<SecurityTest[]>(structuredClone(DEMO_SECURITY_TESTS));
+
+  /** Última prueba de alguno de los tipos indicados (o null). */
+  lastTest(...types: SecurityTestType[]): SecurityTest | null {
+    return [...this.securityTests()].filter(t => types.includes(t.type)).sort((a, b) => b.date.localeCompare(a.date))[0] ?? null;
+  }
+
+  /** true si la fecha está dentro de los últimos `days` días. */
+  within(date: string | undefined, days: number): boolean {
+    return !!date && date >= addDays(this.today(), -days);
+  }
+
+  async saveSecurityTest(t: SecurityTest) {
+    this.rs.ensure(['canManageInfoSecurity'], 'registrar pruebas de seguridad');
+    if (!t.date || !t.scope.trim()) throw new Error('Ingresa fecha y alcance de la prueba.');
+    const prev = this.securityTests().find(x => x.id === t.id);
+    const clean = { ...t, scope: t.scope.trim() };
+    this.securityTests.update(list => (prev ? list.map(x => (x.id === t.id ? clean : x)) : [clean, ...list]));
+    await this.rs.appendAuditLog('AUTOEVALUACIÓN_SEGURIDAD', 'Seguridad', t.id,
+      `${prev ? 'Prueba de seguridad actualizada' : 'Prueba de seguridad registrada'}: ${t.type} del ${t.date} (${t.result}).${t.reportedToBoardDate ? ` Informada al Consejo el ${t.reportedToBoardDate}.` : ''}`);
+  }
+
+  async deleteSecurityTest(id: string) {
+    this.rs.ensure(['canManageInfoSecurity'], 'eliminar pruebas de seguridad');
+    const t = this.securityTests().find(x => x.id === id);
+    if (!t) return;
+    this.securityTests.update(list => list.filter(x => x.id !== id));
+    await this.rs.appendAuditLog('AUTOEVALUACIÓN_SEGURIDAD', 'Seguridad', id, `Prueba de seguridad eliminada: ${t.type} del ${t.date}.`);
+  }
 
   // ---------------------------------------------------------------------------
   // Activos

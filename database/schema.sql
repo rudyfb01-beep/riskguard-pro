@@ -864,3 +864,48 @@ CREATE TABLE IF NOT EXISTS business_processes (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_business_processes_name ON business_processes (lower(name));
 CREATE INDEX IF NOT EXISTS idx_business_processes_area ON business_processes (area_id);
+
+-- ==============================================================================
+-- 24. CUMPLIMIENTO RAN 20-7, 20-8, 20-9 Y 20-10
+-- ==============================================================================
+
+ALTER TABLE service_providers ADD COLUMN IF NOT EXISTS ran207 JSONB;
+ALTER TABLE bia_processes ADD COLUMN IF NOT EXISTS ran209 JSONB;
+ALTER TABLE continuity_plans ADD COLUMN IF NOT EXISTS ran209 JSONB;
+ALTER TABLE continuity_tests ADD COLUMN IF NOT EXISTS ran209 JSONB;
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS cyber JSONB;
+ALTER TABLE info_assets ADD COLUMN IF NOT EXISTS critical_infrastructure BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Matriz de requisitos normativos con su evaluación
+CREATE TABLE IF NOT EXISTS compliance_requirements (
+    id VARCHAR(120) PRIMARY KEY,
+    chapter VARCHAR(10) NOT NULL CHECK (chapter IN ('20-7', '20-8', '20-9', '20-10')),
+    numeral VARCHAR(40) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    requirement TEXT NOT NULL,
+    module VARCHAR(60),
+    auto_check VARCHAR(60),
+    frequency VARCHAR(20) NOT NULL DEFAULT 'Anual' CHECK (frequency IN ('Permanente', 'Anual', 'Semestral', 'Por evento')),
+    status VARCHAR(30) NOT NULL DEFAULT 'Sin evaluar' CHECK (status IN ('Sin evaluar', 'Cumple', 'Cumple parcialmente', 'No cumple', 'No aplica')),
+    evidence TEXT,
+    owner VARCHAR(255),
+    action_plan TEXT,
+    due_date DATE,
+    last_review_date DATE,
+    reviewed_by VARCHAR(255),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_compliance_chapter ON compliance_requirements (chapter);
+
+-- Pruebas de seguridad (RAN 20-10 4.1 y 4.2)
+CREATE TABLE IF NOT EXISTS security_tests (
+    id VARCHAR(64) PRIMARY KEY,
+    test_date DATE NOT NULL,
+    type VARCHAR(80) NOT NULL,
+    scope TEXT NOT NULL,
+    executed_by VARCHAR(255),
+    result VARCHAR(30) NOT NULL CHECK (result IN ('Satisfactoria', 'Con observaciones', 'Insatisfactoria')),
+    findings TEXT,
+    reported_to_board_date DATE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

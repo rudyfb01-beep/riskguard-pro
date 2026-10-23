@@ -293,6 +293,17 @@
               </button>
 
               <button
+                (click)="setTab('cumplimiento-ran')"
+                [class]="activeTab() === 'cumplimiento-ran'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-emerald-700">policy</mat-icon>
+                <span>Cumplimiento RAN</span>
+              </button>
+
+              <button
                 (click)="setTab('mantenedores')"
                 [class]="activeTab() === 'mantenedores'
                   ? 'bg-slate-900 text-white font-semibold'
@@ -1113,6 +1124,11 @@
     <!-- TAB: PROVEEDORES Y EXTERNALIZACIÓN -->
     @if (activeTab() === 'proveedores') {
       <app-providers-panel (notify)="showToast($event)" />
+    }
+
+    <!-- TAB: CUMPLIMIENTO RAN -->
+    @if (activeTab() === 'cumplimiento-ran') {
+      <app-compliance-panel (notify)="showToast($event)" (openModule)="openModule($event)" />
     }
 
     <!-- TAB: MANTENEDORES -->

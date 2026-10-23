@@ -1,3 +1,4 @@
+import type { BiaRan209, PlanRan209, ProviderRan207, TestRan209 } from './compliance.model';
 import { CacBusinessLine } from './risk.model';
 
 // =============================================================================
@@ -28,9 +29,16 @@ export const CONTRACT_CLAUSES = [
   { key: 'incidentNotification', label: 'Notificación oportuna de incidentes' },
   { key: 'continuity', label: 'Plan de continuidad del proveedor y pruebas' },
   { key: 'serviceLevels', label: 'Niveles de servicio (SLA) y penalidades' },
-  { key: 'subcontracting', label: 'Condiciones para subcontratación' },
+  { key: 'subcontracting', label: 'Condiciones para subcontratación y derecho a veto de subcontratistas' },
   { key: 'dataLocation', label: 'Ubicación, respaldo y devolución de datos' },
   { key: 'termination', label: 'Término anticipado y transición (salida)' },
+  // RAN 20-7, Anexo 1 §3 (contenido mínimo de los contratos)
+  { key: 'pricing', label: 'Método de fijación de precios y desglose de cobros' },
+  { key: 'softwareUse', label: 'Restricciones de uso de software' },
+  { key: 'secureDeletion', label: 'Eliminación segura de datos de la cooperativa y sus socios al término' },
+  { key: 'personnel', label: 'Idoneidad del personal y cumplimiento de obligaciones legales y laborales' },
+  { key: 'securityProgram', label: 'Programa de seguridad acorde a las políticas de la cooperativa' },
+  { key: 'language', label: 'Contrato y anexos en español, firmados por ambas partes' },
 ] as const;
 export type ContractClauseKey = typeof CONTRACT_CLAUSES[number]['key'];
 
@@ -66,6 +74,7 @@ export interface ServiceProvider {
   hasExitPlan: boolean;
   exitPlanNotes?: string;
   committedRtoHours?: number;   // RTO comprometido contractualmente
+  ran207?: ProviderRan207;       // antecedentes RAN 20-7 (criticidad, sitios, subcontratistas, nube, riesgo país)
 }
 
 export type ProviderAlertType =
@@ -112,6 +121,7 @@ export interface BiaProcess {
   minimumStaff: number;
   alternateSite: string;
   lastReviewDate: string;  // YYYY-MM-DD
+  ran209?: BiaRan209;      // RTO aprobado por el Consejo y RIA (RAN 20-9 I.7)
 }
 
 export type ContinuityPlanType = 'Plan de Continuidad (BCP)' | 'Recuperación ante Desastres (DRP)' | 'Gestión de Crisis' | 'Comunicaciones de Crisis';
@@ -128,6 +138,7 @@ export interface ContinuityPlan {
   approvalDate: string;    // YYYY-MM-DD
   nextReviewDate: string;  // YYYY-MM-DD
   status: 'Vigente' | 'En actualización' | 'Borrador';
+  ran209?: PlanRan209;     // escenarios cubiertos y retorno a la normalidad (RAN 20-9 I.8–I.9)
 }
 
 export type ContinuityTestType = 'Ejercicio de escritorio' | 'Simulacro' | 'Prueba técnica DRP' | 'Prueba integral con proveedores';
@@ -143,6 +154,7 @@ export interface ContinuityTest {
   result: 'Exitosa' | 'Con observaciones' | 'Fallida';
   findings: string;
   actions: string;
+  ran209?: TestRan209;     // escenario mínimo, indisponibilidad de sitio (RAN 20-9 I.10–I.11)
 }
 
 export type ContinuityAlertType =

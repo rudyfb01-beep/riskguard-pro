@@ -5,6 +5,7 @@ function clausesExcept(...missing: ContractClauseKey[]): Record<ContractClauseKe
   const all: ContractClauseKey[] = [
     'regulatorAccess', 'auditRights', 'confidentiality', 'incidentNotification', 'continuity',
     'serviceLevels', 'subcontracting', 'dataLocation', 'termination',
+    'pricing', 'softwareUse', 'secureDeletion', 'personnel', 'securityProgram', 'language',
   ];
   return Object.fromEntries(all.map(k => [k, !missing.includes(k)])) as Record<ContractClauseKey, boolean>;
 }
@@ -21,6 +22,7 @@ export const SEED_PROVIDERS: ServiceProvider[] = [
     clauses: clausesExcept(), lastAssessmentDate: '2026-03-10', assessmentScore: 88,
     hasExitPlan: true, exitPlanNotes: 'Migración a proveedor alternativo en 9 meses con extracción completa de datos en formato estándar.',
     committedRtoHours: 4,
+    ran207: { significance: ['continuity', 'secrecy', 'riskMgmt'], primarySite: 'Santiago, Chile', contingencySite: 'Concepción, Chile', contingencyInChile: true, investmentGradeCountry: true, countryRiskAnalysis: '', subcontractors: [], providerContinuityTestDate: '2026-03-15', providerSecurityTestDate: '2026-02-10', cloudDueDiligence: {}, lastAuditDate: '2026-01-20' }
   },
   {
     id: 'prv-2', code: 'PRV-002', name: 'NubeSur Cloud Services', taxId: '77.333.444-5',
@@ -31,6 +33,7 @@ export const SEED_PROVIDERS: ServiceProvider[] = [
     contractStart: '2024-04-01', contractEnd: '2027-03-31', annualCostUSD: 185000,
     clauses: clausesExcept('regulatorAccess'), lastAssessmentDate: '2025-08-20', assessmentScore: 74,
     hasExitPlan: false, committedRtoHours: 8,
+    ran207: { significance: ['continuity', 'secrecy'], primarySite: 'Virginia, Estados Unidos', contingencySite: 'Ohio, Estados Unidos', contingencyInChile: false, boardWaiverDate: '2025-09-30', independentReportDate: '2025-08-15', investmentGradeCountry: true, countryRiskAnalysis: '', subcontractors: [{ name: 'DataCenter Partners', country: 'Estados Unidos', service: 'Hosting físico', meetsConditions: true }], providerContinuityTestDate: '2025-07-01', cloudDueDiligence: { prestige: true, certifications: true, directContract: true, legalReport: false, auditReports: true, isolation: true, encryption: false } }
   },
   {
     id: 'prv-3', code: 'PRV-003', name: 'Pagos Andinos S.A.', taxId: '96.555.666-7',
@@ -89,6 +92,7 @@ export const SEED_BIA: BiaProcess[] = [
     impact: { financial: 4, members: 4, regulatory: 4, reputational: 4 }, mtpdHours: 8, rtoHours: 4, rpoHours: 0.25,
     systems: ['Core financiero', 'Plataforma de cajas'], providerIds: ['prv-1', 'prv-2'], minimumStaff: 12,
     alternateSite: 'Sitio alterno en la nube + sucursales de respaldo', lastReviewDate: '2026-04-15',
+    ran209: { rtoApprovedDate: '2026-05-20', rtoApprovalRef: 'Sesión de Consejo N° 498', riaDate: '2026-05-02', riaSummary: 'Riesgo principal: caída del core; tratado con sitio alterno en la nube.' }
   },
   {
     id: 'bia-3', name: 'Transferencias y pagos en canales digitales', owner: 'Ing. Alejandro Vega', businessLine: 'Medios y Canales de Pago',
@@ -96,6 +100,7 @@ export const SEED_BIA: BiaProcess[] = [
     impact: { financial: 4, members: 4, regulatory: 3, reputational: 4 }, mtpdHours: 6, rtoHours: 4, rpoHours: 0.25,
     systems: ['Portal web y app de socios', 'Core financiero', 'Switch de transferencias'], providerIds: ['prv-1', 'prv-2'], minimumStaff: 4,
     alternateSite: 'Sitio alterno en la nube', lastReviewDate: '2026-04-15',
+    ran209: { rtoApprovedDate: '2026-05-20', rtoApprovalRef: 'Sesión de Consejo N° 498', riaDate: '2025-03-10', riaSummary: 'Dependencia del proveedor de nube y del switch de pagos.' }
   },
   {
     id: 'bia-4', name: 'Recaudación de cuotas de crédito', owner: 'Ing. Carlos Mendoza', businessLine: 'Créditos de Consumo',
@@ -132,16 +137,19 @@ export const SEED_PLANS: ContinuityPlan[] = [
     id: 'pln-1', code: 'BCP-01', name: 'Plan de continuidad de operaciones con socios', type: 'Plan de Continuidad (BCP)',
     processIds: ['bia-2', 'bia-3', 'bia-4', 'bia-7'], owner: 'Ing. Carlos Mendoza', version: '3.1',
     approvedBy: 'Consejo de Administración', approvalDate: '2026-03-25', nextReviewDate: '2027-03-25', status: 'Vigente',
+    ran209: { scenarios: ['Ausencia de personal crítico', 'Imposibilidad de acceder a instalaciones físicas'], returnToNormal: true }
   },
   {
     id: 'pln-2', code: 'DRP-01', name: 'Recuperación del centro de datos y core financiero', type: 'Recuperación ante Desastres (DRP)',
     processIds: ['bia-1', 'bia-2', 'bia-3'], owner: 'Ing. Alejandro Vega', version: '2.4',
     approvedBy: 'Gerente General', approvalDate: '2025-09-15', nextReviewDate: '2026-09-15', status: 'En actualización',
+    ran209: { scenarios: ['Falla total o parcial de sistemas tecnológicos', 'Falla de servicios críticos de proveedores'], returnToNormal: true }
   },
   {
     id: 'pln-3', code: 'CRI-01', name: 'Plan de gestión de crisis', type: 'Gestión de Crisis',
     processIds: [], owner: 'Sr. Patricio Rojas', version: '1.2',
     approvedBy: 'Consejo de Administración', approvalDate: '2026-01-20', nextReviewDate: '2027-01-20', status: 'Vigente',
+    ran209: { scenarios: ['Ataque malicioso a la ciberseguridad'], returnToNormal: false }
   },
 ];
 
@@ -152,6 +160,7 @@ export const SEED_TESTS: ContinuityTest[] = [
     processId: 'bia-3', achievedRtoHours: 6.5, result: 'Con observaciones',
     findings: 'La restauración de la base del switch de transferencias tomó 4 horas más de lo previsto.',
     actions: 'Automatizar la restauración y repetir la prueba antes de diciembre.',
+    ran209: { scenario: 'Falla total o parcial de sistemas tecnológicos', siteUnavailability: true, processingMode: 'Online', priorRiskAnalysis: true }
   },
   {
     id: 'tst-2', planId: 'pln-1', date: '2026-08-22', type: 'Simulacro',
@@ -159,5 +168,6 @@ export const SEED_TESTS: ContinuityTest[] = [
     processId: 'bia-7', achievedRtoHours: 3, result: 'Exitosa',
     findings: 'Atención derivada a sucursales cercanas en 3 horas.',
     actions: 'Actualizar el árbol de llamadas del personal.',
+    ran209: { scenario: 'Imposibilidad de acceder a instalaciones físicas', siteUnavailability: false, priorRiskAnalysis: false }
   },
 ];

@@ -19,9 +19,10 @@ import {
   VulnStatus,
   Vulnerability,
 } from '../models/security.model';
+import { SECURITY_TEST_TYPES, SecurityTest } from '../models/compliance.model';
 
 const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100';
-type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion';
+type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion' | 'pruebas' | 'incidentes';
 
 /** Seguridad de la información: activos, vulnerabilidades y autoevaluación. */
 @Component({
@@ -127,6 +128,7 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion';
                       <div class="font-semibold text-slate-900">{{ a.name }} <span class="font-mono text-[10px] text-slate-400">{{ a.code }}</span></div>
                       <div class="text-[10px] text-slate-500 flex items-center gap-1">{{ a.type }}
                         @if (a.handlesPersonalData) { <span class="px-1 rounded bg-sky-100 text-sky-800 font-semibold">Datos personales</span> }
+                        @if (a.criticalInfrastructure) { <span class="px-1 rounded bg-violet-100 text-violet-800 font-semibold">Infraestructura crítica</span> }
                       </div>
                     </td>
                     <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-semibold" [class]="classifClass(a.classification)">{{ a.classification }}</span></td>
@@ -303,6 +305,73 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion';
             </div>
           }
         }
+        @case ('pruebas') {
+          <div class="p-3 rounded-xl border border-violet-200 bg-violet-50/40 text-[11px] text-violet-900 flex items-start gap-2">
+            <mat-icon class="text-sm text-violet-600 shrink-0">policy</mat-icon>
+            <span class="flex-1">RAN 20-10: pruebas de seguridad periódicas (penetración o hacking ético) con resultados informados al Consejo al menos semestralmente;
+              prueba de restauración de respaldos y del plan de respuesta a incidentes al menos una vez al año.</span>
+            @if (canManage()) {
+              <button type="button" (click)="newTest()" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-700 text-white hover:bg-violet-600 cursor-pointer shrink-0 flex items-center gap-1"><mat-icon class="text-sm">add</mat-icon>Registrar prueba</button>
+            }
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            @for (k of testKpis(); track k.label) {
+              <div class="bg-white p-3 rounded-xl border" [class]="k.ok ? 'border-emerald-200' : 'border-rose-300'">
+                <span class="text-[11px] font-semibold text-slate-600 block">{{ k.label }}</span>
+                <span class="text-sm font-bold" [class]="k.ok ? 'text-emerald-700' : 'text-rose-700'">{{ k.value }}</span>
+              </div>
+            }
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
+            <table class="w-full text-xs min-w-[860px]">
+              <thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-200">
+                <tr><th class="text-left py-2.5 px-3">Fecha</th><th class="text-left py-2.5 px-3">Tipo</th><th class="text-left py-2.5 px-3">Alcance</th><th class="text-left py-2.5 px-3">Ejecutó</th><th class="text-left py-2.5 px-3">Resultado</th><th class="text-left py-2.5 px-3">Informe al Consejo</th><th class="py-2.5 px-3"></th></tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                @for (t of sec.securityTests(); track t.id) {
+                  <tr>
+                    <td class="py-2 px-3 font-mono text-[11px]">{{ t.date }}</td>
+                    <td class="py-2 px-3 font-semibold text-slate-900">{{ t.type }}</td>
+                    <td class="py-2 px-3 text-slate-700 max-w-[260px]">{{ t.scope }}@if (t.findings) { <div class="text-[10px] text-slate-500">{{ t.findings }}</div> }</td>
+                    <td class="py-2 px-3 text-slate-600">{{ t.executedBy }}</td>
+                    <td class="py-2 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold" [class]="t.result === 'Satisfactoria' ? 'bg-emerald-100 text-emerald-800' : t.result === 'Con observaciones' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'">{{ t.result }}</span></td>
+                    <td class="py-2 px-3 font-mono text-[11px]">{{ t.reportedToBoardDate || '—' }}</td>
+                    <td class="py-2 px-3 text-right"><button type="button" (click)="editTest(t)" class="px-2.5 py-1 text-[11px] font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">{{ canManage() ? 'Editar' : 'Ver' }}</button></td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="7" class="py-8 text-center text-slate-500">Sin pruebas registradas.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+        @case ('incidentes') {
+          <div class="p-3 rounded-xl border border-violet-200 bg-violet-50/40 text-[11px] text-violet-900 flex items-start gap-2">
+            <mat-icon class="text-sm text-violet-600 shrink-0">policy</mat-icon>
+            <span>Base de incidentes de ciberseguridad y lecciones aprendidas (RAN 20-10 4.2). Un incidente entra a esta base al marcarlo como
+              "Incidente de ciberseguridad" en su ficha de Incidentes y Pérdidas.</span>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
+            <table class="w-full text-xs min-w-[900px]">
+              <thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-200">
+                <tr><th class="text-left py-2.5 px-3">Incidente</th><th class="text-left py-2.5 px-3">Amenaza</th><th class="text-left py-2.5 px-3">Alerta a la industria</th><th class="text-left py-2.5 px-3">Forense</th><th class="text-left py-2.5 px-3">Lecciones aprendidas</th></tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                @for (f of cyberIncidents(); track f.id) {
+                  <tr>
+                    <td class="py-2 px-3"><div class="font-semibold text-slate-900">{{ f.title }}</div><div class="text-[10px] text-slate-500 font-mono">{{ f.id }} · {{ f.reportedAt | date:'yyyy-MM-dd' }}</div></td>
+                    <td class="py-2 px-3 text-slate-700">{{ f.cyber!.threatType || '—' }}@if (f.cyber!.malware) { <div class="text-[10px] text-slate-500">{{ f.cyber!.malware }}</div> }</td>
+                    <td class="py-2 px-3 text-[11px]" [class]="f.cyber!.industryAlertAt ? 'text-emerald-700' : 'text-rose-700 font-semibold'">{{ f.cyber!.industryAlertAt ? (f.cyber!.industryAlertAt | date:'yyyy-MM-dd HH:mm') : 'Pendiente' }}</td>
+                    <td class="py-2 px-3 text-[11px]" [class]="!f.cyber!.forensicRequired ? 'text-slate-400' : f.cyber!.forensicDate ? 'text-emerald-700' : 'text-rose-700 font-semibold'">{{ !f.cyber!.forensicRequired ? 'No requerido' : (f.cyber!.forensicDate || 'Pendiente') }}</td>
+                    <td class="py-2 px-3 text-[11px] text-slate-700 max-w-[320px]">{{ f.cyber!.lessonsLearned || '—' }}</td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="5" class="py-8 text-center text-slate-500">No hay incidentes marcados como de ciberseguridad.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
       }
     </div>
 
@@ -356,6 +425,7 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion';
                   </select></label>
                 <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Última revisión</span><input type="date" [class]="inputCls" [value]="d.lastReviewDate" (input)="setAsset('lastReviewDate', $any($event.target).value)" /></label>
                 <label class="flex items-center gap-2 text-xs sm:col-span-3"><input type="checkbox" [checked]="d.handlesPersonalData" (change)="setAsset('handlesPersonalData', $any($event.target).checked)" class="rounded" /> Contiene datos personales (socios o colaboradores)</label>
+                <label class="flex items-center gap-2 text-xs sm:col-span-3"><input type="checkbox" [checked]="!!d.criticalInfrastructure" (change)="setAsset('criticalInfrastructure', $any($event.target).checked)" class="rounded" /> Forma parte de la infraestructura crítica de la industria financiera o del sistema de pagos (RAN 20-10 §5)</label>
               </div>
               @if (d.handlesPersonalData && sec.isDataAbroad(d)) {
                 <p class="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">El proveedor guarda los datos en {{ res.providerById(d.providerId!)?.dataCountry || 'el extranjero' }}: revise los requisitos de transferencia internacional de datos personales.</p>
@@ -486,6 +556,39 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion';
         </div>
       </div>
     }
+
+    <!-- Modal prueba de seguridad -->
+    @if (testDraft(); as t) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-xl my-6 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+            <h2 class="text-base font-bold text-slate-900 flex items-center gap-2"><mat-icon class="text-violet-700">science</mat-icon>{{ testIsNew() ? 'Registrar prueba de seguridad' : t.type }}</h2>
+            <button type="button" (click)="testDraft.set(null)" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer"><mat-icon>close</mat-icon></button>
+          </div>
+          <fieldset class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-3" [disabled]="!canManage()">
+            <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Tipo</span>
+              <select [class]="inputCls" (change)="setTest('type', $any($event.target).value)">@for (k of testTypes; track k) { <option [value]="k" [selected]="k === t.type">{{ k }}</option> }</select></label>
+            <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Fecha *</span><input type="date" [class]="inputCls" [value]="t.date" (input)="setTest('date', $any($event.target).value)" /></label>
+            <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Alcance *</span><input [class]="inputCls" [value]="t.scope" (input)="setTest('scope', $any($event.target).value)" /></label>
+            <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Ejecutada por</span><input [class]="inputCls" [value]="t.executedBy" (input)="setTest('executedBy', $any($event.target).value)" /></label>
+            <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Resultado</span>
+              <select [class]="inputCls" (change)="setTest('result', $any($event.target).value)">@for (r of testResults; track r) { <option [value]="r" [selected]="r === t.result">{{ r }}</option> }</select></label>
+            <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Hallazgos y acciones</span><textarea rows="2" [class]="inputCls" [value]="t.findings" (input)="setTest('findings', $any($event.target).value)"></textarea></label>
+            <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Informada al Consejo (fecha)</span><input type="date" [class]="inputCls" [value]="t.reportedToBoardDate ?? ''" (input)="setTest('reportedToBoardDate', $any($event.target).value || undefined)" /></label>
+          </fieldset>
+          <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center gap-3">
+            @if (!testIsNew() && canManage()) {
+              <button type="button" (click)="removeTest(t)" class="px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer flex items-center gap-1"><mat-icon class="text-sm">delete</mat-icon>Eliminar</button>
+            }
+            <span class="text-[11px] text-rose-700 flex-1">{{ testError() }}</span>
+            <button type="button" (click)="testDraft.set(null)" class="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer">{{ canManage() ? 'Cancelar' : 'Cerrar' }}</button>
+            @if (canManage()) {
+              <button type="button" (click)="saveTest()" class="px-4 py-2 text-xs font-semibold text-white bg-violet-700 hover:bg-violet-600 rounded-lg cursor-pointer">Guardar prueba</button>
+            }
+          </div>
+        </div>
+      </div>
+    }
   `,
 })
 export class SecurityPanel {
@@ -512,6 +615,8 @@ export class SecurityPanel {
     { id: 'activos', label: 'Activos de información', icon: 'inventory_2' },
     { id: 'vulnerabilidades', label: 'Vulnerabilidades', icon: 'bug_report' },
     { id: 'autoevaluacion', label: 'Autoevaluación', icon: 'fact_check' },
+    { id: 'pruebas', label: 'Pruebas de seguridad', icon: 'science' },
+    { id: 'incidentes', label: 'Incidentes de ciberseguridad', icon: 'gpp_maybe' },
   ];
   readonly vulnFilters = [
     { id: 'abiertas', label: 'Abiertas' },
@@ -526,6 +631,66 @@ export class SecurityPanel {
   readonly assetDraft = signal<InformationAsset | null>(null);
   readonly vulnDraft = signal<Vulnerability | null>(null);
   readonly editingItem = signal<SecurityAssessmentItem | null>(null);
+
+  // Pruebas de seguridad e incidentes de ciberseguridad (RAN 20-10)
+  readonly testTypes = SECURITY_TEST_TYPES;
+  readonly testResults: SecurityTest['result'][] = ['Satisfactoria', 'Con observaciones', 'Insatisfactoria'];
+  readonly testDraft = signal<SecurityTest | null>(null);
+  readonly testIsNew = signal(false);
+  readonly testError = signal('');
+
+  readonly cyberIncidents = computed(() => this.rs.flaws().filter(f => f.cyber?.isCyber));
+
+  readonly testKpis = computed(() => {
+    const pen = this.sec.lastTest('Prueba de penetración', 'Hacking ético');
+    const restore = this.sec.lastTest('Prueba de restauración de respaldos');
+    const resp = this.sec.lastTest('Prueba del plan de respuesta a incidentes', 'Ejercicio de gestión de crisis');
+    const board = [...this.sec.securityTests()].map(t => t.reportedToBoardDate).filter((d): d is string => !!d).sort().reverse()[0];
+    const fmt = (t: SecurityTest | null) => (t ? `${t.date}` : 'Sin registro');
+    return [
+      { label: 'Pentest / hacking ético (12 meses)', value: fmt(pen), ok: this.sec.within(pen?.date, 365) },
+      { label: 'Restauración de respaldos (12 meses)', value: fmt(restore), ok: this.sec.within(restore?.date, 365) },
+      { label: 'Plan de respuesta (12 meses) · informe al Consejo (6 meses)', value: `${fmt(resp)} · ${board ?? 'sin informe'}`, ok: this.sec.within(resp?.date, 365) && this.sec.within(board, 183) },
+    ];
+  });
+
+  newTest() {
+    this.testIsNew.set(true);
+    this.testError.set('');
+    this.testDraft.set({ id: `stest-${Date.now().toString(36)}`, date: this.sec.today(), type: 'Prueba de penetración', scope: '', executedBy: '', result: 'Satisfactoria', findings: '' });
+  }
+
+  editTest(t: SecurityTest) {
+    this.testIsNew.set(false);
+    this.testError.set('');
+    this.testDraft.set({ ...t });
+  }
+
+  setTest<K extends keyof SecurityTest>(k: K, v: SecurityTest[K]) {
+    this.testDraft.update(t => (t ? { ...t, [k]: v } : t));
+  }
+
+  async saveTest() {
+    const t = this.testDraft();
+    if (!t) return;
+    try {
+      await this.sec.saveSecurityTest(t);
+      this.notify.emit('Prueba de seguridad guardada.');
+      this.testDraft.set(null);
+    } catch (err) {
+      if (!(err instanceof PermissionDeniedError)) this.testError.set((err as Error).message);
+    }
+  }
+
+  async removeTest(t: SecurityTest) {
+    try {
+      await this.sec.deleteSecurityTest(t.id);
+      this.notify.emit('Prueba eliminada.');
+      this.testDraft.set(null);
+    } catch (err) {
+      if (!(err instanceof PermissionDeniedError)) this.testError.set((err as Error).message);
+    }
+  }
 
   // Definición de requisitos (lista de verificación editable)
   readonly domains = ASSESSMENT_DOMAINS;

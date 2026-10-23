@@ -5,9 +5,10 @@ import {
   DEMO_ACCOUNTING_ACCOUNTS, DEMO_ALERTS, DEMO_AUDITS, DEMO_CONTROLS, DEMO_FLAWS, DEMO_KRIS, DEMO_LEDGER, DEMO_PROCESSES, DEMO_RISKS, DEMO_USERS,
 } from '../app/data/demo-seed';
 import { SEED_BIA, SEED_PLANS, SEED_PROVIDERS, SEED_TESTS } from '../app/data/resilience-seed';
-import { BASE_ASSESSMENT_ITEMS, DEMO_ASSESSMENT, DEMO_ASSETS, DEMO_VULNERABILITIES } from '../app/data/security-seed';
+import { BASE_ASSESSMENT_ITEMS, DEMO_ASSESSMENT, DEMO_ASSETS, DEMO_SECURITY_TESTS, DEMO_VULNERABILITIES } from '../app/data/security-seed';
 import { UserPermissions } from '../app/models/risk.model';
 import { DEMO_APR_INPUTS, EMPTY_APR_INPUTS } from '../app/models/apr.model';
+import { RAN_REQUIREMENTS } from '../app/data/compliance-seed';
 import { DEFAULT_GENERAL_PARAMETERS, DEFAULT_PROVIDER_CATALOGS, DEFAULT_RISK_APPETITE, DEFAULT_RISK_SCALE } from '../app/models/catalog.model';
 import { PoolClient } from 'pg';
 
@@ -19,6 +20,26 @@ const PERMISSION_MIGRATIONS: { perm: keyof UserPermissions; roles: string[] }[] 
   { perm: 'canManageInfoSecurity', roles: ['role-riesgo-op', 'role-gerencia-general', 'role-ciso'] },
   { perm: 'canManageCatalogs', roles: ['role-riesgo-op'] },
 ];
+
+/**
+ * RAN 20-7/20-8/20-9/20-10 (una sola vez): matriz de requisitos y cláusulas mínimas de contrato
+ * del Anexo 1 de la RAN 20-7 en el catálogo de proveedores (se agregan las que falten).
+ */
+async function migrateRanCompliance(c: PoolClient) {
+  if ((await c.query(`SELECT 1 FROM system_settings WHERE key = 'migration_ran_compliance_v1'`)).rowCount) return;
+  for (const req of RAN_REQUIREMENTS) {
+    const exists = (await c.query('SELECT 1 FROM compliance_requirements WHERE id = $1', [req.id])).rowCount;
+    if (!exists) await saveEntity('compliance', req, c);
+  }
+  const pc = await c.query(`SELECT value FROM system_settings WHERE key = 'provider_catalogs'`);
+  if (pc.rows[0]?.value && Array.isArray(pc.rows[0].value.clauses)) {
+    const v = pc.rows[0].value;
+    const keys = new Set(v.clauses.map((x: { key: string }) => x.key));
+    for (const cl of DEFAULT_PROVIDER_CATALOGS.clauses) if (!keys.has(cl.key)) v.clauses.push(cl);
+    await saveSetting('provider_catalogs', v, c);
+  }
+  await c.query(`INSERT INTO system_settings (key, value) VALUES ('migration_ran_compliance_v1', 'true') ON CONFLICT (key) DO NOTHING`);
+}
 
 /**
  * Carga inicial de mantenedores (una sola vez, cuando las tablas están vacías):
@@ -139,6 +160,7 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
       for (const x of SEED_TESTS) await saveEntity('continuity-tests', x, c);
       for (const x of DEMO_ASSETS) await saveEntity('info-assets', x, c);
       for (const x of DEMO_VULNERABILITIES) await saveEntity('vulnerabilities', x, c);
+      for (const x of DEMO_SECURITY_TESTS) await saveEntity('security-tests', x, c);
       for (const i of BASE_ASSESSMENT_ITEMS) {
         const demo = DEMO_ASSESSMENT[i.code];
         if (demo) await saveEntity('security-assessment', { ...i, ...demo }, c);
@@ -165,6 +187,7 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
     await c.query('SELECT pg_advisory_xact_lock(727003)');
     const hasRisks = (await c.query('SELECT 1 FROM risks LIMIT 1')).rowCount! > 0;
     await seedCatalogs(c, wantDemo || hasRisks);
+    await migrateRanCompliance(c);
   });
 
   // El correo del administrador inicial se puede fijar o corregir con ADMIN_EMAIL.

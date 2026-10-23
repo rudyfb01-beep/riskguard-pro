@@ -167,3 +167,11 @@ export const DEMO_VULNERABILITIES: Vulnerability[] = [
     remediation: 'Verificación en dos pasos obligatoria con llaves de seguridad para administradores.', closedDate: '2026-04-30',
   },
 ];
+
+/** Pruebas de seguridad de ejemplo (fechas relativas a hoy). */
+const ago = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+export const DEMO_SECURITY_TESTS: import('../models/compliance.model').SecurityTest[] = [
+  { id: 'stest-1', date: ago(120), type: 'Prueba de penetración', scope: 'Canales digitales (web y app de socios) y perímetro', executedBy: 'Empresa externa especializada', result: 'Con observaciones', findings: '2 vulnerabilidades altas en la API de la app; corregidas en 30 días.', reportedToBoardDate: ago(100) },
+  { id: 'stest-2', date: ago(200), type: 'Prueba de restauración de respaldos', scope: 'Core financiero y base de datos de socios', executedBy: 'Equipo de infraestructura', result: 'Satisfactoria', findings: 'Restauración dentro del RPO de 1 hora.' },
+  { id: 'stest-3', date: ago(420), type: 'Prueba del plan de respuesta a incidentes', scope: 'Escenario de ransomware en estaciones de sucursales', executedBy: 'CISO y comité de crisis', result: 'Con observaciones', findings: 'Escalamiento a la gerencia tardó 50 minutos; se ajustó el árbol de llamadas.' },
+];

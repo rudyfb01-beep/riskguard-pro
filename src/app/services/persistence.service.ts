@@ -4,6 +4,7 @@ import { ResilienceService } from './resilience.service';
 import { SecurityService } from './security.service';
 import { AprService } from './apr.service';
 import { CatalogService } from './catalog.service';
+import { ComplianceService } from './compliance.service';
 import { AuditLogEntry, UserProfile } from '../models/risk.model';
 
 export type DataMode = 'loading' | 'login' | 'database' | 'demo' | 'error';
@@ -49,6 +50,7 @@ export class PersistenceService {
   private readonly sec = inject(SecurityService);
   private readonly apr = inject(AprService);
   private readonly cat = inject(CatalogService);
+  private readonly comp = inject(ComplianceService);
 
   readonly mode = signal<DataMode>('loading');
   readonly loadError = signal<string | null>(null);
@@ -84,6 +86,8 @@ export class PersistenceService {
     this.col('info-assets', 'infoAssets', this.sec.assets),
     this.col('vulnerabilities', 'vulnerabilities', this.sec.vulnerabilities),
     this.col('security-assessment', 'securityAssessment', this.sec.assessment),
+    this.col('compliance', 'compliance', this.comp.requirements),
+    this.col('security-tests', 'securityTests', this.sec.securityTests),
   ];
 
   private readonly settings: Setting[] = [

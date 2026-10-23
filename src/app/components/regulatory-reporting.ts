@@ -357,6 +357,8 @@ interface EditableMilestone extends RegulatoryMilestoneTemplate { amount: number
             <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Dependencias o activos afectados</span><input [class]="inputCls" [value]="d.affectedPremises ?? ''" (input)="setDetail('affectedPremises', $any($event.target).value)" placeholder="Casa matriz, sucursal, sitio de producción…" /></label>
             <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Medidas adoptadas y en curso</span><textarea rows="2" [class]="inputCls" [value]="d.measures ?? ''" (input)="setDetail('measures', $any($event.target).value)"></textarea></label>
             <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Comunicación a socios y usuarios (§1.2)</span><textarea rows="2" [class]="inputCls" [value]="d.memberNotice ?? ''" (input)="setDetail('memberNotice', $any($event.target).value)" placeholder="Qué se informó, por qué medio y cuándo"></textarea></label>
+            <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Primera comunicación a socios (fecha y hora)</span><input type="datetime-local" [class]="inputCls" [value]="toLocal(d.memberNoticeAt)" (input)="setDetail('memberNoticeAt', isoFromLocal($any($event.target).value))" /></label>
+            <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Canal de comunicación</span><input [class]="inputCls" placeholder="Web, app, correo, sucursales, prensa…" [value]="d.memberNoticeChannel ?? ''" (input)="setDetail('memberNoticeChannel', $any($event.target).value)" /></label>
             <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Informante (nombre y cargo)</span><input [class]="inputCls" [value]="d.informant ?? ''" (input)="setDetail('informant', $any($event.target).value)" /></label>
             <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Otros antecedentes</span><input [class]="inputCls" [value]="d.otherInfo ?? ''" (input)="setDetail('otherInfo', $any($event.target).value)" /></label>
             <div class="sm:col-span-2 p-3 rounded-xl border border-slate-200 bg-slate-50 grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -532,6 +534,11 @@ export class RegulatoryReporting {
     this.detailsDraft.set({ ...(r.details ?? {}), affectedChannels: [...(r.details?.affectedChannels ?? [])] });
   }
 
+  /** Valor de un campo datetime-local a ISO (o undefined si está vacío). */
+  isoFromLocal(v: string): string | undefined {
+    return v ? new Date(v).toISOString() : undefined;
+  }
+
   setDetail<K extends keyof Ran208Details>(key: K, value: Ran208Details[K]) {
     this.detailsDraft.update(d => (d ? { ...d, [key]: value } : d));
   }
@@ -597,7 +604,7 @@ export class RegulatoryReporting {
       `Dependencias o activos afectados: ${[d.affectedPremises, assets].filter(Boolean).join('; ') || pend}`,
       `Medidas adoptadas y en curso: ${d.measures || pend}`,
       ...(r.updates.length ? ['Actualizaciones:', ...r.updates.map(u => `  - ${fmt(u.at)} (${u.by}): ${u.note}`)] : []),
-      `Comunicación a socios/usuarios (N°1.2): ${d.memberNotice || pend}`,
+      `Comunicación a socios/usuarios (N°1.2): ${d.memberNotice || pend}${d.memberNoticeAt ? ` (desde ${fmt(d.memberNoticeAt)}${d.memberNoticeChannel ? `, vía ${d.memberNoticeChannel}` : ''})` : ''}`,
       `Otros antecedentes: ${d.otherInfo || '—'}`,
       ...(kind === 'cierre' ? [`Fecha y hora de término: ${fmt(d.endedAt ?? r.closedAt)}`] : []),
       '',
