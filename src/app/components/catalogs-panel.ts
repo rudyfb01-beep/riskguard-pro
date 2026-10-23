@@ -7,12 +7,14 @@ import { CatalogAdminService, CatalogValidationError } from '../services/catalog
 import { PermissionDeniedError } from '../services/risk-data.service';
 import { CAC_BUSINESS_LINES } from '../models/risk.model';
 import {
-  BusinessProcess, GeneralParameters, OrgArea, PROCESS_CRITICALITIES, ProcessCriticality,
+  AccountingAccount, BusinessProcess, ClauseDefinition, GeneralParameters, OrgArea, PROCESS_CRITICALITIES, ProcessCriticality,
+  ProviderCatalogs, RISK_LEVEL_BANDS, RiskAppetite, RiskScale, ScaleLevel,
 } from '../models/catalog.model';
 
 const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100';
 
-type SubTab = 'procesos' | 'areas' | 'parametros';
+export type CatalogTab = 'procesos' | 'areas' | 'escala' | 'apetito' | 'cuentas' | 'proveedores' | 'parametros';
+type SubTab = CatalogTab;
 
 /** Mantenedores: mapa de procesos, áreas y parámetros generales. */
 @Component({
@@ -29,8 +31,8 @@ type SubTab = 'procesos' | 'areas' | 'parametros';
             <h1 class="text-xl font-bold tracking-tight text-slate-900">Mantenedores</h1>
           </div>
           <p class="text-xs text-slate-600 mt-1 max-w-3xl">
-            Mapa de procesos, áreas de la cooperativa y parámetros generales. Lo que se define aquí alimenta las listas de
-            riesgos, controles, incidentes, KRIs, auditorías y puestos.
+            Mapa de procesos, áreas, escala y apetito de riesgo, plan de cuentas, catálogo de proveedores y parámetros generales.
+            Lo que se define aquí alimenta las listas y evaluaciones de riesgos, controles, incidentes, KRIs, auditorías y puestos.
           </p>
         </div>
         @switch (tab()) {
@@ -46,6 +48,12 @@ type SubTab = 'procesos' | 'areas' | 'parametros';
               <mat-icon class="text-sm">add</mat-icon>Nueva área
             </button>
           }
+          @case ('cuentas') {
+            <button type="button" (click)="newAccount()" [class.perm-locked]="!canManage()"
+              class="px-3.5 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-xl flex items-center gap-1.5 cursor-pointer shrink-0">
+              <mat-icon class="text-sm">add</mat-icon>Nueva cuenta
+            </button>
+          }
         }
       </div>
 
@@ -57,7 +65,7 @@ type SubTab = 'procesos' | 'areas' | 'parametros';
       }
 
       <!-- Sub tabs -->
-      <div class="bg-white p-1.5 rounded-xl border border-slate-200 inline-flex gap-1">
+      <div class="bg-white p-1.5 rounded-xl border border-slate-200 flex flex-wrap gap-1">
         @for (t of tabs; track t.id) {
           <button type="button" (click)="tab.set(t.id)"
             [class]="tab() === t.id ? 'bg-slate-900 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'"
@@ -154,6 +162,163 @@ type SubTab = 'procesos' | 'areas' | 'parametros';
             </tbody>
           </table>
         </div>
+      }
+
+      <!-- ESCALA DE RIESGO -->
+      @if (tab() === 'escala') {
+        @if (scaleDraft(); as sd) {
+          <div class="p-3 rounded-xl border border-slate-200 bg-slate-50 text-[11px] text-slate-700">
+            La matriz es de 4×4: el puntaje es probabilidad × impacto. Aquí se definen los nombres y criterios de cada nivel según
+            la política de riesgos; se muestran en el formulario de riesgos y en los mapas de calor. Los cortes del nivel son fijos:
+            @for (b of bands; track b.level) { <strong>{{ b.level }}</strong> {{ b.from }}–{{ b.to }}{{ $last ? '.' : ',' }} }
+          </div>
+          <fieldset class="grid grid-cols-1 lg:grid-cols-2 gap-4" [disabled]="!canManage()">
+            @for (kind of scaleKinds; track kind.id) {
+              <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
+                <h2 class="text-sm font-bold text-slate-900">{{ kind.label }}</h2>
+                @for (l of sd[kind.id]; track l.level) {
+                  <div class="grid grid-cols-[2rem_1fr] gap-2 items-start">
+                    <span class="w-7 h-7 rounded-lg bg-slate-900 text-white text-xs font-bold flex items-center justify-center mt-0.5">{{ l.level }}</span>
+                    <div class="space-y-1">
+                      <input [class]="inputCls" [value]="l.name" (input)="setScale(kind.id, l.level, 'name', $any($event.target).value)" />
+                      <textarea rows="2" [class]="inputCls" placeholder="Criterio (montos, socios afectados, horas de interrupción, frecuencia...)" [value]="l.criteria" (input)="setScale(kind.id, l.level, 'criteria', $any($event.target).value)"></textarea>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </fieldset>
+          @if (canManage()) {
+            <div class="flex items-center justify-end gap-2">
+              <span class="text-[11px] text-rose-700 mr-auto">{{ formError() }}</span>
+              <button type="button" (click)="scaleEdits.set(null)" [disabled]="!scaleEdits()" class="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer disabled:opacity-50">Descartar</button>
+              <button type="button" (click)="saveScale()" [disabled]="!scaleEdits()" class="px-4 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-lg cursor-pointer disabled:opacity-50">Guardar escala</button>
+            </div>
+          }
+        }
+      }
+
+      <!-- APETITO Y TOLERANCIA -->
+      @if (tab() === 'apetito') {
+        @if (appetiteDraft(); as ad) {
+          <fieldset class="bg-white rounded-2xl border border-slate-200 p-5 space-y-3" [disabled]="!canManage()">
+            <h2 class="text-sm font-bold text-slate-900 flex items-center gap-1.5"><mat-icon class="text-base text-indigo-600">gavel</mat-icon> Declaración de apetito</h2>
+            <textarea rows="3" [class]="inputCls" [value]="ad.statement" (input)="setAppetite('statement', $any($event.target).value)"></textarea>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Aprobado por</span><input [class]="inputCls" placeholder="Ej. Consejo de Administración, sesión N°…" [value]="ad.approvedBy" (input)="setAppetite('approvedBy', $any($event.target).value)" /></label>
+              <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Fecha de aprobación</span><input type="date" [class]="inputCls" [value]="ad.approvalDate" (input)="setAppetite('approvalDate', $any($event.target).value)" /></label>
+            </div>
+          </fieldset>
+          <div class="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
+            <table class="w-full text-xs min-w-[960px]">
+              <thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-200">
+                <tr>
+                  <th class="text-left py-2.5 px-3">Categoría</th>
+                  <th class="text-center py-2.5 px-3">Apetito (puntaje residual ≤)</th>
+                  <th class="text-center py-2.5 px-3">Tolerancia (≤)</th>
+                  <th class="text-center py-2.5 px-3">Pérdida anual máx. ({{ rs.currencyCode() }})</th>
+                  <th class="text-center py-2.5 px-3">Riesgos</th>
+                  <th class="text-center py-2.5 px-3">Sobre apetito</th>
+                  <th class="text-center py-2.5 px-3">Fuera de tolerancia</th>
+                  <th class="text-right py-2.5 px-3">Pérdida neta {{ year }}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                @for (row of rs.appetiteSummary().rows; track row.limit.category; let idx = $index) {
+                  @let l = ad.limits[idx];
+                  <tr>
+                    <td class="py-2 px-3 font-semibold text-slate-900">{{ l.category }}</td>
+                    <td class="py-2 px-3 text-center"><input type="number" min="1" max="16" class="w-16 text-xs rounded-lg border border-slate-300 px-2 py-1 font-mono text-center disabled:bg-slate-100" [disabled]="!canManage()" [value]="l.appetiteMaxScore" (input)="setLimit(idx, 'appetiteMaxScore', +$any($event.target).value)" /></td>
+                    <td class="py-2 px-3 text-center"><input type="number" min="1" max="16" class="w-16 text-xs rounded-lg border border-slate-300 px-2 py-1 font-mono text-center disabled:bg-slate-100" [disabled]="!canManage()" [value]="l.toleranceMaxScore" (input)="setLimit(idx, 'toleranceMaxScore', +$any($event.target).value)" /></td>
+                    <td class="py-2 px-3 text-center"><input type="number" min="0" class="w-32 text-xs rounded-lg border border-slate-300 px-2 py-1 font-mono text-right disabled:bg-slate-100" [disabled]="!canManage()" placeholder="Sin límite" [value]="l.annualLossLimit ?? ''" (input)="setLimit(idx, 'annualLossLimit', $any($event.target).value === '' ? undefined : +$any($event.target).value)" /></td>
+                    <td class="py-2 px-3 text-center font-mono">{{ row.risks || '—' }}</td>
+                    <td class="py-2 px-3 text-center font-mono" [class]="row.over ? 'text-amber-700 font-bold' : 'text-slate-400'">{{ row.over || '—' }}</td>
+                    <td class="py-2 px-3 text-center font-mono" [class]="row.outOfTolerance ? 'text-rose-700 font-bold' : 'text-slate-400'">{{ row.outOfTolerance || '—' }}</td>
+                    <td class="py-2 px-3 text-right font-mono" [class]="row.lossExceeded ? 'text-rose-700 font-bold' : 'text-slate-700'">{{ row.yearLoss | number:'1.0-0' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="text-[11px] text-slate-500">El estado se calcula con el puntaje residual de cada riesgo abierto (1 a 16) y aparece en el inventario de riesgos y en el tablero. Los conteos usan los límites guardados.</p>
+          @if (canManage()) {
+            <div class="flex items-center justify-end gap-2">
+              <span class="text-[11px] text-rose-700 mr-auto">{{ formError() }}</span>
+              <button type="button" (click)="appetiteEdits.set(null)" [disabled]="!appetiteEdits()" class="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer disabled:opacity-50">Descartar</button>
+              <button type="button" (click)="saveAppetite()" [disabled]="!appetiteEdits()" class="px-4 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-lg cursor-pointer disabled:opacity-50">Guardar apetito</button>
+            </div>
+          }
+        }
+      }
+
+      <!-- CUENTAS CONTABLES -->
+      @if (tab() === 'cuentas') {
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-200">
+                <tr><th class="text-left py-2.5 px-3">Código</th><th class="text-left py-2.5 px-3">Nombre</th><th class="text-center py-2.5 px-3">Eventos</th><th class="py-2.5 px-3"></th></tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                @for (a of cat.accountingAccounts(); track a.code) {
+                  <tr [class.opacity-50]="!a.active">
+                    <td class="py-2 px-3 font-mono text-slate-700">{{ a.code }}</td>
+                    <td class="py-2 px-3 text-slate-900">{{ a.name }} @if (!a.active) { <span class="text-[10px] text-slate-500">(inactiva)</span> }</td>
+                    <td class="py-2 px-3 text-center font-mono">{{ admin.accountUsage(a.code) || '—' }}</td>
+                    <td class="py-2 px-3 text-right"><button type="button" (click)="editAccount(a)" class="px-2.5 py-1 text-[11px] font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">{{ canManage() ? 'Editar' : 'Ver' }}</button></td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="4" class="py-8 text-center text-slate-500">Sin cuentas. Agréguelas una a una o péguelas desde Excel.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-2">
+            <h2 class="text-sm font-bold text-slate-900 flex items-center gap-1.5"><mat-icon class="text-base text-emerald-600">content_paste</mat-icon> Cargar desde Excel</h2>
+            <p class="text-[11px] text-slate-600">Copie dos columnas (código y nombre) desde Excel y péguelas aquí, una cuenta por línea. Las cuentas existentes se actualizan.</p>
+            <textarea rows="8" [class]="inputCls" class="font-mono" [disabled]="!canManage()" placeholder="4.2.01.001&#9;Pérdidas por fraude externo" [value]="importText()" (input)="importText.set($any($event.target).value)"></textarea>
+            <span class="block text-[11px] text-rose-700">{{ importError() }}</span>
+            <button type="button" (click)="importAccounts()" [disabled]="!canManage() || !importText().trim()" class="w-full px-4 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-lg cursor-pointer disabled:opacity-50">Cargar cuentas</button>
+          </div>
+        </div>
+      }
+
+      <!-- CATÁLOGO DE PROVEEDORES -->
+      @if (tab() === 'proveedores') {
+        @if (provDraft(); as pc) {
+          <fieldset class="grid grid-cols-1 lg:grid-cols-2 gap-4" [disabled]="!canManage()">
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-2">
+              <h2 class="text-sm font-bold text-slate-900">Categorías de servicio</h2>
+              @for (c of pc.categories; track $index; let i = $index) {
+                <div class="flex items-center gap-2">
+                  <input [class]="inputCls" [value]="c" (change)="renameCategory(i, $any($event.target).value)" />
+                  <span class="text-[10px] text-slate-400 w-16 text-right shrink-0">{{ admin.categoryUsage(originalCategory(i)) || '' }}{{ admin.categoryUsage(originalCategory(i)) ? ' prov.' : '' }}</span>
+                  <button type="button" (click)="removeCategory(i)" class="p-1 text-slate-400 hover:text-rose-600 cursor-pointer disabled:opacity-30" [disabled]="admin.categoryUsage(originalCategory(i)) > 0" title="Quitar"><mat-icon class="text-sm">close</mat-icon></button>
+                </div>
+              }
+              <button type="button" (click)="addCategory()" class="text-[11px] font-semibold text-indigo-700 hover:underline cursor-pointer flex items-center gap-0.5"><mat-icon class="text-sm">add</mat-icon>Agregar categoría</button>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-2">
+              <h2 class="text-sm font-bold text-slate-900">Cláusulas mínimas de contrato</h2>
+              <p class="text-[11px] text-slate-600">Se revisan en cada contrato de externalización. Si falta una cláusula marcada como crítica, la alerta es alta.</p>
+              @for (cl of pc.clauses; track cl.key; let i = $index) {
+                <div class="flex items-center gap-2">
+                  <input [class]="inputCls" [value]="cl.label" (input)="setClauseDef(i, 'label', $any($event.target).value)" />
+                  <label class="flex items-center gap-1 text-[10px] text-slate-600 shrink-0"><input type="checkbox" class="rounded" [checked]="cl.critical" (change)="setClauseDef(i, 'critical', $any($event.target).checked)" />Crítica</label>
+                  <button type="button" (click)="removeClause(i)" class="p-1 text-slate-400 hover:text-rose-600 cursor-pointer" title="Quitar"><mat-icon class="text-sm">close</mat-icon></button>
+                </div>
+              }
+              <button type="button" (click)="addClause()" class="text-[11px] font-semibold text-indigo-700 hover:underline cursor-pointer flex items-center gap-0.5"><mat-icon class="text-sm">add</mat-icon>Agregar cláusula</button>
+            </div>
+          </fieldset>
+          @if (canManage()) {
+            <div class="flex items-center justify-end gap-2">
+              <span class="text-[11px] text-rose-700 mr-auto">{{ formError() }}</span>
+              <button type="button" (click)="resetProv()" [disabled]="!provEdits()" class="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer disabled:opacity-50">Descartar</button>
+              <button type="button" (click)="saveProv()" [disabled]="!provEdits()" class="px-4 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-lg cursor-pointer disabled:opacity-50">Guardar catálogo</button>
+            </div>
+          }
+        }
       }
 
       <!-- PARÁMETROS -->
@@ -294,6 +459,33 @@ type SubTab = 'procesos' | 'areas' | 'parametros';
         </div>
       </div>
     }
+
+    <!-- Modal cuenta contable -->
+    @if (accDraft(); as a) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md my-6 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+            <h2 class="text-base font-bold text-slate-900 flex items-center gap-2"><mat-icon class="text-indigo-700">account_balance_wallet</mat-icon>{{ accOriginal() ? 'Cuenta ' + accOriginal() : 'Nueva cuenta' }}</h2>
+            <button type="button" (click)="accDraft.set(null)" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer"><mat-icon>close</mat-icon></button>
+          </div>
+          <fieldset class="p-6 space-y-3" [disabled]="!canManage()">
+            <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Código *</span><input [class]="inputCls" class="font-mono" [value]="a.code" (input)="accDraft.set({ code: $any($event.target).value, name: a.name, active: a.active })" /></label>
+            <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Nombre *</span><input [class]="inputCls" [value]="a.name" (input)="accDraft.set({ code: a.code, name: $any($event.target).value, active: a.active })" /></label>
+            <label class="flex items-center gap-2 text-xs"><input type="checkbox" class="rounded" [checked]="a.active" (change)="accDraft.set({ code: a.code, name: a.name, active: $any($event.target).checked })" /> Activa</label>
+          </fieldset>
+          <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center gap-3">
+            @if (accOriginal() && canManage()) {
+              <button type="button" (click)="removeAccount()" class="px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer flex items-center gap-1"><mat-icon class="text-sm">delete</mat-icon>Eliminar</button>
+            }
+            <span class="text-[11px] text-rose-700 flex-1">{{ formError() }}</span>
+            <button type="button" (click)="accDraft.set(null)" class="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer">{{ canManage() ? 'Cancelar' : 'Cerrar' }}</button>
+            @if (canManage()) {
+              <button type="button" (click)="saveAccount()" class="px-4 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-lg cursor-pointer">Guardar cuenta</button>
+            }
+          </div>
+        </div>
+      </div>
+    }
   `,
 })
 export class CatalogsPanel {
@@ -311,10 +503,20 @@ export class CatalogsPanel {
     { code: 'USD' as const, label: 'Dólar estadounidense' },
   ];
 
-  readonly tab = signal<SubTab>('procesos');
+  readonly tab = signal<SubTab>(this.consumeRequestedTab());
+
+  private consumeRequestedTab(): SubTab {
+    const t = this.cat.requestedTab();
+    this.cat.requestedTab.set(null);
+    return (t as SubTab) ?? 'procesos';
+  }
   readonly tabs = [
     { id: 'procesos' as SubTab, label: 'Procesos', icon: 'account_tree', count: () => this.cat.processes().length },
     { id: 'areas' as SubTab, label: 'Áreas', icon: 'apartment', count: () => this.cat.areas().length },
+    { id: 'escala' as SubTab, label: 'Escala de riesgo', icon: 'grid_on', count: undefined },
+    { id: 'apetito' as SubTab, label: 'Apetito y tolerancia', icon: 'speed', count: undefined },
+    { id: 'cuentas' as SubTab, label: 'Cuentas contables', icon: 'account_balance_wallet', count: () => this.cat.accountingAccounts().length },
+    { id: 'proveedores' as SubTab, label: 'Catálogo de proveedores', icon: 'handshake', count: undefined },
     { id: 'parametros' as SubTab, label: 'Parámetros generales', icon: 'settings', count: undefined },
   ];
 
@@ -465,6 +667,166 @@ export class CatalogsPanel {
       this.notify.emit('Parámetros generales guardados.');
     } catch (err) {
       if (!(err instanceof PermissionDeniedError)) this.notify.emit((err as Error).message);
+    }
+  }
+
+  // --- Escala de riesgo
+  readonly bands = RISK_LEVEL_BANDS;
+  readonly scaleKinds = [
+    { id: 'likelihood' as const, label: 'Probabilidad' },
+    { id: 'impact' as const, label: 'Impacto' },
+  ];
+  readonly scaleEdits = signal<RiskScale | null>(null);
+  readonly scaleDraft = computed(() => this.scaleEdits() ?? this.cat.riskScale());
+
+  setScale(kind: 'likelihood' | 'impact', level: number, field: keyof Pick<ScaleLevel, 'name' | 'criteria'>, value: string) {
+    const d = this.scaleDraft();
+    this.scaleEdits.set({ ...d, [kind]: d[kind].map(l => (l.level === level ? { ...l, [field]: value } : l)) });
+  }
+
+  async saveScale() {
+    const d = this.scaleEdits();
+    if (!d) return;
+    this.formError.set('');
+    try {
+      await this.admin.saveRiskScale(d);
+      this.scaleEdits.set(null);
+      this.notify.emit('Escala de riesgo guardada.');
+    } catch (err) {
+      if (!(err instanceof PermissionDeniedError)) this.formError.set((err as Error).message);
+    }
+  }
+
+  // --- Apetito
+  readonly year = new Date().getFullYear();
+  readonly appetiteEdits = signal<RiskAppetite | null>(null);
+  readonly appetiteDraft = computed(() => this.appetiteEdits() ?? this.cat.riskAppetite());
+
+  setAppetite<K extends 'statement' | 'approvedBy' | 'approvalDate'>(k: K, v: RiskAppetite[K]) {
+    this.appetiteEdits.set({ ...this.appetiteDraft(), [k]: v });
+  }
+
+  setLimit(idx: number, field: 'appetiteMaxScore' | 'toleranceMaxScore' | 'annualLossLimit', value: number | undefined) {
+    const d = this.appetiteDraft();
+    this.appetiteEdits.set({ ...d, limits: d.limits.map((l, i) => (i === idx ? { ...l, [field]: value } : l)) });
+  }
+
+  async saveAppetite() {
+    const d = this.appetiteEdits();
+    if (!d) return;
+    this.formError.set('');
+    try {
+      await this.admin.saveRiskAppetite(d);
+      this.appetiteEdits.set(null);
+      this.notify.emit('Apetito de riesgo guardado.');
+    } catch (err) {
+      if (!(err instanceof PermissionDeniedError)) this.formError.set((err as Error).message);
+    }
+  }
+
+  // --- Cuentas contables
+  readonly accDraft = signal<AccountingAccount | null>(null);
+  readonly accOriginal = signal<string | null>(null);
+  readonly importText = signal('');
+  readonly importError = signal('');
+
+  newAccount() {
+    if (!this.gate()) return;
+    this.formError.set('');
+    this.accOriginal.set(null);
+    this.accDraft.set({ code: '', name: '', active: true });
+  }
+
+  editAccount(a: AccountingAccount) {
+    this.formError.set('');
+    this.accOriginal.set(a.code);
+    this.accDraft.set({ ...a });
+  }
+
+  saveAccount() {
+    const a = this.accDraft();
+    if (!a) return;
+    void this.run(() => this.admin.saveAccount(a, this.accOriginal() ?? undefined), `Cuenta ${a.code.trim()} guardada.`, () => this.accDraft.set(null));
+  }
+
+  removeAccount() {
+    const code = this.accOriginal();
+    if (!code) return;
+    void this.run(() => this.admin.deleteAccount(code), `Cuenta ${code} eliminada.`, () => this.accDraft.set(null));
+  }
+
+  async importAccounts() {
+    this.importError.set('');
+    try {
+      const n = await this.admin.importAccounts(this.importText());
+      this.importText.set('');
+      this.notify.emit(`${n} cuenta(s) cargadas.`);
+    } catch (err) {
+      if (!(err instanceof PermissionDeniedError)) this.importError.set((err as Error).message);
+    }
+  }
+
+  // --- Catálogo de proveedores
+  readonly provEdits = signal<ProviderCatalogs | null>(null);
+  readonly provDraft = computed(() => this.provEdits() ?? this.cat.providerCatalogs());
+  /** Nombre original de cada categoría del borrador (para renombrar y medir uso). */
+  private readonly categoryOrigins = signal<(string | null)[] | null>(null);
+
+  originalCategory(i: number): string {
+    const origins = this.categoryOrigins();
+    return (origins ? origins[i] : this.cat.providerCatalogs().categories[i]) ?? '';
+  }
+
+  private editProv(fn: (d: ProviderCatalogs, origins: (string | null)[]) => [ProviderCatalogs, (string | null)[]]) {
+    const d = this.provDraft();
+    const origins = this.categoryOrigins() ?? [...this.cat.providerCatalogs().categories];
+    const [nd, no] = fn({ categories: [...d.categories], clauses: d.clauses.map(c => ({ ...c })) }, [...origins]);
+    this.provEdits.set(nd);
+    this.categoryOrigins.set(no);
+  }
+
+  renameCategory(i: number, v: string) {
+    this.editProv((d, o) => { d.categories[i] = v.trim(); return [d, o]; });
+  }
+
+  addCategory() {
+    this.editProv((d, o) => { d.categories.push('Nueva categoría'); o.push(null); return [d, o]; });
+  }
+
+  removeCategory(i: number) {
+    this.editProv((d, o) => { d.categories.splice(i, 1); o.splice(i, 1); return [d, o]; });
+  }
+
+  setClauseDef(i: number, field: keyof Pick<ClauseDefinition, 'label' | 'critical'>, v: string | boolean) {
+    this.editProv((d, o) => { d.clauses[i] = { ...d.clauses[i], [field]: v }; return [d, o]; });
+  }
+
+  addClause() {
+    this.editProv((d, o) => { d.clauses.push({ key: `cl-${Date.now().toString(36)}`, label: 'Nueva cláusula', critical: false }); return [d, o]; });
+  }
+
+  removeClause(i: number) {
+    this.editProv((d, o) => { d.clauses.splice(i, 1); return [d, o]; });
+  }
+
+  resetProv() {
+    this.provEdits.set(null);
+    this.categoryOrigins.set(null);
+  }
+
+  async saveProv() {
+    const d = this.provEdits();
+    if (!d) return;
+    const origins = this.categoryOrigins() ?? [];
+    const renames: Record<string, string> = {};
+    origins.forEach((o, i) => { if (o && d.categories[i] && o !== d.categories[i]) renames[o] = d.categories[i]; });
+    this.formError.set('');
+    try {
+      await this.admin.saveProviderCatalogs(d, renames);
+      this.resetProv();
+      this.notify.emit('Catálogo de proveedores guardado.');
+    } catch (err) {
+      if (!(err instanceof PermissionDeniedError)) this.formError.set((err as Error).message);
     }
   }
 }

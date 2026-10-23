@@ -5,9 +5,6 @@ import { RiskDataService } from '../services/risk-data.service';
 import { downloadCsv } from '../utils/csv';
 import { ResilienceService } from '../services/resilience.service';
 import {
-  CONTRACT_CLAUSES,
-  ContractClauseKey,
-  PROVIDER_SERVICE_CATEGORIES,
   ProviderAlert,
   ProviderCriticality,
   ServiceProvider,
@@ -202,7 +199,7 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 tex
                 <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Servicio externalizado *</span><textarea rows="2" [class]="inputCls" [value]="d.serviceDescription" (input)="set('serviceDescription', $any($event.target).value)"></textarea></label>
                 <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Categoría</span>
                   <select [class]="inputCls" [value]="d.category" (change)="set('category', $any($event.target).value)">
-                    @for (c of categories; track c) { <option [value]="c" [selected]="c === d.category">{{ c }}</option> }
+                    @for (c of rs.catalog.providerCategoryOptions(d.category); track c) { <option [value]="c" [selected]="c === d.category">{{ c }}</option> }
                   </select></label>
                 <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Criticidad (materialidad)</span>
                   <select [class]="inputCls" [value]="d.criticality" (change)="set('criticality', $any($event.target).value)">
@@ -327,11 +324,11 @@ export class ProvidersPanel {
   readonly notify = output<string>();
 
   readonly inputCls = INPUT;
-  readonly categories = PROVIDER_SERVICE_CATEGORIES;
+  get categories(): string[] { return this.rs.catalog.providerCatalogs().categories; }
   readonly criticalities: ProviderCriticality[] = ['Crítico', 'Alto', 'Medio', 'Bajo'];
   readonly statuses: ServiceProvider['status'][] = ['Activo', 'En evaluación', 'En término'];
-  readonly clauses = CONTRACT_CLAUSES;
-  readonly clauseCount = CONTRACT_CLAUSES.length;
+  get clauses() { return this.rs.catalog.providerCatalogs().clauses; }
+  get clauseCount(): number { return this.clauses.length; }
   get freq() { return this.rs.catalog.params().providerAssessmentMonths; }
 
   readonly search = signal('');
@@ -359,7 +356,7 @@ export class ProvidersPanel {
 
   /** Registro de servicios externalizados con cláusulas, nube, evaluación y dependencias. */
   exportRegister() {
-    const clauseLabels = CONTRACT_CLAUSES.map(c => c.label);
+    const clauseLabels = this.clauses.map(c => c.label);
     const rows: (string | number | boolean | undefined)[][] = [
       ['Registro de servicios externalizados', `Generado ${new Date().toISOString().slice(0, 16)}`, this.rs.currentProfile().name],
       [],
@@ -372,7 +369,7 @@ export class ProvidersPanel {
         p.isCloud ? 'Sí' : 'No', p.cloudModel ?? '', p.dataLocation, p.dataCountry ?? '', p.handlesMemberData ? 'Sí' : 'No',
         p.usesSubcontractors ? 'Sí' : 'No', p.contractStart, p.contractEnd, p.annualCostUSD, p.committedRtoHours,
         p.lastAssessmentDate ?? '', p.assessmentScore, this.res.nextAssessmentDue(p)?.toISOString().slice(0, 10) ?? '',
-        p.hasExitPlan ? 'Sí' : 'No', ...CONTRACT_CLAUSES.map(c => (p.clauses[c.key] ? 'Sí' : 'No')),
+        p.hasExitPlan ? 'Sí' : 'No', ...this.clauses.map(c => (p.clauses[c.key] ? 'Sí' : 'No')),
         this.res.dependentProcesses(p.id).map(b => b.name).join(', '),
         this.alertsFor(p.id).map(a => a.type).join(', '),
       ]),
@@ -409,7 +406,7 @@ export class ProvidersPanel {
       category: 'Otros servicios', criticality: 'Medio', internalOwner: this.rs.currentProfile().name,
       supportedProcesses: [], status: 'En evaluación', isCloud: false, dataLocation: 'Chile',
       handlesMemberData: false, usesSubcontractors: false, contractStart: today, contractEnd: inAYear, annualCostUSD: 0,
-      clauses: Object.fromEntries(CONTRACT_CLAUSES.map(c => [c.key, false])) as Record<ContractClauseKey, boolean>,
+      clauses: Object.fromEntries(this.clauses.map(c => [c.key, false])),
       hasExitPlan: false,
     });
   }
@@ -426,7 +423,7 @@ export class ProvidersPanel {
     this.draft.update(d => (d ? { ...d, [key]: value } : d));
   }
 
-  setClause(key: ContractClauseKey, value: boolean) {
+  setClause(key: string, value: boolean) {
     this.draft.update(d => (d ? { ...d, clauses: { ...d.clauses, [key]: value } } : d));
   }
 

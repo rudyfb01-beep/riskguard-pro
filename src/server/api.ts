@@ -50,6 +50,10 @@ const SETTING_PERMISSIONS: Record<SettingKey, (keyof UserPermissions)[]> = {
   loss_registration_threshold_usd: ['canManageRegulatoryReports'],
   apr_operational_inputs: ['canManageRegulatoryReports'],
   general_parameters: ['canManageCatalogs'],
+  risk_scale: ['canManageCatalogs'],
+  risk_appetite: ['canManageCatalogs'],
+  accounting_accounts: ['canManageCatalogs'],
+  provider_catalogs: ['canManageCatalogs'],
 };
 
 /** Mensajes comprensibles para errores de PostgreSQL frecuentes. */

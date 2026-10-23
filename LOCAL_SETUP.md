@@ -194,6 +194,25 @@ Jefe de Riesgo Operacional) se administran:
   registrados), días de aviso antes del vencimiento de contratos, frecuencia de evaluación de
   proveedores por criticidad y plazos para corregir vulnerabilidades por severidad.
 
+- **Escala de riesgo:** nombre y criterio de cada nivel de probabilidad e impacto (1 a 4). Se
+  muestran en el formulario de riesgos y en los mapas de calor. Los cortes del nivel son fijos
+  (Bajo 1–3, Medio 4–6, Alto 8–9, Crítico 12–16).
+- **Apetito y tolerancia:** declaración aprobada por el Consejo y, por categoría de Basilea, el
+  puntaje residual máximo dentro del apetito y de la tolerancia, más una pérdida neta anual máxima
+  opcional. El inventario de riesgos marca los que están sobre el apetito o fuera de tolerancia y el
+  tablero muestra un aviso.
+- **Cuentas contables:** plan de cuentas para la base de pérdidas (se puede pegar desde Excel). El
+  formulario de incidentes las ofrece en una lista; una cuenta usada no se puede eliminar.
+- **Catálogo de proveedores:** categorías de servicio y cláusulas mínimas de contrato (las
+  marcadas como críticas generan alerta alta si faltan).
+
+Fuera de Mantenedores, con los permisos de cada módulo:
+- **Sistemas del BIA:** se eligen del inventario de activos de Seguridad de la Información
+  (aplicaciones, servicios en la nube, servidores y bases de datos); los no inventariados se
+  escriben aparte.
+- **Lista de verificación de seguridad:** en Seguridad de la Información → Autoevaluación se
+  pueden agregar, editar o quitar requisitos (permiso "Seguridad de la Información").
+
 Una instalación nueva parte con 10 áreas y 14 procesos de referencia para una cooperativa y con
 la moneda en CLP; las instalaciones existentes conservan USD y se cargan con los procesos que ya
 usan sus datos.
@@ -250,7 +269,7 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 | Área | Tablas |
 | :--- | :--- |
 | Gobierno y accesos | `organizational_roles`, `user_profiles` |
-| Mantenedores | `org_areas`, `business_processes`, `system_settings` (`general_parameters`) |
+| Mantenedores | `org_areas`, `business_processes`; en `system_settings`: `general_parameters`, `risk_scale`, `risk_appetite`, `accounting_accounts`, `provider_catalogs` |
 | Riesgos y controles | `risks`, `risk_controls`, `controls`, `control_test_executions` |
 | Incidentes y pérdidas | `operational_flaws` (con campos de base de pérdidas) |
 | Reporte CMF / ANCI | `regulatory_milestone_templates`, `regulatory_reports`, `regulatory_submissions`, `regulatory_report_updates` |

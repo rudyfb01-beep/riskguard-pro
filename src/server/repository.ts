@@ -36,7 +36,8 @@ export const ENTITY_ORDER = [
 ] as const;
 export type EntityName = typeof ENTITY_ORDER[number];
 
-export const SETTING_KEYS = ['current_industry', 'global_notification_preferences', 'loss_registration_threshold_usd', 'apr_operational_inputs', 'general_parameters'] as const;
+export const SETTING_KEYS = ['current_industry', 'global_notification_preferences', 'loss_registration_threshold_usd', 'apr_operational_inputs', 'general_parameters',
+  'risk_scale', 'risk_appetite', 'accounting_accounts', 'provider_catalogs'] as const;
 export type SettingKey = typeof SETTING_KEYS[number];
 
 export interface BootstrapData {

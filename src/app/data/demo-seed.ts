@@ -837,7 +837,7 @@ export const DEMO_FLAWS: OperationalFlaw[] = [
     occurrenceDate: '2026-10-14',
     discoveryDate: '2026-10-15',
     accountingDate: '2026-10-16',
-    accountingAccount: 'Gastos por pérdidas operacionales – procesos',
+    accountingAccount: '4.2.01.002',
     creditRiskBoundary: false
   },
   {
@@ -861,7 +861,7 @@ export const DEMO_FLAWS: OperationalFlaw[] = [
     occurrenceDate: '2026-09-02',
     discoveryDate: '2026-09-04',
     accountingDate: '2026-10-14',
-    accountingAccount: 'Multas y sanciones'
+    accountingAccount: '4.2.01.003'
   }
 ];
 
@@ -1054,4 +1054,13 @@ export const DEMO_PROCESSES: BusinessProcess[] = [
   demoProc(9, 'Captaciones y Ahorro', 'area-comercial', '', 'Captaciones y Ahorro', 'Crítico'),
   demoProc(10, 'Créditos y Cobranza', 'area-comercial', '', 'Créditos de Consumo', 'Crítico'),
   demoProc(11, 'Atención a Socios y Sucursales', 'area-comercial', '', 'Soporte Corporativo', 'Alto'),
+];
+
+/** Plan de cuentas de ejemplo para la base de pérdidas. */
+export const DEMO_ACCOUNTING_ACCOUNTS = [
+  { code: '4.2.01.001', name: 'Pérdidas por fraude externo', active: true },
+  { code: '4.2.01.002', name: 'Gastos por pérdidas operacionales – procesos', active: true },
+  { code: '4.2.01.003', name: 'Multas y sanciones', active: true },
+  { code: '4.2.01.004', name: 'Pérdidas por fallas tecnológicas', active: true },
+  { code: '5.1.09.001', name: 'Recuperación de pérdidas operacionales', active: true },
 ];

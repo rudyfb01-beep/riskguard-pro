@@ -3,7 +3,10 @@ import { CatalogService } from './catalog.service';
 import { RiskDataService } from './risk-data.service';
 import { ResilienceService } from './resilience.service';
 import { PersistenceService } from './persistence.service';
-import { BusinessProcess, GeneralParameters, OrgArea, normalizeGeneralParameters } from '../models/catalog.model';
+import {
+  AccountingAccount, BusinessProcess, GeneralParameters, OrgArea, ProviderCatalogs, RiskAppetite, RiskScale,
+  normalizeAccounts, normalizeGeneralParameters, normalizeProviderCatalogs, normalizeRiskAppetite, normalizeRiskScale,
+} from '../models/catalog.model';
 
 /** Error de validación de un mantenedor (se muestra tal cual al usuario). */
 export class CatalogValidationError extends Error {}
@@ -172,5 +175,118 @@ export class CatalogAdminService {
     if (changes.length) {
       await this.rs.appendAuditLog('CONFIGURACIÓN_PARÁMETROS', 'Mantenedor', 'PARAMETROS', `Parámetros generales: ${changes.join('; ')}.`);
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Escala de riesgo y apetito
+  // ---------------------------------------------------------------------------
+
+  async saveRiskScale(next: RiskScale): Promise<void> {
+    this.guard();
+    const clean = normalizeRiskScale(next);
+    if ([...clean.likelihood, ...clean.impact].some(l => !l.name.trim())) throw new CatalogValidationError('Cada nivel debe tener nombre.');
+    const prev = this.cat.riskScale();
+    this.cat.riskScaleRaw.set(clean);
+    const names = (s: RiskScale) => `P: ${s.likelihood.map(l => l.name).join('/')} · I: ${s.impact.map(l => l.name).join('/')}`;
+    await this.rs.appendAuditLog('CONFIGURACIÓN_PARÁMETROS', 'Mantenedor', 'ESCALA',
+      `Escala de riesgo actualizada${names(prev) !== names(clean) ? ` (${names(clean)})` : ' (criterios)'}.`);
+  }
+
+  async saveRiskAppetite(next: RiskAppetite): Promise<void> {
+    this.guard();
+    const clean = normalizeRiskAppetite(next);
+    const bad = next.limits.find(l => Number(l.toleranceMaxScore) < Number(l.appetiteMaxScore));
+    if (bad) throw new CatalogValidationError(`En "${bad.category}" la tolerancia no puede ser menor que el apetito.`);
+    const prev = this.cat.riskAppetite();
+    this.cat.riskAppetiteRaw.set(clean);
+    const changes = clean.limits.filter((l, i) => JSON.stringify(l) !== JSON.stringify(prev.limits[i]))
+      .map(l => `${l.category}: apetito ≤${l.appetiteMaxScore}, tolerancia ≤${l.toleranceMaxScore}${l.annualLossLimit ? `, pérdida anual ≤${l.annualLossLimit}` : ''}`);
+    await this.rs.appendAuditLog('CONFIGURACIÓN_PARÁMETROS', 'Mantenedor', 'APETITO',
+      `Apetito de riesgo actualizado${clean.approvalDate ? ` (aprobado ${clean.approvalDate}${clean.approvedBy ? ` por ${clean.approvedBy}` : ''})` : ''}${changes.length ? `: ${changes.join('; ')}` : ''}.`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cuentas contables
+  // ---------------------------------------------------------------------------
+
+  accountUsage(code: string): number {
+    return this.rs.flaws().filter(f => f.accountingAccount === code).length;
+  }
+
+  async saveAccount(account: AccountingAccount, originalCode?: string): Promise<void> {
+    this.guard();
+    const code = account.code.trim();
+    if (!code || !account.name.trim()) throw new CatalogValidationError('Ingresa código y nombre de la cuenta.');
+    const list = this.cat.accountingAccounts();
+    if (list.some(a => a.code.toLowerCase() === code.toLowerCase() && a.code !== originalCode)) {
+      throw new CatalogValidationError(`La cuenta ${code} ya existe.`);
+    }
+    if (originalCode && originalCode !== code && this.accountUsage(originalCode) > 0) {
+      throw new CatalogValidationError(`La cuenta ${originalCode} está asignada a eventos de pérdida; no se puede cambiar su código. Desactívala y crea una nueva.`);
+    }
+    const clean = { code, name: account.name.trim(), active: account.active };
+    const next = originalCode ? list.map(a => (a.code === originalCode ? clean : a)) : [...list, clean];
+    this.cat.accountingAccountsRaw.set(normalizeAccounts(next));
+    await this.rs.appendAuditLog('CONFIGURACIÓN_PARÁMETROS', 'Mantenedor', code,
+      `${originalCode ? 'Cuenta contable modificada' : 'Cuenta contable creada'}: ${code} "${clean.name}"${clean.active ? '' : ' (inactiva)'}.`);
+  }
+
+  async deleteAccount(code: string): Promise<void> {
+    this.guard();
+    const n = this.accountUsage(code);
+    if (n > 0) throw new CatalogValidationError(`La cuenta ${code} está asignada a ${n} evento(s) de pérdida. Desactívala en vez de eliminarla.`);
+    this.cat.accountingAccountsRaw.set(this.cat.accountingAccounts().filter(a => a.code !== code));
+    await this.rs.appendAuditLog('CONFIGURACIÓN_PARÁMETROS', 'Mantenedor', code, `Cuenta contable eliminada: ${code}.`);
+  }
+
+  /** Carga varias cuentas desde texto (una por línea: "código;nombre" o "código<TAB>nombre"). */
+  async importAccounts(text: string): Promise<number> {
+    this.guard();
+    const rows = text.split(/\r?\n/).map(l => l.split(/[;\t]/).map(x => x.trim())).filter(r => r[0] && r[1]);
+    if (!rows.length) throw new CatalogValidationError('No se encontraron filas con código y nombre (separados por punto y coma o tabulación).');
+    const list = [...this.cat.accountingAccounts()];
+    let added = 0;
+    for (const [code, name] of rows) {
+      const i = list.findIndex(a => a.code.toLowerCase() === code.toLowerCase());
+      if (i >= 0) list[i] = { ...list[i], name };
+      else { list.push({ code, name, active: true }); added++; }
+    }
+    this.cat.accountingAccountsRaw.set(normalizeAccounts(list));
+    await this.rs.appendAuditLog('CONFIGURACIÓN_PARÁMETROS', 'Mantenedor', 'CUENTAS', `Carga de plan de cuentas: ${rows.length} filas (${added} nuevas).`);
+    return rows.length;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Catálogos de proveedores
+  // ---------------------------------------------------------------------------
+
+  categoryUsage(category: string): number {
+    return this.res.providers().filter(p => p.category === category).length;
+  }
+
+  async saveProviderCatalogs(next: ProviderCatalogs, renamedCategories: Record<string, string> = {}): Promise<void> {
+    this.guard();
+    const clean = normalizeProviderCatalogs(next);
+    if (!clean.clauses.length) throw new CatalogValidationError('Debe haber al menos una cláusula.');
+    const prev = this.cat.providerCatalogs();
+    const removed = prev.categories.filter(c => !clean.categories.includes(c) && !renamedCategories[c]);
+    const inUse = removed.filter(c => this.categoryUsage(c) > 0);
+    if (inUse.length) throw new CatalogValidationError(`No se puede quitar "${inUse[0]}": hay proveedores con esa categoría.`);
+    const renamingInUse = Object.entries(renamedCategories).some(([from, to]) => from !== to && this.categoryUsage(from) > 0);
+    if (renamingInUse && !this.rs.hasPermission('canManageProviders')) {
+      throw new CatalogValidationError('Renombrar una categoría en uso cambia los proveedores que la tienen: requiere también el permiso "Gestionar Proveedores".');
+    }
+    this.cat.providerCatalogsRaw.set(clean);
+    // Renombre de categoría: se actualizan los proveedores que la usan.
+    for (const [from, to] of Object.entries(renamedCategories)) {
+      if (from !== to && this.categoryUsage(from) > 0) {
+        this.res.providers.update(list => list.map(p => (p.category === from ? { ...p, category: to } : p)));
+      }
+    }
+    const added = clean.clauses.filter(c => !prev.clauses.some(p => p.key === c.key)).map(c => c.label);
+    const gone = prev.clauses.filter(c => !clean.clauses.some(p => p.key === c.key)).map(c => c.label);
+    await this.rs.appendAuditLog('CONFIGURACIÓN_PARÁMETROS', 'Mantenedor', 'PROVEEDORES',
+      `Catálogos de proveedores actualizados: ${clean.categories.length} categorías, ${clean.clauses.length} cláusulas`
+      + `${added.length ? `; cláusulas nuevas: ${added.join(', ')}` : ''}${gone.length ? `; quitadas: ${gone.join(', ')}` : ''}.`);
   }
 }

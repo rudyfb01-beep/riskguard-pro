@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { ResilienceService } from '../services/resilience.service';
+import { SecurityService } from '../services/security.service';
 import { CAC_BUSINESS_LINES } from '../models/risk.model';
 import {
   BiaImpact,
@@ -275,7 +276,22 @@ type SubTab = 'bia' | 'planes' | 'pruebas';
             }
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Sistemas que usa (separados por coma)</span><input [class]="inputCls" [value]="d.systems.join(', ')" (change)="setBia('systems', splitList($any($event.target).value))" /></label>
+              <div class="block sm:col-span-2">
+                <span class="block text-[11px] font-medium text-slate-600 mb-1">Sistemas que usa <span class="font-normal text-slate-400">(del inventario de activos de Seguridad de la Información)</span></span>
+                @if (systemAssets().length) {
+                  <div class="flex flex-wrap gap-1.5 p-2 rounded-lg border border-slate-200 max-h-32 overflow-y-auto">
+                    @for (a of systemAssets(); track a.id) {
+                      <button type="button" (click)="toggleSystem(a.name)"
+                        class="px-2 py-0.5 rounded-full text-[11px] border cursor-pointer"
+                        [class]="d.systems.includes(a.name) ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'">
+                        {{ a.name }} <span class="opacity-60">· {{ a.code }}</span>
+                      </button>
+                    }
+                  </div>
+                }
+                <input [class]="inputCls" class="mt-1.5" placeholder="Otros sistemas no inventariados (separados por coma)"
+                  [value]="otherSystems(d).join(', ')" (change)="setOtherSystems($any($event.target).value)" />
+              </div>
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Sitio o modalidad alterna</span><input [class]="inputCls" [value]="d.alternateSite" (input)="setBia('alternateSite', $any($event.target).value)" /></label>
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Fecha de revisión del BIA</span><input type="date" [class]="inputCls" [value]="d.lastReviewDate" (input)="setBia('lastReviewDate', $any($event.target).value)" /></label>
             </div>
@@ -407,6 +423,30 @@ type SubTab = 'bia' | 'planes' | 'pruebas';
 export class ContinuityPanel {
   readonly res = inject(ResilienceService);
   readonly rs = inject(RiskDataService);
+  private readonly sec = inject(SecurityService);
+
+  /** Activos que representan sistemas (aplicaciones, nube, servidores, bases de datos). */
+  readonly systemAssets = computed(() => this.sec.assets()
+    .filter(a => ['Aplicación', 'Servicio en la nube', 'Infraestructura / Servidor', 'Datos / Base de datos'].includes(a.type))
+    .sort((a, b) => a.name.localeCompare(b.name, 'es')));
+
+  otherSystems(d: BiaProcess): string[] {
+    const names = new Set(this.systemAssets().map(a => a.name));
+    return d.systems.filter(s => !names.has(s));
+  }
+
+  toggleSystem(name: string) {
+    const d = this.biaDraft();
+    if (!d) return;
+    this.setBia('systems', d.systems.includes(name) ? d.systems.filter(s => s !== name) : [...d.systems, name]);
+  }
+
+  setOtherSystems(v: string) {
+    const d = this.biaDraft();
+    if (!d) return;
+    const names = new Set(this.systemAssets().map(a => a.name));
+    this.setBia('systems', [...d.systems.filter(s => names.has(s)), ...this.splitList(v)]);
+  }
   readonly notify = output<string>();
 
   readonly inputCls = INPUT;

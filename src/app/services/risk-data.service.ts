@@ -555,6 +555,36 @@ export class RiskDataService {
   /** Moneda de registro de montos (Mantenedores → Parámetros generales). */
   readonly currencyCode = computed(() => this.catalog.currency());
 
+  /** Estado del riesgo residual frente al apetito de su categoría. */
+  appetiteOf(r: Risk) {
+    return this.catalog.appetiteStatus(r.residualScore, r.category);
+  }
+
+  /** Resumen por categoría: riesgos sobre apetito o fuera de tolerancia y pérdida neta del año vs. límite. */
+  readonly appetiteSummary = computed(() => {
+    const year = String(new Date().getFullYear());
+    const risks = this.risks().filter(r => r.status !== 'Cerrado');
+    const rows = this.catalog.riskAppetite().limits.map(limit => {
+      const list = risks.filter(r => r.category === limit.category);
+      const over = list.filter(r => this.appetiteOf(r) === 'Sobre el apetito');
+      const out = list.filter(r => this.appetiteOf(r) === 'Fuera de tolerancia');
+      const yearLoss = this.flaws()
+        .filter(f => (f.baselCategory ?? '') === limit.category && (f.accountingDate || f.occurrenceDate || f.reportedAt || '').startsWith(year))
+        .reduce((s, f) => s + this.netLoss(f), 0);
+      return {
+        limit, risks: list.length, maxResidual: list.reduce((m, r) => Math.max(m, r.residualScore), 0),
+        over: over.length, outOfTolerance: out.length, yearLoss,
+        lossExceeded: !!limit.annualLossLimit && yearLoss > limit.annualLossLimit,
+      };
+    });
+    return {
+      rows,
+      over: rows.reduce((s, r) => s + r.over, 0),
+      outOfTolerance: rows.reduce((s, r) => s + r.outOfTolerance, 0),
+      lossExceeded: rows.filter(r => r.lossExceeded).length,
+    };
+  });
+
   /** Procesos activos del mantenedor (para filtros y listas). */
   get defaultProcesses(): string[] {
     return this.catalog.processNames();
@@ -2219,7 +2249,7 @@ export class RiskDataService {
       this.lossDatabase().forEach(f => {
         csvContent += [
           q(f.id), q(f.title), q(f.businessLine), q(f.baselCategory ?? f.aiSuggestedCategory), q(f.baselSubcategory), q(f.process),
-          q(f.occurrenceDate), q(f.discoveryDate), q(f.accountingDate), q(f.accountingAccount),
+          q(f.occurrenceDate), q(f.discoveryDate), q(f.accountingDate), q(this.catalog.accountLabel(f.accountingAccount)),
           f.realLossAmountUSD || 0, f.recoveredAmountUSD || 0, this.netLoss(f),
           q(this.isAboveLossThreshold(f) ? 'Sí' : 'No'), q(f.creditRiskBoundary ? 'Sí' : 'No'),
           q(f.regulatoryReport?.reportableToCMF ? 'Sí' : 'No'), q(f.regulatoryReport?.reportableToANCI ? 'Sí' : 'No'),

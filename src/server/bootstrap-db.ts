@@ -2,13 +2,13 @@ import { getPool, applySchema } from './db';
 import { appendLedger, importLedgerBlock, saveEntity, saveSetting, withTransaction } from './repository';
 import { COOPERATIVE_PROCESSES, DEFAULT_AREAS, DEFAULT_ORGANIZATIONAL_ROLES, DEFAULT_REGULATORY_MILESTONES } from '../app/data/base-seed';
 import {
-  DEMO_ALERTS, DEMO_AUDITS, DEMO_CONTROLS, DEMO_FLAWS, DEMO_KRIS, DEMO_LEDGER, DEMO_PROCESSES, DEMO_RISKS, DEMO_USERS,
+  DEMO_ACCOUNTING_ACCOUNTS, DEMO_ALERTS, DEMO_AUDITS, DEMO_CONTROLS, DEMO_FLAWS, DEMO_KRIS, DEMO_LEDGER, DEMO_PROCESSES, DEMO_RISKS, DEMO_USERS,
 } from '../app/data/demo-seed';
 import { SEED_BIA, SEED_PLANS, SEED_PROVIDERS, SEED_TESTS } from '../app/data/resilience-seed';
 import { BASE_ASSESSMENT_ITEMS, DEMO_ASSESSMENT, DEMO_ASSETS, DEMO_VULNERABILITIES } from '../app/data/security-seed';
 import { UserPermissions } from '../app/models/risk.model';
 import { DEMO_APR_INPUTS, EMPTY_APR_INPUTS } from '../app/models/apr.model';
-import { DEFAULT_GENERAL_PARAMETERS } from '../app/models/catalog.model';
+import { DEFAULT_GENERAL_PARAMETERS, DEFAULT_PROVIDER_CATALOGS, DEFAULT_RISK_APPETITE, DEFAULT_RISK_SCALE } from '../app/models/catalog.model';
 import { PoolClient } from 'pg';
 
 /**
@@ -77,8 +77,13 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
       for (const r of DEFAULT_ORGANIZATIONAL_ROLES) await saveEntity('roles', r, c);
       baseSeeded = true;
     }
-    if ((await c.query('SELECT 1 FROM security_assessment_items LIMIT 1')).rowCount === 0) {
-      for (const i of BASE_ASSESSMENT_ITEMS) await saveEntity('security-assessment', i, c);
+    // La lista de seguridad es editable: se carga una sola vez (si luego se vacía, no se repone).
+    const checklistSeeded = (await c.query(`SELECT 1 FROM system_settings WHERE key = 'security_checklist_seeded'`)).rowCount! > 0;
+    if (!checklistSeeded) {
+      if ((await c.query('SELECT 1 FROM security_assessment_items LIMIT 1')).rowCount === 0) {
+        for (const i of BASE_ASSESSMENT_ITEMS) await saveEntity('security-assessment', i, c);
+      }
+      await c.query(`INSERT INTO system_settings (key, value) VALUES ('security_checklist_seeded', 'true') ON CONFLICT (key) DO NOTHING`);
     }
     for (const m of PERMISSION_MIGRATIONS) {
       await c.query(
@@ -109,6 +114,10 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
       ['current_industry', 'Banca & Servicios Financieros'],
       ['loss_registration_threshold_usd', freshCLP ? 1_000_000 : 1000],
       ['general_parameters', { ...DEFAULT_GENERAL_PARAMETERS, currency: freshCLP ? 'CLP' : 'USD' }],
+      ['risk_scale', DEFAULT_RISK_SCALE],
+      ['risk_appetite', DEFAULT_RISK_APPETITE],
+      ['accounting_accounts', wantDemo ? DEMO_ACCOUNTING_ACCOUNTS : []],
+      ['provider_catalogs', DEFAULT_PROVIDER_CATALOGS],
       ['apr_operational_inputs', wantDemo ? DEMO_APR_INPUTS : EMPTY_APR_INPUTS],
     ] as const) {
       await c.query('INSERT INTO system_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [key, JSON.stringify(value)]);
