@@ -204,7 +204,7 @@ export type ReportType =
             <div class="border border-slate-200 p-3 rounded-lg bg-white">
               <span class="text-slate-500 block text-[11px]">Exposición Bruta Inherente</span>
               <span class="text-base font-bold font-mono text-slate-900 tabular-nums">
-                \${{ reportMetrics().inherentUSD | number:'1.0-0' }} USD
+                \${{ reportMetrics().inherentUSD | number:'1.0-0' }} {{ riskService.currencyCode() }}
               </span>
               <span class="text-[10px] text-slate-400 block">Sin aplicación de controles</span>
             </div>
@@ -212,7 +212,7 @@ export type ReportType =
             <div class="border border-slate-200 p-3 rounded-lg bg-white">
               <span class="text-slate-500 block text-[11px]">Exposición Neta Residual</span>
               <span class="text-base font-bold font-mono text-slate-900 tabular-nums">
-                \${{ reportMetrics().residualUSD | number:'1.0-0' }} USD
+                \${{ reportMetrics().residualUSD | number:'1.0-0' }} {{ riskService.currencyCode() }}
               </span>
               <span class="text-[10px] text-slate-400 block">Exposición real asumida</span>
             </div>
@@ -222,7 +222,7 @@ export type ReportType =
               <span class="text-base font-bold font-mono text-emerald-700 tabular-nums">
                 {{ reportMetrics().mitigationPct }}%
               </span>
-              <span class="text-[10px] text-emerald-700 block">-\${{ reportMetrics().mitigatedUSD | number:'1.0-0' }} USD mitigados</span>
+              <span class="text-[10px] text-emerald-700 block">-\${{ reportMetrics().mitigatedUSD | number:'1.0-0' }} {{ riskService.currencyCode() }} mitigados</span>
             </div>
 
             <div class="border border-slate-200 p-3 rounded-lg bg-white">
@@ -313,7 +313,7 @@ export type ReportType =
                   <th class="py-2 px-3">Proceso</th>
                   <th class="py-2 px-3 text-center">Score Inh.</th>
                   <th class="py-2 px-3 text-center">Score Res.</th>
-                  <th class="py-2 px-3 text-right">Exp. Neta USD</th>
+                  <th class="py-2 px-3 text-right">Exp. Neta {{ riskService.currencyCode() }}</th>
                   <th class="py-2 px-3">Plan de Mitigación</th>
                 </tr>
               </thead>

@@ -292,6 +292,17 @@
                 <span>APR Operacional</span>
               </button>
 
+              <button
+                (click)="setTab('mantenedores')"
+                [class]="activeTab() === 'mantenedores'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-indigo-700">tune</mat-icon>
+                <span>Mantenedores</span>
+              </button>
+
             </div>
 
             <!-- Quick Live Simulation Action -->
@@ -652,12 +663,9 @@
               class="w-full py-1.5 px-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-xs text-slate-700"
             >
               <option value="TODOS">Todos los Procesos</option>
-              <option value="Operaciones de Pago">Operaciones de Pago</option>
-              <option value="Tesorería">Tesorería</option>
-              <option value="Ciberseguridad & TI">Ciberseguridad & TI</option>
-              <option value="Infraestructura Cloud">Infraestructura Cloud</option>
-              <option value="Cumplimiento Legal">Cumplimiento Legal</option>
-              <option value="Gestión Humana">Gestión Humana</option>
+              @for (proc of riskService.defaultProcesses; track proc) {
+                <option [value]="proc">{{ proc }}</option>
+              }
             </select>
           </div>
 
@@ -717,7 +725,7 @@
                   <th class="py-3 px-3 text-center">Riesgo Inherente</th>
                   <th class="py-3 px-3">Controles Mitigantes</th>
                   <th class="py-3 px-3 text-center">Riesgo Residual</th>
-                  <th class="py-3 px-4 text-right">Exp. Neta USD</th>
+                  <th class="py-3 px-4 text-right">Exp. Neta {{ riskService.currencyCode() }}</th>
                   <th class="py-3 px-4">Plan Mitigación</th>
                   <th class="py-3 px-4 text-center">Acciones</th>
                 </tr>
@@ -1084,6 +1092,11 @@
       <app-providers-panel (notify)="showToast($event)" />
     }
 
+    <!-- TAB: MANTENEDORES -->
+    @if (activeTab() === 'mantenedores') {
+      <app-catalogs-panel (notify)="showToast($event)" />
+    }
+
     <!-- TAB: APR POR RIESGO OPERACIONAL -->
     @if (activeTab() === 'apr-operacional') {
       <app-apr-panel (notify)="showToast($event)" />
@@ -1148,7 +1161,7 @@
             <span class="text-[11px] font-semibold text-rose-800 block">Pérdida Bruta Cuantificada</span>
             <div class="flex items-baseline justify-between mt-1">
               <span class="text-2xl font-bold font-mono text-rose-700">${{ riskService.totalRealLossesUSD() | number:'1.0-0' }}</span>
-              <span class="text-[10px] text-rose-700 font-semibold bg-rose-100 px-1.5 py-0.5 rounded">USD Directo</span>
+              <span class="text-[10px] text-rose-700 font-semibold bg-rose-100 px-1.5 py-0.5 rounded">{{ riskService.currencyCode() }} Directo</span>
             </div>
           </div>
 
@@ -1164,7 +1177,7 @@
             <span class="text-[11px] font-semibold text-slate-500 block">Pérdida Recuperada</span>
             <div class="flex items-baseline justify-between mt-1">
               <span class="text-2xl font-bold font-mono text-emerald-700">${{ riskService.totalLossesRecoveredUSD() | number:'1.0-0' }}</span>
-              <span class="text-[10px] text-emerald-700 font-semibold bg-emerald-100 px-1.5 py-0.5 rounded">USD Recuperado</span>
+              <span class="text-[10px] text-emerald-700 font-semibold bg-emerald-100 px-1.5 py-0.5 rounded">{{ riskService.currencyCode() }} Recuperado</span>
             </div>
           </div>
 
@@ -1288,12 +1301,12 @@
                   <div class="mt-3 p-2 bg-rose-50 border border-rose-200 rounded-lg flex items-center justify-between text-xs">
                     <div>
                       <span class="text-[10px] text-rose-700 block font-semibold uppercase">Pérdida Financiera</span>
-                      <span class="font-bold font-mono text-rose-900">${{ flaw.realLossAmountUSD | number:'1.0-0' }} USD</span>
+                      <span class="font-bold font-mono text-rose-900">${{ flaw.realLossAmountUSD | number:'1.0-0' }} {{ riskService.currencyCode() }}</span>
                     </div>
                     @if (flaw.recoveredAmountUSD && flaw.recoveredAmountUSD > 0) {
                       <div class="text-right">
                         <span class="text-[10px] text-emerald-700 block font-semibold uppercase">Recuperado</span>
-                        <span class="font-bold font-mono text-emerald-800">${{ flaw.recoveredAmountUSD | number:'1.0-0' }} USD</span>
+                        <span class="font-bold font-mono text-emerald-800">${{ flaw.recoveredAmountUSD | number:'1.0-0' }} {{ riskService.currencyCode() }}</span>
                       </div>
                     }
                   </div>
@@ -1412,7 +1425,7 @@
               </div>
               <div class="flex items-center gap-2 flex-wrap">
                 <label class="text-[11px] text-slate-600 flex items-center gap-1.5">
-                  <span>Umbral de registro (USD)</span>
+                  <span>Umbral de registro ({{ riskService.currencyCode() }})</span>
                   <input type="number" min="0" step="100" [value]="riskService.lossRegistrationThresholdUSD()"
                     [disabled]="!riskService.hasPermission('canManageRegulatoryReports')"
                     (change)="riskService.setLossThreshold(+$any($event.target).value)"
@@ -1437,9 +1450,9 @@
                     <th class="text-left py-2.5 px-3">Ocurrencia</th>
                     <th class="text-left py-2.5 px-3">Descubrim.</th>
                     <th class="text-left py-2.5 px-3">Contabiliz.</th>
-                    <th class="text-right py-2.5 px-3">Bruta USD</th>
-                    <th class="text-right py-2.5 px-3">Recup. USD</th>
-                    <th class="text-right py-2.5 px-3">Neta USD</th>
+                    <th class="text-right py-2.5 px-3">Bruta {{ riskService.currencyCode() }}</th>
+                    <th class="text-right py-2.5 px-3">Recup. {{ riskService.currencyCode() }}</th>
+                    <th class="text-right py-2.5 px-3">Neta {{ riskService.currencyCode() }}</th>
                     <th class="text-center py-2.5 px-3">Umbral</th>
                     <th class="text-center py-2.5 px-3">Regulador</th>
                     <th class="py-2.5 px-3"></th>
@@ -1817,84 +1830,7 @@
 
     <!-- TAB 6: AUDITORÍAS PERIÓDICAS & CUMPLIMIENTO -->
     @if (activeTab() === 'auditorias') {
-      <div class="space-y-5">
-        
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <h1 class="text-xl font-bold tracking-tight text-slate-900">
-              Auditorías Periódicas & Pruebas de Cumplimiento
-            </h1>
-            <p class="text-xs text-slate-500 mt-0.5">
-              Revisión programada de controles operacionales, registro de hallazgos y dictamen de no conformidad
-            </p>
-          </div>
-
-          <div class="text-right">
-            <span class="text-xs text-slate-500 block">Puntaje Global de Cumplimiento</span>
-            <span class="font-mono text-xl font-bold text-emerald-600">88% (Conforme)</span>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          @for (audit of riskService.audits(); track audit.id) {
-            <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
-              
-              <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <span class="font-mono text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
-                    {{ audit.code }}
-                  </span>
-                  <h3 class="text-sm font-bold text-slate-900 mt-1">{{ audit.title }}</h3>
-                  <div class="text-[11px] text-slate-500 mt-0.5">
-                    Auditor Líder: {{ audit.leadAuditor }} · {{ audit.period }}
-                  </div>
-                </div>
-
-                <div class="text-right">
-                  <span class="font-mono text-lg font-bold text-indigo-700">{{ audit.complianceScore }}%</span>
-                  <span class="block text-[10px] text-slate-500">Score de Cumplimiento</span>
-                </div>
-              </div>
-
-              <!-- Scope -->
-              <div class="text-xs">
-                <span class="font-semibold text-slate-700 block mb-1">Alcance Auditado:</span>
-                <div class="flex flex-wrap gap-1.5">
-                  @for (sc of audit.scope; track sc) {
-                    <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                      {{ sc }}
-                    </span>
-                  }
-                </div>
-              </div>
-
-              <!-- Findings List -->
-              <div class="space-y-2 pt-2 border-t border-slate-100">
-                <span class="text-xs font-bold text-slate-900 block">Hallazgos Registrados:</span>
-                @for (finding of audit.findings; track finding.id) {
-                  <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-xs space-y-1">
-                    <div class="flex items-center justify-between">
-                      <span
-                        class="px-2 py-0.2 rounded text-[10px] font-semibold uppercase"
-                        [class]="finding.type === 'Conforme' ? 'bg-emerald-100 text-emerald-800' : finding.type === 'Observación' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'"
-                      >
-                        {{ finding.type }}
-                      </span>
-                      <span class="text-[11px] text-slate-500">Resp: {{ finding.responsible }}</span>
-                    </div>
-                    <div class="font-medium text-slate-800">{{ finding.description }}</div>
-                    <div class="text-[11px] text-slate-600">
-                      <strong>Acción Correctiva:</strong> {{ finding.correctiveAction }} (Plazo: {{ finding.deadline }})
-                    </div>
-                  </div>
-                }
-              </div>
-
-            </div>
-          }
-        </div>
-
-      </div>
+      <app-audits-panel (notify)="showToast($event)" />
     }
 
     <!-- TAB 7: BITÁCORA INALTERABLE (TRAZABILIDAD TOTAL & LEDGER) -->

@@ -528,18 +528,9 @@ export class KriThresholdModal {
     { name: 'Retail & Comercio Electrónico', icon: 'shopping_cart' },
   ];
 
-  readonly processesList = [
-    'Operaciones de Pago',
-    'Tesorería',
-    'Ciberseguridad & TI',
-    'Infraestructura Cloud',
-    'Cumplimiento Legal',
-    'Gestión Humana',
-    'Producción & Ensamble',
-    'Operaciones Clínicas',
-    'Cadena de Suministro',
-    'Plataforma E-Commerce'
-  ];
+  get processesList(): string[] {
+    return this.riskService.catalog.processNames();
+  }
 
   readonly categoriesList: BaselCategory[] = [
     'Fallas Tecnológicas',
@@ -565,7 +556,7 @@ export class KriThresholdModal {
     name: ['', [Validators.required, Validators.minLength(4)]],
     code: ['KRI-CUSTOM-01', [Validators.required]],
     description: ['', [Validators.required]],
-    process: ['Operaciones de Pago', [Validators.required]],
+    process: [this.riskService.catalog.processNames()[0] ?? '', [Validators.required]],
     category: ['Ejecución y Procesos' as BaselCategory, [Validators.required]],
     unit: ['%', [Validators.required]],
     direction: ['superior' as const, [Validators.required]],
@@ -637,7 +628,7 @@ export class KriThresholdModal {
       name: '',
       code: `KRI-${Date.now().toString().slice(-4)}`,
       description: '',
-      process: 'Operaciones de Pago',
+      process: this.riskService.catalog.processNames()[0] ?? '',
       category: 'Ejecución y Procesos',
       unit: '%',
       direction: 'superior',

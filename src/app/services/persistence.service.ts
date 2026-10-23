@@ -3,6 +3,7 @@ import { RiskDataService } from './risk-data.service';
 import { ResilienceService } from './resilience.service';
 import { SecurityService } from './security.service';
 import { AprService } from './apr.service';
+import { CatalogService } from './catalog.service';
 import { AuditLogEntry, UserProfile } from '../models/risk.model';
 
 export type DataMode = 'loading' | 'login' | 'database' | 'demo' | 'error';
@@ -47,6 +48,7 @@ export class PersistenceService {
   private readonly res = inject(ResilienceService);
   private readonly sec = inject(SecurityService);
   private readonly apr = inject(AprService);
+  private readonly cat = inject(CatalogService);
 
   readonly mode = signal<DataMode>('loading');
   readonly loadError = signal<string | null>(null);
@@ -64,6 +66,8 @@ export class PersistenceService {
 
   // Orden de dependencias: debe coincidir con ENTITY_ORDER del servidor.
   private readonly collections: Collection[] = [
+    this.col('areas', 'areas', this.cat.areas),
+    this.col('processes', 'processes', this.cat.processes),
     this.col('roles', 'roles', this.rs.organizationalRoles),
     this.col('users', 'users', this.rs.userProfiles),
     this.col('controls', 'controls', this.rs.controls),
@@ -87,6 +91,7 @@ export class PersistenceService {
     { key: 'global_notification_preferences', sig: this.rs.globalNotificationSettings as WritableSignal<unknown>, last: '' },
     { key: 'loss_registration_threshold_usd', sig: this.rs.lossRegistrationThresholdUSD as WritableSignal<unknown>, last: '' },
     { key: 'apr_operational_inputs', sig: this.apr.inputs as WritableSignal<unknown>, last: '' },
+    { key: 'general_parameters', sig: this.cat.generalParameters, last: '' },
   ];
 
   constructor() {
@@ -216,13 +221,20 @@ export class PersistenceService {
   private diffAndQueue(values: Identified[][], settingValues: unknown[], ledger: AuditLogEntry[]) {
     const upserts: { entity: string; obj: Identified }[] = [];
     const deletes: { entity: string; id: string }[] = [];
+    let renamedCatalog = false;
 
     this.collections.forEach((c, i) => {
       const current = values[i];
       const next = new Map<string, Identified>();
       for (const obj of current) {
         next.set(obj.id, obj);
-        if (c.snapshot.get(obj.id) !== obj) upserts.push({ entity: c.entity, obj });
+        const prev = c.snapshot.get(obj.id);
+        if (prev !== obj) {
+          upserts.push({ entity: c.entity, obj });
+          // Renombrar un área o proceso: el servidor actualiza las referencias y luego se recargan.
+          if ((c.entity === 'areas' || c.entity === 'processes') && prev
+            && (prev as unknown as { name: string }).name !== (obj as unknown as { name: string }).name) renamedCatalog = true;
+        }
       }
       for (const id of c.snapshot.keys()) {
         if (!next.has(id)) deletes.push({ entity: c.entity, id });
@@ -232,6 +244,7 @@ export class PersistenceService {
 
     for (const u of upserts) this.enqueue(() => this.send('PUT', `/api/data/${u.entity}/${encodeURIComponent(u.obj.id)}`, u.obj), u.entity, u.obj.id);
     for (const d of deletes.reverse()) this.enqueue(() => this.send('DELETE', `/api/data/${d.entity}/${encodeURIComponent(d.id)}`), d.entity, d.id);
+    if (renamedCatalog) this.enqueue(() => this.reloadAll(), 'reload', 'catalog-rename');
 
     this.settings.forEach((s, i) => {
       const v = JSON.stringify(settingValues[i]);
@@ -264,6 +277,14 @@ export class PersistenceService {
         this.pending.update(n => n - 1);
       }
     });
+  }
+
+  /** Recarga todos los datos desde el servidor (tras cambios que el servidor propaga). */
+  private async reloadAll(): Promise<void> {
+    const resp = await apiFetch('/api/data');
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data?.error || `Error ${resp.status} al recargar`);
+    this.hydrate(data);
   }
 
   private async send(method: 'PUT' | 'DELETE', url: string, body?: unknown): Promise<void> {

@@ -13,7 +13,6 @@ import {
   InfoClassification,
   InformationAsset,
   SecurityAssessmentItem,
-  VULN_SLA_DAYS,
   VulnSeverity,
   VulnSource,
   VulnStatus,
@@ -464,7 +463,7 @@ export class SecurityPanel {
   readonly notify = output<string>();
 
   readonly inputCls = INPUT;
-  readonly sla = VULN_SLA_DAYS;
+  get sla() { return this.rs.catalog.params().vulnSlaDays; }
   readonly assetTypes = ASSET_TYPES;
   readonly classifications: InfoClassification[] = ['Pública', 'Interna', 'Confidencial', 'Restringida'];
   readonly locations: AssetLocation[] = ['Instalaciones propias', 'Nube', 'Proveedor externo'];

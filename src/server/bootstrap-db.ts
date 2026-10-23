@@ -1,13 +1,15 @@
 import { getPool, applySchema } from './db';
 import { appendLedger, importLedgerBlock, saveEntity, saveSetting, withTransaction } from './repository';
-import { DEFAULT_ORGANIZATIONAL_ROLES, DEFAULT_REGULATORY_MILESTONES } from '../app/data/base-seed';
+import { COOPERATIVE_PROCESSES, DEFAULT_AREAS, DEFAULT_ORGANIZATIONAL_ROLES, DEFAULT_REGULATORY_MILESTONES } from '../app/data/base-seed';
 import {
-  DEMO_ALERTS, DEMO_AUDITS, DEMO_CONTROLS, DEMO_FLAWS, DEMO_KRIS, DEMO_LEDGER, DEMO_RISKS, DEMO_USERS,
+  DEMO_ALERTS, DEMO_AUDITS, DEMO_CONTROLS, DEMO_FLAWS, DEMO_KRIS, DEMO_LEDGER, DEMO_PROCESSES, DEMO_RISKS, DEMO_USERS,
 } from '../app/data/demo-seed';
 import { SEED_BIA, SEED_PLANS, SEED_PROVIDERS, SEED_TESTS } from '../app/data/resilience-seed';
 import { BASE_ASSESSMENT_ITEMS, DEMO_ASSESSMENT, DEMO_ASSETS, DEMO_VULNERABILITIES } from '../app/data/security-seed';
 import { UserPermissions } from '../app/models/risk.model';
 import { DEMO_APR_INPUTS, EMPTY_APR_INPUTS } from '../app/models/apr.model';
+import { DEFAULT_GENERAL_PARAMETERS } from '../app/models/catalog.model';
+import { PoolClient } from 'pg';
 
 /**
  * Permisos agregados en versiones posteriores: en bases existentes se completan
@@ -15,7 +17,43 @@ import { DEMO_APR_INPUTS, EMPTY_APR_INPUTS } from '../app/models/apr.model';
  */
 const PERMISSION_MIGRATIONS: { perm: keyof UserPermissions; roles: string[] }[] = [
   { perm: 'canManageInfoSecurity', roles: ['role-riesgo-op', 'role-gerencia-general', 'role-ciso'] },
+  { perm: 'canManageCatalogs', roles: ['role-riesgo-op'] },
 ];
+
+/**
+ * Carga inicial de mantenedores (una sola vez, cuando las tablas están vacías):
+ * áreas base + las que ya usan los puestos, y procesos de referencia + los que ya usan los datos.
+ */
+async function seedCatalogs(c: PoolClient, useDemoProcesses: boolean) {
+  if ((await c.query('SELECT 1 FROM org_areas LIMIT 1')).rowCount === 0) {
+    for (const a of DEFAULT_AREAS) await saveEntity('areas', a, c);
+    const used = await c.query(
+      `SELECT DISTINCT department AS name FROM organizational_roles UNION SELECT DISTINCT department FROM user_profiles`);
+    let n = 1;
+    for (const { name } of used.rows) {
+      if (!name?.trim()) continue;
+      const exists = (await c.query('SELECT 1 FROM org_areas WHERE lower(name) = lower($1)', [name.trim()])).rowCount;
+      if (!exists) await saveEntity('areas', { id: `area-auto-${n++}`, name: name.trim(), manager: '', description: '', active: true }, c);
+    }
+  }
+  if ((await c.query('SELECT 1 FROM business_processes LIMIT 1')).rowCount === 0) {
+    const base = useDemoProcesses ? DEMO_PROCESSES : COOPERATIVE_PROCESSES;
+    for (const p of base) await saveEntity('processes', p, c);
+    const used = await c.query(
+      `SELECT process AS name FROM risks UNION SELECT process FROM controls UNION SELECT process FROM operational_flaws
+        UNION SELECT process FROM kri_definitions UNION SELECT process FROM anomaly_alerts UNION SELECT process FROM audit_findings`);
+    let next = base.length + 1;
+    for (const { name } of used.rows) {
+      if (!name?.trim()) continue;
+      const exists = (await c.query('SELECT 1 FROM business_processes WHERE lower(name) = lower($1)', [name.trim()])).rowCount;
+      if (exists) continue;
+      const code = `PRC-${String(next).padStart(2, '0')}`;
+      await saveEntity('processes', {
+        id: `proc-auto-${next++}`, code, name: name.trim(), owner: '', criticality: 'Medio', description: 'Creado a partir de los datos existentes.', active: true,
+      }, c);
+    }
+  }
+}
 
 /**
  * Prepara la base al arrancar el servidor:
@@ -65,9 +103,12 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
       await c.query(`UPDATE regulatory_milestone_templates SET basis = 'conocimiento' WHERE authority = 'ANCI'`);
       await c.query(`INSERT INTO system_settings (key, value) VALUES ('migration_ran208_v1', 'true') ON CONFLICT (key) DO NOTHING`);
     }
+    // Instalación nueva sin datos de ejemplo: montos en pesos chilenos (las existentes siguen en USD).
+    const freshCLP = baseSeeded && !wantDemo;
     for (const [key, value] of [
       ['current_industry', 'Banca & Servicios Financieros'],
-      ['loss_registration_threshold_usd', 1000],
+      ['loss_registration_threshold_usd', freshCLP ? 1_000_000 : 1000],
+      ['general_parameters', { ...DEFAULT_GENERAL_PARAMETERS, currency: freshCLP ? 'CLP' : 'USD' }],
       ['apr_operational_inputs', wantDemo ? DEMO_APR_INPUTS : EMPTY_APR_INPUTS],
     ] as const) {
       await c.query('INSERT INTO system_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [key, JSON.stringify(value)]);
@@ -109,6 +150,12 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
         entityCode: 'usr-admin', details: 'Instalación inicial: cargos de gobierno cooperativo, plazos regulatorios y usuario administrador creados.',
       }, '127.0.0.1', c);
     }
+  });
+
+  await withTransaction(async c => {
+    await c.query('SELECT pg_advisory_xact_lock(727003)');
+    const hasRisks = (await c.query('SELECT 1 FROM risks LIMIT 1')).rowCount! > 0;
+    await seedCatalogs(c, wantDemo || hasRisks);
   });
 
   // El correo del administrador inicial se puede fijar o corregir con ADMIN_EMAIL.

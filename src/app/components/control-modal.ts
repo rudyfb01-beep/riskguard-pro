@@ -70,7 +70,7 @@ import { Control, ControlAutomation, ControlEvidenceAttachment, ControlFrequency
                   formControlName="process"
                   class="w-full text-xs rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
-                  @for (proc of riskService.defaultProcesses; track proc) {
+                  @for (proc of riskService.catalog.processOptions(form.value.process ?? undefined); track proc) {
                     <option [value]="proc">{{ proc }}</option>
                   }
                 </select>
@@ -401,7 +401,7 @@ export class ControlModal implements OnInit {
   form = new FormGroup({
     name: new FormControl('', [Validators.required, Validators.minLength(4)]),
     description: new FormControl(''),
-    process: new FormControl('Operaciones de Pago'),
+    process: new FormControl(this.riskService.catalog.processNames()[0] ?? ''),
     owner: new FormControl(''),
     type: new FormControl<ControlType>('Preventivo'),
     automation: new FormControl<ControlAutomation>('Automático'),
@@ -544,7 +544,7 @@ export class ControlModal implements OnInit {
       await this.riskService.addControl({
         name: val.name || '',
         description: val.description || '',
-        process: val.process || 'Operaciones de Pago',
+        process: val.process || (this.riskService.catalog.processNames()[0] ?? ''),
         owner: val.owner || this.riskService.currentProfile().name,
         type: (val.type as ControlType) || 'Preventivo',
         automation: (val.automation as ControlAutomation) || 'Automático',

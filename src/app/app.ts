@@ -25,6 +25,8 @@ import { ProvidersPanel } from './components/providers-panel';
 import { ContinuityPanel } from './components/continuity-panel';
 import { SecurityPanel } from './components/security-panel';
 import { AprPanel } from './components/apr-panel';
+import { CatalogsPanel } from './components/catalogs-panel';
+import { AuditsPanel } from './components/audits-panel';
 import { Control, KriDefinition, OperationalFlaw, Risk } from './models/risk.model';
 
 export type ActiveTab =
@@ -40,6 +42,7 @@ export type ActiveTab =
   | 'continuidad'
   | 'seguridad-informacion'
   | 'apr-operacional'
+  | 'mantenedores'
   | 'alertas-kri'
   | 'auditorias'
   | 'bitacora'
@@ -71,6 +74,8 @@ export type ActiveTab =
     ContinuityPanel,
     SecurityPanel,
     AprPanel,
+    CatalogsPanel,
+    AuditsPanel,
     LoginScreen,
   ],
   templateUrl: './app.html',
@@ -169,6 +174,8 @@ export class App {
         return { title: 'Bitácora Inalterable (Ledger)', section: 'Supervisión & Auditoría', icon: 'lock' };
       case 'reportes-pdf':
         return { title: 'Centro de Reportes & PDF', section: 'Gobernanza & Cumplimiento', icon: 'picture_as_pdf' };
+      case 'mantenedores':
+        return { title: 'Mantenedores', section: 'Configuración', icon: 'tune' };
     }
   });
 

@@ -241,7 +241,8 @@ type SubTab = 'bia' | 'planes' | 'pruebas';
           </div>
           <fieldset class="flex-1 overflow-y-auto p-6 space-y-4" [disabled]="!canManage()">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Proceso *</span><input [class]="inputCls" [value]="d.name" (input)="setBia('name', $any($event.target).value)" /></label>
+              <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Proceso *</span><input [class]="inputCls" list="bia-process-names" [value]="d.name" (input)="setBia('name', $any($event.target).value)" />
+                <datalist id="bia-process-names">@for (p of rs.catalog.processNames(); track p) { <option [value]="p"></option> }</datalist></label>
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Dueño del proceso</span><input [class]="inputCls" [value]="d.owner" (input)="setBia('owner', $any($event.target).value)" /></label>
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Línea de negocio</span>
                 <select [class]="inputCls" (change)="setBia('businessLine', $any($event.target).value)">
@@ -405,7 +406,7 @@ type SubTab = 'bia' | 'planes' | 'pruebas';
 })
 export class ContinuityPanel {
   readonly res = inject(ResilienceService);
-  private readonly rs = inject(RiskDataService);
+  readonly rs = inject(RiskDataService);
   readonly notify = output<string>();
 
   readonly inputCls = INPUT;

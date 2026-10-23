@@ -1,3 +1,4 @@
+import { BusinessProcess } from '../models/catalog.model';
 import {
   AnomalyAlert, AuditLogEntry, Control, KriDefinition, OperationalFlaw, PeriodicAudit, Risk, UserProfile,
 } from '../models/risk.model';
@@ -1032,3 +1033,25 @@ export const DEMO_LEDGER: AuditLogEntry[] = [
   }
 ];
 
+
+// -----------------------------------------------------------------------------
+// Mantenedores (datos de ejemplo): procesos que usan los riesgos y controles de ejemplo
+// -----------------------------------------------------------------------------
+
+const demoProc = (n: number, name: string, areaId: string, owner: string, businessLine: BusinessProcess['businessLine'], criticality: BusinessProcess['criticality']): BusinessProcess => ({
+  id: `proc-demo-${n}`, code: `PRC-${String(n).padStart(2, '0')}`, name, areaId, owner, businessLine, criticality, description: '', active: true,
+});
+
+export const DEMO_PROCESSES: BusinessProcess[] = [
+  demoProc(1, 'Operaciones de Pago', 'area-operaciones', 'Carlos Mendoza', 'Medios y Canales de Pago', 'Crítico'),
+  demoProc(2, 'Tesorería', 'area-finanzas', 'Laura Benítez', 'Tesorería e Inversiones', 'Crítico'),
+  demoProc(3, 'Ciberseguridad & TI', 'area-seguridad', 'Alejandro Vega', 'Soporte Corporativo', 'Crítico'),
+  demoProc(4, 'Infraestructura Cloud', 'area-operaciones', 'Carlos Mendoza', 'Soporte Corporativo', 'Alto'),
+  demoProc(5, 'Cumplimiento Legal', 'area-cumplimiento', 'Sofía Valenzuela', 'Soporte Corporativo', 'Alto'),
+  demoProc(6, 'Gestión Humana', 'area-personas', '', 'Soporte Corporativo', 'Medio'),
+  demoProc(7, 'Gobierno y Control', 'area-gobierno', 'Roberto Miranda', 'Soporte Corporativo', 'Alto'),
+  demoProc(8, 'Cadena de Suministro', 'area-operaciones', '', 'Soporte Corporativo', 'Medio'),
+  demoProc(9, 'Captaciones y Ahorro', 'area-comercial', '', 'Captaciones y Ahorro', 'Crítico'),
+  demoProc(10, 'Créditos y Cobranza', 'area-comercial', '', 'Créditos de Consumo', 'Crítico'),
+  demoProc(11, 'Atención a Socios y Sucursales', 'area-comercial', '', 'Soporte Corporativo', 'Alto'),
+];

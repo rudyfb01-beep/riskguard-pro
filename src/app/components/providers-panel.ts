@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { downloadCsv } from '../utils/csv';
-import { ResilienceService, ASSESSMENT_FREQUENCY_MONTHS } from '../services/resilience.service';
+import { ResilienceService } from '../services/resilience.service';
 import {
   CONTRACT_CLAUSES,
   ContractClauseKey,
@@ -63,7 +63,7 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 tex
         <div class="bg-white p-3.5 rounded-xl border border-sky-200 bg-sky-50/30"><span class="text-[11px] font-semibold text-sky-800 block">En la nube</span><span class="text-2xl font-bold font-mono text-sky-800">{{ kpis().cloud }}</span></div>
         <div class="bg-white p-3.5 rounded-xl border border-amber-200 bg-amber-50/30"><span class="text-[11px] font-semibold text-amber-800 block">Datos en el extranjero</span><span class="text-2xl font-bold font-mono text-amber-900">{{ kpis().abroad }}</span></div>
         <div class="bg-white p-3.5 rounded-xl border border-rose-300"><span class="text-[11px] font-semibold text-rose-800 block">Alertas altas</span><span class="text-2xl font-bold font-mono text-rose-700">{{ kpis().highAlerts }}</span></div>
-        <div class="bg-white p-3.5 rounded-xl border border-slate-200"><span class="text-[11px] font-semibold text-slate-500 block">Costo anual</span><span class="text-xl font-bold font-mono text-slate-900">\${{ kpis().annualCostUSD | number:'1.0-0' }}</span><span class="text-[10px] text-slate-500 ml-1">USD</span></div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200"><span class="text-[11px] font-semibold text-slate-500 block">Costo anual</span><span class="text-xl font-bold font-mono text-slate-900">\${{ kpis().annualCostUSD | number:'1.0-0' }}</span><span class="text-[10px] text-slate-500 ml-1">{{ rs.currencyCode() }}</span></div>
       </div>
 
       <!-- Alertas -->
@@ -242,7 +242,7 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 tex
               <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Inicio contrato</span><input type="date" [class]="inputCls" [value]="d.contractStart" (input)="set('contractStart', $any($event.target).value)" /></label>
                 <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Término contrato *</span><input type="date" [class]="inputCls" [value]="d.contractEnd" (input)="set('contractEnd', $any($event.target).value)" /></label>
-                <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Costo anual (USD)</span><input type="number" min="0" [class]="inputCls" [value]="d.annualCostUSD" (input)="set('annualCostUSD', +$any($event.target).value)" /></label>
+                <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Costo anual ({{ rs.currencyCode() }})</span><input type="number" min="0" [class]="inputCls" [value]="d.annualCostUSD" (input)="set('annualCostUSD', +$any($event.target).value)" /></label>
                 <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">RTO comprometido (h)</span><input type="number" min="0" step="0.5" [class]="inputCls" [value]="d.committedRtoHours ?? ''" (input)="set('committedRtoHours', $any($event.target).value === '' ? undefined : +$any($event.target).value)" /></label>
               </div>
 
@@ -323,7 +323,7 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 tex
 })
 export class ProvidersPanel {
   readonly res = inject(ResilienceService);
-  private readonly rs = inject(RiskDataService);
+  readonly rs = inject(RiskDataService);
   readonly notify = output<string>();
 
   readonly inputCls = INPUT;
@@ -332,7 +332,7 @@ export class ProvidersPanel {
   readonly statuses: ServiceProvider['status'][] = ['Activo', 'En evaluación', 'En término'];
   readonly clauses = CONTRACT_CLAUSES;
   readonly clauseCount = CONTRACT_CLAUSES.length;
-  readonly freq = ASSESSMENT_FREQUENCY_MONTHS;
+  get freq() { return this.rs.catalog.params().providerAssessmentMonths; }
 
   readonly search = signal('');
   readonly critFilter = signal('');
@@ -365,7 +365,7 @@ export class ProvidersPanel {
       [],
       ['Código', 'Proveedor', 'RUT', 'Servicio', 'Categoría', 'Criticidad', 'Estado', 'Responsable', 'Procesos que soporta',
        'Nube', 'Modelo', 'Ubicación datos', 'País', 'Datos de socios', 'Subcontrata', 'Inicio contrato', 'Término contrato',
-       'Costo anual USD', 'RTO comprometido (h)', 'Última evaluación', 'Puntaje', 'Próxima evaluación', 'Plan de salida',
+       `Costo anual ${this.rs.currencyCode()}`, 'RTO comprometido (h)', 'Última evaluación', 'Puntaje', 'Próxima evaluación', 'Plan de salida',
        ...clauseLabels, 'Procesos críticos BIA dependientes', 'Alertas'],
       ...this.res.providers().map(p => [
         p.code, p.name, p.taxId, p.serviceDescription, p.category, p.criticality, p.status, p.internalOwner, p.supportedProcesses.join(', '),

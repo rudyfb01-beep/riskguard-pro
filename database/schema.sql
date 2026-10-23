@@ -831,3 +831,36 @@ BEGIN
     ALTER TABLE regulatory_milestone_templates ADD CONSTRAINT chk_milestone_basis CHECK (basis IN ('ocurrencia', 'conocimiento'));
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+-- ==============================================================================
+-- 23. MANTENEDORES: ÁREAS Y MAPA DE PROCESOS
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS org_areas (
+    id VARCHAR(64) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    manager VARCHAR(255),
+    description TEXT,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_org_areas_name ON org_areas (lower(name));
+
+-- Riesgos, controles, incidentes, KRIs, alertas y hallazgos guardan el nombre del proceso;
+-- al renombrar un proceso el servidor actualiza esas referencias en la misma transacción.
+CREATE TABLE IF NOT EXISTS business_processes (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    area_id VARCHAR(64) REFERENCES org_areas(id) ON DELETE SET NULL,
+    owner VARCHAR(255),
+    business_line VARCHAR(100),
+    criticality VARCHAR(20) NOT NULL DEFAULT 'Medio' CHECK (criticality IN ('Crítico', 'Alto', 'Medio', 'Bajo')),
+    description TEXT,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_business_processes_name ON business_processes (lower(name));
+CREATE INDEX IF NOT EXISTS idx_business_processes_area ON business_processes (area_id);

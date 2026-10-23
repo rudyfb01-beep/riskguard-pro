@@ -55,7 +55,10 @@ export class AprService {
     };
   });
 
-  readonly result = computed(() => computeApr(this.inputs(), this.lossHistory()));
+  /** Pesos por unidad de la base de pérdidas: 1 si los montos ya se registran en CLP. */
+  readonly lossToClp = computed(() => (this.rs.currencyCode() === 'CLP' ? 1 : normalizeAprInputs(this.inputs()).usdToClp));
+
+  readonly result = computed(() => computeApr({ ...this.inputs(), usdToClp: this.lossToClp() }, this.lossHistory()));
 
   async saveInputs(next: AprInputs) {
     this.inputs.set(normalizeAprInputs(structuredClone(next)));
