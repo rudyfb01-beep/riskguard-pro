@@ -245,9 +245,19 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
                 </div>
                 <div>
                   <label for="accounting-account" class="block text-[11px] font-medium text-slate-600 mb-1">Cuenta contable</label>
-                  <input id="accounting-account" type="text" formControlName="accountingAccount"
-                    placeholder="Ej. Gastos por pérdidas operacionales"
-                    class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                  @if (riskService.catalog.accountingAccounts().length) {
+                    <select id="accounting-account" formControlName="accountingAccount"
+                      class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                      <option value="">Sin asignar</option>
+                      @for (a of riskService.catalog.accountOptions(form.value.accountingAccount || undefined); track a.code) {
+                        <option [value]="a.code">{{ a.code }} · {{ a.name }}</option>
+                      }
+                    </select>
+                  } @else {
+                    <input id="accounting-account" type="text" formControlName="accountingAccount"
+                      placeholder="Cargue el plan de cuentas en Mantenedores"
+                      class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                  }
                 </div>
                 <div>
                   <label for="basel-category" class="block text-[11px] font-medium text-slate-600 mb-1">Categoría Basilea (nivel 1)</label>

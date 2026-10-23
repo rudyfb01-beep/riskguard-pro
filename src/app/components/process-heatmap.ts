@@ -688,14 +688,10 @@ export class ProcessHeatmap {
   readonly riskSelected = output<Risk>();
   readonly processSelected = output<string>();
 
-  readonly likelihoodNames = ['Improbable', 'Posible', 'Probable', 'Frecuente'];
+  /** Nombres de la escala vigente (Mantenedores → Escala de riesgo). */
+  get likelihoodNames(): string[] { return this.riskService.catalog.riskScale().likelihood.map(l => l.name); }
 
-  readonly impactLabels = [
-    { level: 1, name: 'Menor' },
-    { level: 2, name: 'Moderado' },
-    { level: 3, name: 'Mayor' },
-    { level: 4, name: 'Catastrófico' },
-  ];
+  get impactLabels(): { level: number; name: string }[] { return this.riskService.catalog.riskScale().impact.map(l => ({ level: l.level, name: l.name })); }
 
   getActiveDetailedSummary(): ProcessHeatmapSummary | undefined {
     const proc = this.selectedDetailedProcess();

@@ -92,6 +92,10 @@ export class PersistenceService {
     { key: 'loss_registration_threshold_usd', sig: this.rs.lossRegistrationThresholdUSD as WritableSignal<unknown>, last: '' },
     { key: 'apr_operational_inputs', sig: this.apr.inputs as WritableSignal<unknown>, last: '' },
     { key: 'general_parameters', sig: this.cat.generalParameters, last: '' },
+    { key: 'risk_scale', sig: this.cat.riskScaleRaw, last: '' },
+    { key: 'risk_appetite', sig: this.cat.riskAppetiteRaw, last: '' },
+    { key: 'accounting_accounts', sig: this.cat.accountingAccountsRaw, last: '' },
+    { key: 'provider_catalogs', sig: this.cat.providerCatalogsRaw, last: '' },
   ];
 
   constructor() {

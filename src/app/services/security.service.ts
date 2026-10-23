@@ -132,6 +132,35 @@ export class SecurityService {
       `Autoevaluación ${item.code}: ${item.status}.${item.actionPlan ? ` Plan: ${item.actionPlan}` : ''}`);
   }
 
+  /** Código sugerido para un requisito nuevo del dominio (prefijo de 3 letras + correlativo). */
+  nextRequirementCode(domain: string): string {
+    const prefix = domain.normalize('NFD').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'REQ';
+    const max = this.assessment().filter(i => i.code.startsWith(prefix + '-'))
+      .reduce((m, i) => Math.max(m, Number(i.code.split('-')[1]) || 0), 0);
+    return `${prefix}-${String(max + 1).padStart(2, '0')}`;
+  }
+
+  /** Crea o modifica la definición de un requisito (no su evaluación). */
+  async saveRequirement(item: SecurityAssessmentItem) {
+    this.rs.ensure(['canManageInfoSecurity'], 'modificar la lista de verificación de seguridad');
+    const code = item.code.trim().toUpperCase();
+    if (!code || !item.requirement.trim()) throw new Error('Ingresa código y requisito.');
+    if (this.assessment().some(x => x.id !== item.id && x.code.toUpperCase() === code)) throw new Error(`El código ${code} ya existe.`);
+    const prev = this.assessment().find(x => x.id === item.id);
+    const clean = { ...item, code, requirement: item.requirement.trim(), guidance: item.guidance.trim() };
+    this.assessment.update(list => (prev ? list.map(x => (x.id === item.id ? clean : x)) : [...list, clean]));
+    await this.rs.appendAuditLog('AUTOEVALUACIÓN_SEGURIDAD', 'Seguridad', code,
+      prev ? `Requisito ${code} modificado: "${clean.requirement.slice(0, 120)}".` : `Requisito agregado a la lista de seguridad: ${code} (${clean.domain}) "${clean.requirement.slice(0, 120)}".`);
+  }
+
+  async deleteRequirement(id: string) {
+    this.rs.ensure(['canManageInfoSecurity'], 'modificar la lista de verificación de seguridad');
+    const item = this.assessment().find(x => x.id === id);
+    if (!item) return;
+    this.assessment.update(list => list.filter(x => x.id !== id));
+    await this.rs.appendAuditLog('AUTOEVALUACIÓN_SEGURIDAD', 'Seguridad', item.code, `Requisito eliminado de la lista de seguridad: ${item.code} "${item.requirement.slice(0, 120)}".`);
+  }
+
   /** Puntaje: Cumple = 1, Parcial = 0,5, No cumple = 0; "No aplica" y "Sin evaluar" se excluyen. */
   private score(items: SecurityAssessmentItem[]) {
     const rated = items.filter(i => i.status === 'Cumple' || i.status === 'Cumple parcialmente' || i.status === 'No cumple');
@@ -198,7 +227,7 @@ export class SecurityService {
       }
       case 'TER-01': {
         const crit = this.res.providers().filter(p => p.status !== 'En término' && (p.criticality === 'Crítico' || p.criticality === 'Alto'));
-        const missing = crit.filter(p => !p.clauses.confidentiality || !p.clauses.incidentNotification || !p.clauses.auditRights).length;
+        const missing = crit.filter(p => !p.clauses['confidentiality'] || !p.clauses['incidentNotification'] || !p.clauses['auditRights']).length;
         return {
           text: `${crit.length} proveedores críticos o altos · ${missing} sin cláusulas de confidencialidad, notificación de incidentes o auditoría.`,
           suggested: crit.length ? (missing === 0 ? 'Cumple' : 'Cumple parcialmente') : undefined,

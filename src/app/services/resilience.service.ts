@@ -2,7 +2,6 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { RiskDataService } from './risk-data.service';
 import {
   BiaProcess,
-  CONTRACT_CLAUSES,
   ContinuityAlert,
   ContinuityPlan,
   ContinuityTest,
@@ -60,8 +59,13 @@ export class ResilienceService {
     return this.providers().find(p => p.id === id);
   }
 
+  /** Cláusulas del catálogo vigente (Mantenedores) que el contrato no tiene. */
   missingClauses(p: ServiceProvider): string[] {
-    return CONTRACT_CLAUSES.filter(c => !p.clauses[c.key]).map(c => c.label);
+    return this.rs.catalog.providerCatalogs().clauses.filter(c => !p.clauses[c.key]).map(c => c.label);
+  }
+
+  missingCriticalClause(p: ServiceProvider): boolean {
+    return this.rs.catalog.providerCatalogs().clauses.some(c => c.critical && !p.clauses[c.key]);
   }
 
   nextAssessmentDue(p: ServiceProvider): Date | null {
@@ -107,7 +111,7 @@ export class ResilienceService {
       }
       const missing = this.missingClauses(p);
       if (missing.length > 0) {
-        alerts.push({ providerId: p.id, type: 'Cláusulas faltantes', severity: missing.some(m => m.includes('regulador')) ? 'Alta' : 'Media', detail: `Falta: ${missing.join('; ')}.` });
+        alerts.push({ providerId: p.id, type: 'Cláusulas faltantes', severity: this.missingCriticalClause(p) ? 'Alta' : 'Media', detail: `Falta: ${missing.join('; ')}.` });
       }
       if (p.dataLocation === 'Extranjero' && p.handlesMemberData) {
         alerts.push({ providerId: p.id, type: 'Datos en el extranjero', severity: 'Media', detail: `Procesa datos de socios en ${p.dataCountry || 'el extranjero'}: requiere evaluación reforzada.` });

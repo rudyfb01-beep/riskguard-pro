@@ -149,11 +149,9 @@ import { BaselCategory, Risk } from '../models/risk.model';
                   class="w-full accent-slate-900 cursor-pointer"
                 />
                 <div class="flex justify-between text-[10px] text-slate-500 mt-1">
-                  <span>1. Improbable</span>
-                  <span>2. Posible</span>
-                  <span>3. Probable</span>
-                  <span>4. Frecuente</span>
+                  @for (l of riskService.catalog.riskScale().likelihood; track l.level) { <span [title]="l.criteria">{{ l.level }}. {{ l.name }}</span> }
                 </div>
+                <p class="text-[10px] text-slate-500 mt-1 italic">{{ criteria('likelihood', form.get('inherentLikelihood')?.value) }}</p>
               </div>
 
               <div>
@@ -169,11 +167,9 @@ import { BaselCategory, Risk } from '../models/risk.model';
                   class="w-full accent-slate-900 cursor-pointer"
                 />
                 <div class="flex justify-between text-[10px] text-slate-500 mt-1">
-                  <span>1. Menor</span>
-                  <span>2. Moderado</span>
-                  <span>3. Mayor</span>
-                  <span>4. Catastrófico</span>
+                  @for (l of riskService.catalog.riskScale().impact; track l.level) { <span [title]="l.criteria">{{ l.level }}. {{ l.name }}</span> }
                 </div>
+                <p class="text-[10px] text-slate-500 mt-1 italic">{{ criteria('impact', form.get('inherentImpact')?.value) }}</p>
               </div>
             </div>
           </div>
@@ -405,6 +401,11 @@ export class RiskModal implements OnInit {
 
   /** Permiso necesario para guardar en este formulario. */
   readonly savePerms = ['canEditRisks'] as const;
+
+  /** Criterio de la escala vigente para el nivel elegido. */
+  criteria(kind: 'likelihood' | 'impact', level: unknown): string {
+    return this.riskService.catalog.riskScale()[kind].find(l => l.level === Number(level))?.criteria ?? '';
+  }
 
   canSave(): boolean {
     return this.riskService.canAny(...this.savePerms);

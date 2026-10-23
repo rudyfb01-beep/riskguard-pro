@@ -40,7 +40,7 @@ export interface ServiceProvider {
   name: string;
   taxId: string;                 // RUT
   serviceDescription: string;
-  category: ProviderServiceCategory;
+  category: ProviderServiceCategory | string;   // catálogo editable en Mantenedores
   criticality: ProviderCriticality;
   internalOwner: string;
   supportedProcesses: string[];  // procesos de la cooperativa que dependen del servicio
@@ -58,7 +58,7 @@ export interface ServiceProvider {
   contractStart: string;   // YYYY-MM-DD
   contractEnd: string;     // YYYY-MM-DD
   annualCostUSD: number;
-  clauses: Record<ContractClauseKey, boolean>;
+  clauses: Record<string, boolean>;              // clave de cláusula (catálogo editable) → presente
 
   // Evaluación y salida
   lastAssessmentDate?: string;  // YYYY-MM-DD

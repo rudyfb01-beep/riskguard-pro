@@ -474,6 +474,21 @@
         <!-- 5 Key Quantitative Indicators -->
         <app-executive-kpis></app-executive-kpis>
 
+        @if (riskService.appetiteSummary().over + riskService.appetiteSummary().outOfTolerance + riskService.appetiteSummary().lossExceeded > 0) {
+          <button type="button" (click)="riskService.catalog.requestedTab.set('apetito'); setTab('mantenedores')"
+            class="w-full text-left p-3 rounded-xl border flex items-center gap-3 text-xs cursor-pointer"
+            [class]="riskService.appetiteSummary().outOfTolerance || riskService.appetiteSummary().lossExceeded ? 'border-rose-300 bg-rose-50 text-rose-900' : 'border-amber-300 bg-amber-50 text-amber-900'">
+            <mat-icon class="text-base shrink-0">speed</mat-icon>
+            <span class="flex-1">
+              <strong>Apetito de riesgo:</strong>
+              {{ riskService.appetiteSummary().outOfTolerance }} riesgo(s) fuera de tolerancia,
+              {{ riskService.appetiteSummary().over }} sobre el apetito
+              @if (riskService.appetiteSummary().lossExceeded) { y {{ riskService.appetiteSummary().lossExceeded }} categoría(s) con pérdida anual sobre el límite }.
+            </span>
+            <span class="font-semibold shrink-0">Ver límites →</span>
+          </button>
+        }
+
         <!-- Main Heatmap Grid & Critical Alerts Column -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
@@ -812,6 +827,14 @@
                       >
                         {{ risk.residualLevel }} ({{ risk.residualLikelihood }}×{{ risk.residualImpact }})
                       </span>
+                      @let appetite = riskService.appetiteOf(risk);
+                      @if (appetite !== 'Dentro del apetito') {
+                        <span class="block mt-1 text-[10px] font-semibold"
+                          [class]="appetite === 'Fuera de tolerancia' ? 'text-rose-700' : 'text-amber-700'"
+                          [title]="'Apetito ' + risk.category + ': hasta ' + riskService.catalog.appetiteLimit(risk.category)?.appetiteMaxScore + ' pts; tolerancia hasta ' + riskService.catalog.appetiteLimit(risk.category)?.toleranceMaxScore + ' pts'">
+                          {{ appetite }}
+                        </span>
+                      }
                     </td>
 
                     <!-- Residual Exposure USD -->
@@ -1465,7 +1488,7 @@
                       <td class="py-2.5 px-3 font-mono text-slate-500 font-bold">{{ f.id }}</td>
                       <td class="py-2.5 px-3 max-w-[260px]">
                         <div class="font-semibold text-slate-900 line-clamp-2">{{ f.title }}</div>
-                        <div class="text-[10px] text-slate-500">{{ f.process }}@if (f.accountingAccount) { · {{ f.accountingAccount }} }</div>
+                        <div class="text-[10px] text-slate-500">{{ f.process }}@if (f.accountingAccount) { · {{ riskService.catalog.accountLabel(f.accountingAccount) }} }</div>
                         @if (missing.length > 0) {
                           <div class="text-[10px] text-amber-700 mt-0.5 flex items-center gap-0.5" [title]="missing.join(', ')">
                             <mat-icon class="text-[12px] w-3 h-3">warning</mat-icon>

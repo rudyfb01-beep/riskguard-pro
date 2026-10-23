@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
-import { RiskDataService } from '../services/risk-data.service';
+import { PermissionDeniedError, RiskDataService } from '../services/risk-data.service';
 import { ResilienceService } from '../services/resilience.service';
 import { SecurityService } from '../services/security.service';
 import { downloadCsv } from '../utils/csv';
 import {
+  ASSESSMENT_DOMAINS,
   ASSET_TYPES,
   AssessmentStatus,
   AssetLocation,
@@ -221,7 +222,10 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion';
         @case ('autoevaluacion') {
           <div class="p-3 rounded-xl border border-amber-200 bg-amber-50 text-[11px] text-amber-900 flex items-start gap-2">
             <mat-icon class="text-sm text-amber-600 shrink-0">info</mat-icon>
-            <span>Lista <strong>referencial</strong> basada en buenas prácticas (ISO/IEC 27001 y el marco que la CMF aplica a la banca). Ajústela al texto vigente de la RAN CACs. Donde el sistema tiene datos, se muestra evidencia automática.</span>
+            <span class="flex-1">Lista <strong>referencial</strong> basada en buenas prácticas (ISO/IEC 27001 y el marco que la CMF aplica a la banca). Ajústela al texto vigente de la RAN CACs: puede agregar, editar o quitar requisitos. Donde el sistema tiene datos, se muestra evidencia automática.</span>
+            @if (canManage()) {
+              <button type="button" (click)="newRequirement()" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-violet-700 text-white hover:bg-violet-600 cursor-pointer shrink-0 flex items-center gap-1"><mat-icon class="text-sm">add</mat-icon>Nuevo requisito</button>
+            }
           </div>
 
           <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -266,6 +270,7 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion';
                         <span class="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap" [class]="assessClass(i.status)">{{ i.status }}</span>
                         @if (canManage() && editingItem()?.id !== i.id) {
                           <button type="button" (click)="editItem(i)" class="px-2 py-1 text-[11px] rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">Evaluar</button>
+                          <button type="button" (click)="editRequirement(i)" title="Editar el requisito" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"><mat-icon class="text-sm">edit</mat-icon></button>
                         }
                       </div>
                     </div>
@@ -454,6 +459,33 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion';
         </div>
       </div>
     }
+
+    <!-- Modal requisito de la lista de seguridad -->
+    @if (reqDraft(); as r) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-xl my-6 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+            <h2 class="text-base font-bold text-slate-900 flex items-center gap-2"><mat-icon class="text-violet-700">checklist</mat-icon>{{ reqIsNew() ? 'Nuevo requisito' : 'Editar requisito ' + r.code }}</h2>
+            <button type="button" (click)="reqDraft.set(null)" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer"><mat-icon>close</mat-icon></button>
+          </div>
+          <div class="p-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Dominio</span>
+              <select [class]="inputCls" (change)="setReqDomain($any($event.target).value)">@for (d of domains; track d) { <option [value]="d" [selected]="d === r.domain">{{ d }}</option> }</select></label>
+            <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Código *</span><input [class]="inputCls" [value]="r.code" (input)="setReq('code', $any($event.target).value)" /></label>
+            <label class="block sm:col-span-3"><span class="block text-[11px] font-medium text-slate-600 mb-1">Requisito *</span><textarea rows="2" [class]="inputCls" [value]="r.requirement" (input)="setReq('requirement', $any($event.target).value)"></textarea></label>
+            <label class="block sm:col-span-3"><span class="block text-[11px] font-medium text-slate-600 mb-1">Guía para evaluarlo</span><textarea rows="2" [class]="inputCls" [value]="r.guidance" (input)="setReq('guidance', $any($event.target).value)"></textarea></label>
+          </div>
+          <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center gap-3">
+            @if (!reqIsNew()) {
+              <button type="button" (click)="removeRequirement(r)" class="px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer flex items-center gap-1"><mat-icon class="text-sm">delete</mat-icon>Quitar de la lista</button>
+            }
+            <span class="text-[11px] text-rose-700 flex-1">{{ reqError() }}</span>
+            <button type="button" (click)="reqDraft.set(null)" class="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer">Cancelar</button>
+            <button type="button" (click)="saveRequirement()" class="px-4 py-2 text-xs font-semibold text-white bg-violet-700 hover:bg-violet-600 rounded-lg cursor-pointer">Guardar requisito</button>
+          </div>
+        </div>
+      </div>
+    }
   `,
 })
 export class SecurityPanel {
@@ -494,6 +526,58 @@ export class SecurityPanel {
   readonly assetDraft = signal<InformationAsset | null>(null);
   readonly vulnDraft = signal<Vulnerability | null>(null);
   readonly editingItem = signal<SecurityAssessmentItem | null>(null);
+
+  // Definición de requisitos (lista de verificación editable)
+  readonly domains = ASSESSMENT_DOMAINS;
+  readonly reqDraft = signal<SecurityAssessmentItem | null>(null);
+  readonly reqIsNew = signal(false);
+  readonly reqError = signal('');
+
+  newRequirement() {
+    const domain = ASSESSMENT_DOMAINS[0];
+    this.reqIsNew.set(true);
+    this.reqError.set('');
+    this.reqDraft.set({
+      id: `sec-req-${Date.now().toString(36)}`, code: this.sec.nextRequirementCode(domain), domain, requirement: '', guidance: '',
+      status: 'Sin evaluar', evidence: '', owner: '', actionPlan: '',
+    });
+  }
+
+  editRequirement(i: SecurityAssessmentItem) {
+    this.reqIsNew.set(false);
+    this.reqError.set('');
+    this.reqDraft.set({ ...i });
+  }
+
+  setReq<K extends keyof SecurityAssessmentItem>(k: K, v: SecurityAssessmentItem[K]) {
+    this.reqDraft.update(r => (r ? { ...r, [k]: v } : r));
+  }
+
+  setReqDomain(domain: SecurityAssessmentItem['domain']) {
+    this.reqDraft.update(r => (r ? { ...r, domain, code: this.reqIsNew() ? this.sec.nextRequirementCode(domain) : r.code } : r));
+  }
+
+  async saveRequirement() {
+    const r = this.reqDraft();
+    if (!r) return;
+    try {
+      await this.sec.saveRequirement(r);
+      this.notify.emit(`Requisito ${r.code.trim().toUpperCase()} guardado.`);
+      this.reqDraft.set(null);
+    } catch (err) {
+      if (!(err instanceof PermissionDeniedError)) this.reqError.set((err as Error).message);
+    }
+  }
+
+  async removeRequirement(r: SecurityAssessmentItem) {
+    try {
+      await this.sec.deleteRequirement(r.id);
+      this.notify.emit(`Requisito ${r.code} quitado de la lista.`);
+      this.reqDraft.set(null);
+    } catch (err) {
+      if (!(err instanceof PermissionDeniedError)) this.reqError.set((err as Error).message);
+    }
+  }
   readonly formError = signal('');
   private dueEdited = false;
 
