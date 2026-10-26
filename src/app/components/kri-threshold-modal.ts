@@ -47,10 +47,10 @@ import { IndustryType, KriDefinition, BaselCategory } from '../models/risk.model
               <div>
                 <span class="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                   <mat-icon class="text-sm text-indigo-600">domain</mat-icon>
-                  <span>Perfil de Industria Seleccionado</span>
+                  <span>KRIs sugeridos por sector</span>
                 </span>
                 <p class="text-xs text-slate-500 mt-0.5">
-                  Carga preconfiguraciones normativas y tolerancias operacionales calibradas para tu sector
+                  Agrega los KRIs sugeridos para el sector (los que ya existen no se modifican ni se borran)
                 </p>
               </div>
               <span class="text-xs font-mono px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg font-semibold border border-indigo-200 shrink-0 self-start sm:self-auto">
@@ -58,7 +58,7 @@ import { IndustryType, KriDefinition, BaselCategory } from '../models/risk.model
               </span>
             </div>
 
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-1">
+            <div class="grid grid-cols-2 gap-2 pt-1">
               @for (ind of industryList; track ind.name) {
                 <button
                   type="button"
@@ -523,9 +523,6 @@ export class KriThresholdModal {
   readonly industryList: { name: IndustryType; icon: string }[] = [
     { name: 'Fintech & Pagos Digitales', icon: 'payments' },
     { name: 'Banca & Servicios Financieros', icon: 'account_balance' },
-    { name: 'Salud & Farmacéutica', icon: 'local_hospital' },
-    { name: 'Manufactura & Cadena de Suministro', icon: 'precision_manufacturing' },
-    { name: 'Retail & Comercio Electrónico', icon: 'shopping_cart' },
   ];
 
   get processesList(): string[] {
@@ -614,7 +611,7 @@ export class KriThresholdModal {
       name: formVal.name || '',
       code: formVal.code || '',
       description: formVal.description || '',
-      process: formVal.process || 'Operaciones',
+      process: formVal.process || '',
       category: formVal.category as BaselCategory,
       unit: formVal.unit || '%',
       direction: formVal.direction as 'superior' | 'inferior',

@@ -101,10 +101,7 @@ export type ReportType =
               (change)="selectedPeriod.set($any($event.target).value)"
               class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer font-medium"
             >
-              <option value="Ejercicio 2026 - Q3 (Cierre Actual)">Ejercicio 2026 - Q3 (Cierre Actual)</option>
-              <option value="Ejercicio 2026 - Q2">Ejercicio 2026 - Q2</option>
-              <option value="Ejercicio 2026 - Q1">Ejercicio 2026 - Q1</option>
-              <option value="Consolidado Anual 2026">Consolidado Anual 2026</option>
+              @for (p of periods; track p) { <option [value]="p" [selected]="p === selectedPeriod()">{{ p }}</option> }
             </select>
           </div>
 
@@ -452,25 +449,25 @@ export type ReportType =
               <!-- Signature 1 -->
               <div class="flex flex-col items-center">
                 <div class="w-48 border-b-2 border-slate-400 pb-1 mb-2"></div>
-                <strong class="text-slate-900">Dr. Roberto Valenzuela</strong>
-                <span class="text-slate-500 text-[11px]">Jefe de Riesgo Operacional</span>
-                <span class="text-[10px] text-slate-400 font-mono">Gerencia de Riesgos</span>
+                <strong class="text-slate-900">{{ signer('role-riesgo-op').name }}</strong>
+                <span class="text-slate-500 text-[11px]">{{ signer('role-riesgo-op').role }}</span>
+                <span class="text-[10px] text-slate-400 font-mono">{{ signer('role-riesgo-op').area }}</span>
               </div>
 
               <!-- Signature 2 -->
               <div class="flex flex-col items-center">
                 <div class="w-48 border-b-2 border-slate-400 pb-1 mb-2"></div>
-                <strong class="text-slate-900">Dra. Claudia Benítez</strong>
-                <span class="text-slate-500 text-[11px]">Auditora Interna Líder (CIA / CISA)</span>
-                <span class="text-[10px] text-slate-400 font-mono">Instituto de Auditores Internos</span>
+                <strong class="text-slate-900">{{ signer('role-auditoria-interna').name }}</strong>
+                <span class="text-slate-500 text-[11px]">{{ signer('role-auditoria-interna').role }}</span>
+                <span class="text-[10px] text-slate-400 font-mono">{{ signer('role-auditoria-interna').area }}</span>
               </div>
 
               <!-- Signature 3 -->
               <div class="flex flex-col items-center">
                 <div class="w-48 border-b-2 border-slate-400 pb-1 mb-2"></div>
-                <strong class="text-slate-900">Ing. Andrés Mendoza</strong>
-                <span class="text-slate-500 text-[11px]">Presidente del Comité de Auditoría</span>
-                <span class="text-[10px] text-slate-400 font-mono">Consejo de Administración</span>
+                <strong class="text-slate-900">{{ signer('role-comite-riesgos').name }}</strong>
+                <span class="text-slate-500 text-[11px]">{{ signer('role-comite-riesgos').role }}</span>
+                <span class="text-[10px] text-slate-400 font-mono">{{ signer('role-comite-riesgos').area }}</span>
               </div>
 
             </div>
@@ -506,7 +503,17 @@ export class ReportsCenter {
 
   readonly selectedTemplate = signal<ReportType>('dictamen-directorio');
   readonly selectedDepartment = signal<string>('TODOS');
-  readonly selectedPeriod = signal<string>('Ejercicio 2026 - Q3 (Cierre Actual)');
+  /** Trimestre en curso, trimestres anteriores del año y consolidado anual. */
+  readonly periods: string[] = (() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const q = Math.floor(now.getMonth() / 3) + 1;
+    const list = [`Ejercicio ${y} - T${q} (en curso)`];
+    for (let k = q - 1; k >= 1; k--) list.push(`Ejercicio ${y} - T${k}`);
+    list.push(`Consolidado anual ${y}`, `Ejercicio ${y - 1} - T4`);
+    return list;
+  })();
+  readonly selectedPeriod = signal<string>(this.periods[0]);
   readonly includeCharts = signal<boolean>(true);
   readonly includeSignatures = signal<boolean>(true);
 
@@ -517,15 +524,30 @@ export class ReportsCenter {
     day: 'numeric'
   });
 
-  readonly reportFolio = computed(() => {
-    return Math.floor(1000 + Math.random() * 9000);
-  });
+  /** Firmante del cargo indicado (primer usuario activo con ese cargo) o línea en blanco con el cargo. */
+  signer(roleId: string): { name: string; role: string; area: string } {
+    const role = this.riskService.organizationalRoles().find(r => r.id === roleId);
+    const user = this.riskService.userProfiles().find(u => u.roleId === roleId && u.active !== false);
+    return { name: user?.name ?? '________________', role: role?.title ?? '', area: role?.department ?? '' };
+  }
 
-  readonly executiveStatement = signal<string>(
-    `Durante el periodo evaluado, la organización mantiene una exposición residual neta controlada frente a la exposición bruta inherente, logrando una tasa global de mitigación del 85% gracias a la efectividad promedio del 85% en el catálogo de controles operacionales.
+  /** Folio estable: fecha del día y número de bloques de la bitácora. */
+  readonly reportFolio = computed(() => `${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${this.riskService.auditTrail().length}`);
 
-Se certifica que no existen desviaciones no mitigadas que comprometan el apetito de riesgo corporativo fijado por el Consejo de Administración conforme a Basilea III y la norma ISO 31000:2018.`
-  );
+  readonly executiveStatement = signal<string>(this.defaultStatement());
+
+  /** Declaración base con las cifras y el estado de apetito actuales (editable antes de imprimir). */
+  private defaultStatement(): string {
+    const m = this.riskService.metrics();
+    const ap = this.riskService.appetiteSummary();
+    const fmt = (v: number) => this.riskService.catalog.formatMoney(v);
+    const appetite = ap.outOfTolerance + ap.over + ap.lossExceeded === 0
+      ? 'No se registran riesgos residuales sobre el apetito ni fuera de la tolerancia aprobados por el Consejo de Administración.'
+      : `Se registran ${ap.outOfTolerance} riesgo(s) fuera de tolerancia y ${ap.over} sobre el apetito aprobado por el Consejo de Administración${ap.lossExceeded ? `, y ${ap.lossExceeded} categoría(s) con pérdida anual sobre el límite` : ''}, que requieren planes de tratamiento.`;
+    return `Durante el periodo evaluado, la exposición residual neta es de ${fmt(m.totalResidualExposureUSD)} frente a una exposición inherente de ${fmt(m.totalInherentExposureUSD)}, con una mitigación del ${m.mitigationEfficiencyPct}% y una efectividad promedio de controles del ${m.avgControlEffectiveness}%.
+
+${appetite}`;
+  }
 
   readonly documentTitle = computed(() => {
     const t = this.selectedTemplate();

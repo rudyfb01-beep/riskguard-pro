@@ -83,7 +83,7 @@ import { MoneyPipe } from '../utils/money.pipe';
             <div class="flex items-center justify-between mb-2">
               <span class="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                 <mat-icon class="text-emerald-600 text-sm">gavel</mat-icon>
-                <span>Dictamen para el Comité de Auditoría y Consejo de Administración</span>
+                <span>Dictamen para el Comité de Riesgos y el Consejo de Administración</span>
               </span>
               <button
                 (click)="regenerateSummary()"

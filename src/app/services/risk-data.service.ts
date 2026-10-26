@@ -643,7 +643,7 @@ export class RiskDataService {
     const cell = this.matrixSelectedCell();
 
     return this.risks().filter(r => {
-      // Cell filter from 4x4 heatmap
+      // Cell filter from 4×4 heatmap
       if (cell) {
         if (r.inherentLikelihood !== cell.likelihood || r.inherentImpact !== cell.impact) {
           return false;
@@ -694,11 +694,13 @@ export class RiskDataService {
     const controlWeight = (avgControlEffectiveness / 100) * 40;
     const exposureMitigationWeight = (mitigationEfficiencyPct / 100) * 35;
     const alertsPenalty = Math.min(25, (activeAlertsCount * 5) + (criticalAlertsCount * 10));
-    const complianceWeight = allAudits.length > 0
-      ? (allAudits.reduce((acc, a) => acc + a.complianceScore, 0) / allAudits.length) * 0.25
-      : 20;
+    // Cumplimiento: promedio de las auditorías finalizadas o aprobadas (80 % si aún no hay).
+    const done = allAudits.filter(a => a.status === 'Finalizada' || a.status === 'Aprobada');
+    const auditCompliancePct = done.length ? Math.round(done.reduce((acc, a) => acc + a.complianceScore, 0) / done.length) : 80;
+    const complianceWeight = auditCompliancePct * 0.25;
+    const appliedAlertsPenalty = Math.round(alertsPenalty * 0.5);
 
-    const operationalHealthIndex = Math.max(0, Math.min(100, Math.round(controlWeight + exposureMitigationWeight + complianceWeight - (alertsPenalty * 0.5))));
+    const operationalHealthIndex = Math.max(0, Math.min(100, Math.round(controlWeight + exposureMitigationWeight + complianceWeight - appliedAlertsPenalty)));
 
     return {
       totalRisks: allRisks.length,
@@ -713,13 +715,15 @@ export class RiskDataService {
       avgControlEffectiveness,
       activeAlertsCount,
       criticalAlertsCount,
+      auditCompliancePct,
+      appliedAlertsPenalty,
       operationalHealthIndex
     };
   });
 
-  // Calculate 4x4 heatmap counts for Inherent and Residual risks (can be global or filtered by process)
+  // Calculate 4×4 heatmap counts for Inherent and Residual risks (can be global or filtered by process)
   readonly heatmapMatrix = computed(() => {
-    // 4x4 matrix: likelihood (1 to 4) x impact (1 to 4)
+    // 4×4 matrix: likelihood (1 to 4) x impact (1 to 4)
     // Row 4 is Likelihood 4 (Frecuente), Col 4 is Impact 4 (Catastrófico)
     const grid: {
       likelihood: number;
@@ -818,7 +822,7 @@ export class RiskDataService {
         ? Math.round(pControls.reduce((acc, c) => acc + c.totalEffectiveness, 0) / pControls.length)
         : 0;
 
-      // 4x4 grid per process
+      // 4×4 grid per process
       const grid: ProcessHeatmapCell[][] = [];
       for (let l = 4; l >= 1; l--) {
         const row: ProcessHeatmapCell[] = [];
@@ -883,16 +887,16 @@ export class RiskDataService {
     });
   });
 
-  // Helper to determine risk level on 4x4 scale (1 to 16 score)
+  // Helper to determine risk level on 4×4 scale (1 to 16 score)
   calculateRiskLevel(likelihood: number, impact: number): RiskLevel {
     const score = likelihood * impact;
-    if (score >= 12) return 'Crítico'; // e.g. 4x4=16, 4x3=12, 3x4=12
+    if (score >= 12) return 'Crítico'; // e.g. 4×4=16, 4x3=12, 3x4=12
     if (score >= 8) return 'Alto';     // e.g. 3x3=9, 2x4=8, 4x2=8
     if (score >= 4) return 'Medio';    // e.g. 2x3=6, 3x2=6, 2x2=4, 1x4=4, 4x1=4
     return 'Bajo';                     // e.g. 1x3=3, 3x1=3, 1x2=2, 2x1=2, 1x1=1
   }
 
-  // Calculate Residual Risk from Inherent Risk and applied controls (4x4 scale)
+  // Calculate Residual Risk from Inherent Risk and applied controls (4×4 scale)
   calculateResidual(
     inherentLikelihood: number,
     inherentImpact: number,
@@ -969,24 +973,39 @@ export class RiskDataService {
   }
 
   // Switch Industry Profile and adapt KRI presets
+  /** Proceso del mantenedor equivalente a un nombre (igual, o el que comparte más palabras; si no, el primero). */
+  closestProcess(name: string): string {
+    const names = this.catalog.processNames();
+    if (names.includes(name)) return name;
+    const words = (s: string) => new Set(s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z]+/).filter(w => w.length > 3));
+    const target = words(name);
+    let best = names[0] ?? name, score = 0;
+    for (const n of names) {
+      const sc = [...words(n)].filter(w => target.has(w)).length;
+      if (sc > score) { best = n; score = sc; }
+    }
+    return best;
+  }
+
   async setIndustry(industry: IndustryType) {
     this.ensure(['canConfigureKRIs'], 'cambiar el perfil de industria de los KRIs');
     this.currentIndustry.set(industry);
-    const presets = INDUSTRY_KRI_PRESETS[industry];
-    if (presets && presets.length > 0) {
-      const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
-      const newKriList: KriDefinition[] = presets.map((p, idx) => ({
-        ...p,
-        id: `kri-${industry.toLowerCase().slice(0, 3)}-${idx + 1}`,
-        lastUpdated: now
-      }));
-      this.kriDefinitions.set(newKriList);
-    }
+    // Agrega los KRIs sugeridos que falten; no reemplaza ni borra los existentes.
+    const presets = INDUSTRY_KRI_PRESETS[industry] ?? [];
+    const existing = new Set(this.kriDefinitions().map(k => k.code));
+    const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    const added: KriDefinition[] = presets.filter(p => !existing.has(p.code)).map((p, idx) => ({
+      ...p,
+      id: `kri-${industry.toLowerCase().slice(0, 3)}-${Date.now().toString(36)}-${idx + 1}`,
+      process: this.closestProcess(p.process),
+      lastUpdated: now
+    }));
+    if (added.length) this.kriDefinitions.update(list => [...list, ...added]);
     await this.appendAuditLog(
       'CAMBIO_INDUSTRIA',
       'KRI',
       industry,
-      `Configuración de industria cambiada a "${industry}". Umbrales y catálogo de KRIs adaptados automáticamente.`
+      `KRIs sugeridos para "${industry}": ${added.length ? `${added.length} agregados (${added.map(k => k.code).join(', ')})` : 'ya estaban todos'}. Los KRIs existentes se mantienen.`
     );
   }
 
@@ -1146,7 +1165,7 @@ export class RiskDataService {
       code,
       name: kriData.name || 'Nuevo Indicador Clave de Riesgo',
       description: kriData.description || 'Monitoreo de tolerancia operacional',
-      process: kriData.process || 'Operaciones',
+      process: this.closestProcess(kriData.process || ''),
       category: kriData.category || 'Ejecución y Procesos',
       industry: this.currentIndustry(),
       unit: kriData.unit || '%',
@@ -1180,7 +1199,7 @@ export class RiskDataService {
     const newRole: OrganizationalRole = {
       id: `role-${Date.now()}`,
       title: roleData.title || 'Nuevo Puesto Operativo',
-      department: roleData.department || 'Operaciones',
+      department: roleData.department || (this.catalog.activeAreas()[0]?.name ?? 'Sin área'),
       description: roleData.description || 'Definición de puesto y responsabilidades',
       badge: roleData.badge || 'Puesto Personalizado',
       isSystemRole: false,
@@ -1269,7 +1288,7 @@ export class RiskDataService {
       email: userData.email || 'colaborador@demo.riskguard.cl',
       role: userData.role || (roleMatch ? roleMatch.title : 'Colaborador Operativo'),
       roleId: userData.roleId || (roleMatch ? roleMatch.id : undefined),
-      department: userData.department || (roleMatch ? roleMatch.department : 'Operaciones'),
+      department: userData.department || (roleMatch ? roleMatch.department : (this.catalog.activeAreas()[0]?.name ?? 'Sin área')),
       badge: userData.badge || (roleMatch ? roleMatch.badge : 'Puesto Activo'),
       isSystemUser: false,
       permissions
@@ -1375,7 +1394,7 @@ export class RiskDataService {
   }
 
 
-  // Add a new risk (bounded to 4x4 scale)
+  // Add a new risk (bounded to 4×4 scale)
   async addRisk(riskData: Partial<Risk>): Promise<Risk> {
     this.ensure(['canEditRisks', 'canConvertFlaws'], 'crear riesgos');
     const code = `RGO-${100 + this.risks().length + 1}`;
@@ -1922,7 +1941,7 @@ export class RiskDataService {
       title: flawData.title || 'Incidencia operacional reportada',
       description: flawData.description || '',
       reportedBy: flawData.reportedBy || this.currentProfile().name,
-      process: flawData.process || 'Operaciones',
+      process: this.closestProcess(flawData.process || ''),
       severity: flawData.severity || 'Alta',
       reportedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
       status: 'Pendiente de Evaluación',
@@ -2021,7 +2040,7 @@ export class RiskDataService {
       threshold: alertData.threshold || 'Valor estándar',
       currentValue: alertData.currentValue || 'Excedido',
       severity: alertData.severity || 'Alto',
-      process: alertData.process || 'Operaciones',
+      process: this.closestProcess(alertData.process || ''),
       triggeredAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
       status: 'Activa',
       escalatedTo: alertData.escalatedTo || 'Oficial de Riesgo Operacional'

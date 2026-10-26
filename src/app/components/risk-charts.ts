@@ -202,7 +202,7 @@ import { MoneyPipe } from '../utils/money.pipe';
               <div>
                 <div class="flex justify-between text-xs mb-1">
                   <span class="font-medium text-slate-700">Distribución de Riesgo Residual (Post-Controles)</span>
-                  <span class="font-mono text-emerald-700 font-semibold text-[11px]">85% Mitigación</span>
+                  <span class="font-mono text-emerald-700 font-semibold text-[11px]">{{ riskService.metrics().mitigationEfficiencyPct }}% Mitigación</span>
                 </div>
                 <div class="h-3.5 w-full bg-slate-100 rounded-full flex overflow-hidden">
                   <div class="bg-rose-600 h-full" [style.width.%]="severityStats().resCritPct" [title]="'Crítico: ' + severityStats().residualCrit"></div>
@@ -415,12 +415,12 @@ import { MoneyPipe } from '../utils/money.pipe';
 
               <div class="flex justify-between items-center py-1 border-b border-slate-100">
                 <span class="text-slate-600">Auditorías & Cumplimiento</span>
-                <span class="font-mono font-semibold text-slate-900">92% (Pond. 25%)</span>
+                <span class="font-mono font-semibold text-slate-900">{{ riskService.metrics().auditCompliancePct }}% (Pond. 25%)</span>
               </div>
 
               <div class="flex justify-between items-center py-1 text-rose-700">
                 <span>Penalización por KRIs Activos</span>
-                <span class="font-mono font-semibold">-{{ riskService.metrics().activeAlertsCount * 5 }} pts</span>
+                <span class="font-mono font-semibold">-{{ riskService.metrics().appliedAlertsPenalty }} pts</span>
               </div>
             </div>
           </div>

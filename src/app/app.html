@@ -132,7 +132,7 @@
                 class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <mat-icon class="text-sm text-indigo-500">corporate_fare</mat-icon>
-                <span>Tableros por Dpto.</span>
+                <span>Tableros por Proceso</span>
               </button>
 
               <button
@@ -154,7 +154,7 @@
                 class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <mat-icon class="text-sm">grid_view</mat-icon>
-                <span>Matriz de Riesgos</span>
+                <span>Matriz 4×4 &amp; Inventario</span>
                 <span class="ml-1 px-1.5 py-0.2 bg-slate-200 text-slate-800 rounded-full text-[10px] font-mono" [class.bg-slate-700]="activeTab() === 'matriz-riesgos'" [class.text-white]="activeTab() === 'matriz-riesgos'">
                   {{ riskService.risks().length }}
                 </span>
@@ -168,7 +168,7 @@
                 class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <mat-icon class="text-sm">verified_user</mat-icon>
-                <span>Controles Internos</span>
+                <span>Controles y Evidencias</span>
                 <span class="ml-1 px-1.5 py-0.2 bg-slate-200 text-slate-800 rounded-full text-[10px] font-mono" [class.bg-slate-700]="activeTab() === 'controles'" [class.text-white]="activeTab() === 'controles'">
                   {{ riskService.controls().length }}
                 </span>
@@ -503,7 +503,7 @@
         <!-- Main Heatmap Grid & Critical Alerts Column -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          <!-- 4x4 Heatmap Matrix (2 columns) -->
+          <!-- 4×4 Heatmap Matrix (2 columns) -->
           <div class="lg:col-span-2">
             <app-heatmap-matrix (riskSelected)="navigateToRisk($event)"></app-heatmap-matrix>
           </div>
@@ -817,8 +817,8 @@
                       @if (risk.controlIds.length > 0) {
                         <div class="flex flex-wrap gap-1">
                           @for (cid of risk.controlIds; track cid) {
-                            <span class="font-mono text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200">
-                              {{ cid === 'ctr-1' ? 'CTR-101' : cid === 'ctr-2' ? 'CTR-102' : cid === 'ctr-3' ? 'CTR-103' : cid === 'ctr-4' ? 'CTR-104' : cid === 'ctr-5' ? 'CTR-105' : cid === 'ctr-6' ? 'CTR-106' : cid }}
+                            <span class="font-mono text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200" [title]="controlName(cid)">
+                              {{ controlCode(cid) }}
                             </span>
                           }
                         </div>

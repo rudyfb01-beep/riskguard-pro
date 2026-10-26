@@ -469,7 +469,7 @@ import { CyberIncidentInfo, EMPTY_CYBER } from '../models/compliance.model';
                 {{ ai.technicalDescription }}
               </div>
 
-              <!-- Suggested Metrics (4x4 scale) -->
+              <!-- Suggested Metrics (4×4 scale) -->
               <div class="grid grid-cols-3 gap-2 bg-white p-2.5 rounded-lg border border-slate-200 text-xs">
                 <div>
                   <span class="text-slate-400 block text-[10px] uppercase">Probabilidad</span>
@@ -752,7 +752,7 @@ export class FlawModal {
     return {
       title: val.title || '',
       description: val.description || '',
-      process: val.process || 'Operaciones',
+      process: val.process || this.riskService.closestProcess(''),
       severity: val.severity || 'Alta',
       incidentType: val.incidentType || 'Falla de Control',
       realLossAmountUSD: Number(val.realLossAmountUSD) || 0,
@@ -829,7 +829,7 @@ export class FlawModal {
       const lossAmount = Number(val.realLossAmountUSD) || 0;
       await this.riskService.convertFlawToRisk(targetId, {
         title: ai?.title || val.title || 'Riesgo operacional derivado de incidencia',
-        process: ai?.process || val.process || 'Operaciones',
+        process: this.riskService.closestProcess(val.process || ai?.process || ''),
         category: (val.baselCategory as BaselCategory) || (ai?.category as BaselCategory) || 'Ejecución y Procesos',
         inherentLikelihood: ai?.inherentLikelihood || (val.severity === 'Crítica' ? 4 : 3),
         inherentImpact: ai?.inherentImpact || (val.severity === 'Crítica' ? 4 : 3),
