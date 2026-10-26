@@ -1,23 +1,39 @@
 # Guía de instalación — RiskGuard Pro
 
 Aplicación de gestión de riesgo operacional para cooperativas de ahorro y crédito:
-Angular 21 en el navegador, servidor Express (Node 22) y PostgreSQL 16.
+Angular 21 en el navegador, servidor Express (Node 22.16 o superior) y base de datos **PostgreSQL 16**
+o **SQLite** (un archivo local, sin servidor de base de datos).
 
 ## Cómo se guardan los datos
 
-- Todo lo que se registra en pantalla se guarda en **PostgreSQL** a través de la API del
+- Todo lo que se registra en pantalla se guarda en la base de datos (**PostgreSQL** o **SQLite**) a través de la API del
   servidor. El indicador de la esquina inferior izquierda muestra "Guardando…", "Guardado" o un
   error con el botón **Reintentar**.
-- Al arrancar, el servidor **aplica `database/schema.sql` automáticamente**. El script es
-  idempotente, así que también actualiza bases creadas con versiones anteriores.
+- Al arrancar, el servidor **aplica el esquema automáticamente** (`database/schema.sql` en
+  PostgreSQL, `database/schema.sqlite.sql` en SQLite). Los scripts son idempotentes, así que
+  también actualizan bases creadas con versiones anteriores.
 - En una base vacía se cargan los **datos base**: los cargos de gobierno cooperativo, los plazos
   regulatorios CMF/ANCI y un usuario administrador.
 - Con `SEED_DEMO_DATA=true` se cargan además los **datos de ejemplo ficticios** (riesgos,
   incidentes, proveedores, etc.), útiles para evaluar la aplicación.
-- Sin `DATABASE_URL` la aplicación funciona en **modo demostración**: muestra datos de ejemplo y
-  avisa que los cambios se pierden al recargar.
+- **Motor de base de datos** (`DB_CLIENT`): con `DATABASE_URL` o `POSTGRES_HOST` se usa
+  PostgreSQL; sin ellos, **SQLite** en `data/riskguard.db` (ruta configurable con `SQLITE_PATH`).
+  `DB_CLIENT=none` deja la aplicación en **modo demostración** (datos de ejemplo que se pierden al recargar).
 - La bitácora inalterable la encadena el **servidor**: asigna el número de bloque, la hora y el
   hash SHA-256, y serializa las escrituras simultáneas para que la cadena no se bifurque.
+
+## Opción 0: paquete descargable con SQLite (un equipo)
+
+Para usar la aplicación en un solo equipo, sin Docker ni servidor de base de datos:
+
+```bash
+npm run package:sqlite        # genera release/riskguard-pro-sqlite.zip
+```
+
+El .zip trae la aplicación compilada (no necesita `npm install`), `iniciar.bat` / `iniciar.sh`,
+`respaldar.bat` / `respaldar.sh`, `configuracion.env` y un `LEEME.txt` con los pasos. Solo requiere
+Node.js 24 LTS (o 22.16 o superior). SQLite está pensado para un equipo o un grupo pequeño; para
+uso institucional con varios usuarios simultáneos se recomienda PostgreSQL (opciones 1 y 2).
 
 ## Opción 1: Docker Compose (recomendada)
 
@@ -256,7 +272,9 @@ cuando se publique la versión definitiva.
 
 | Variable | Descripción |
 | :--- | :--- |
-| `DATABASE_URL` | Cadena de conexión PostgreSQL. Sin ella, la app queda en modo demostración. |
+| `DB_CLIENT` | `postgres`, `sqlite` o `none` (modo demostración). Sin definir: PostgreSQL si hay `DATABASE_URL`/`POSTGRES_HOST`; si no, SQLite. |
+| `DATABASE_URL` | Cadena de conexión PostgreSQL. |
+| `SQLITE_PATH` | Archivo de la base SQLite (por defecto `data/riskguard.db` en la carpeta desde donde se inicia). |
 | `SEED_DEMO_DATA` | `true` carga datos de ejemplo ficticios en una base vacía. Usar `false` en producción. |
 | `ADMIN_EMAIL` | Correo del administrador inicial cuando no se cargan datos de ejemplo. |
 | `DATABASE_SSL` | `true` para conectarse con SSL (bases administradas en la nube). |
@@ -266,7 +284,8 @@ cuando se publique la versión definitiva.
 | `AUTH_SECRET` | Clave para firmar los códigos. Recomendada; obligatoria con varias instancias. |
 | `SESSION_IDLE_MINUTES`, `SESSION_MAX_HOURS` | Vigencia de la sesión (60 minutos de inactividad y 10 horas en total por defecto). |
 | `TRUST_PROXY`, `COOKIE_SECURE` | Configuración detrás de un proxy HTTPS. |
-| `PORT` | Puerto HTTP (por defecto 4000; Docker usa 3000). |
+| `PORT` | Puerto HTTP (por defecto 4000; Docker y el paquete SQLite usan 3000). |
+| `NG_ALLOWED_HOSTS` | Nombres o IP con que se accede a la app además de `localhost` y `APP_URL` (separados por coma). |
 | `GEMINI_API_KEY` | Opcional: habilita el análisis de incidentes con IA. |
 
 ## API
@@ -293,6 +312,10 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 ## Limitaciones conocidas
 
 - Si dos personas editan **el mismo** registro a la vez, prevalece el último guardado.
+- SQLite usa `node:sqlite`, incluido en Node.js (en Node 22 se marca como experimental; los scripts
+  de inicio ocultan ese aviso). Las escrituras se procesan de a una, lo que basta para un equipo o
+  un grupo pequeño. Las vistas SQL de reportes (`v_*`) solo existen en PostgreSQL; la aplicación no
+  las usa.
 
 ## Modelo de datos (principales tablas)
 

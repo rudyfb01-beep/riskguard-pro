@@ -7,6 +7,9 @@ auditorías, mantenedores (procesos, áreas y parámetros) y bitácora inalterab
 
 **Instalación y configuración:** ver [LOCAL_SETUP.md](LOCAL_SETUP.md).
 
+Base de datos: PostgreSQL (instalación institucional) o SQLite (paquete descargable para un equipo:
+`npm run package:sqlite`).
+
 Inicio rápido con Docker:
 
 ```bash

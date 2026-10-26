@@ -35,7 +35,7 @@ export function apiFetch(url: string, init: RequestInit = {}): Promise<Response>
 }
 
 /**
- * Sincroniza el estado de la aplicación con PostgreSQL.
+ * Sincroniza el estado de la aplicación con la base de datos del servidor (PostgreSQL o SQLite).
  *
  * Al iniciar carga todo desde /api/data. Luego observa cada colección: como
  * los servicios actualizan los datos de forma inmutable, un objeto con una

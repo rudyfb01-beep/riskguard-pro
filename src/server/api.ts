@@ -58,9 +58,20 @@ const SETTING_PERMISSIONS: Record<SettingKey, (keyof UserPermissions)[]> = {
   provider_catalogs: ['canManageCatalogs'],
 };
 
-/** Mensajes comprensibles para errores de PostgreSQL frecuentes. */
+/** Mensajes comprensibles para errores frecuentes de PostgreSQL y SQLite. */
 function friendlyDbError(err: unknown): string {
-  const e = err as { code?: string; message?: string; constraint?: string };
+  const e = err as { code?: string; errcode?: number; message?: string; constraint?: string };
+  if (e.code === 'ERR_SQLITE_ERROR') {
+    // "UNIQUE constraint failed: index 'ux_x'" / "CHECK constraint failed: ((col >= 1) ...)" → nombre o columna.
+    const raw = (e.message ?? '').replace(/^.*constraint failed:\s*/i, '');
+    const detail = raw.match(/index '([^']+)'/)?.[1] ?? (e.errcode === 275 ? raw.match(/[a-z_]{3,}/)?.[0] : raw) ?? raw;
+    switch (e.errcode) {
+      case 1555: case 2067: return `Ya existe un registro con ese valor único (${detail || 'código o correo'}).`;
+      case 787: return 'El registro hace referencia a otro que no existe o fue eliminado.';
+      case 275: return `Valor no permitido (${detail || 'regla de validación'}).`;
+      default: return e.message ?? 'Error desconocido';
+    }
+  }
   switch (e.code) {
     case '23505': return `Ya existe un registro con ese valor único (${e.constraint ?? 'código o correo'}).`;
     case '23503': return 'El registro hace referencia a otro que no existe o fue eliminado.';

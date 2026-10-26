@@ -46,3 +46,8 @@ __screenshots__/
 .DS_Store
 Thumbs.db
 .env
+
+# Base SQLite local y paquetes generados
+/data
+/release
+/respaldos

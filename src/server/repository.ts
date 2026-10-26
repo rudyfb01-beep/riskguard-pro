@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
-import { PoolClient } from 'pg';
-import { getPool } from './db';
+import { DbClient, getPool } from './db';
 import {
   AnomalyAlert,
   AuditFinding,
@@ -22,7 +21,7 @@ import { BusinessProcess, OrgArea } from '../app/models/catalog.model';
 import { ComplianceRequirement, SecurityTest } from '../app/models/compliance.model';
 
 /**
- * Repositorio PostgreSQL: convierte los objetos que usa la aplicación en filas
+ * Repositorio (PostgreSQL o SQLite): convierte los objetos que usa la aplicación en filas
  * de las tablas relacionales (y viceversa). Cada guardado reemplaza el objeto
  * completo, incluidas sus tablas hijas, dentro de una transacción.
  */
@@ -87,25 +86,14 @@ function groupBy(rows: Row[], key: string): Map<string, Row[]> {
   return m;
 }
 
-async function withTransaction<T>(fn: (c: PoolClient) => Promise<T>): Promise<T> {
+async function withTransaction<T>(fn: (c: DbClient) => Promise<T>): Promise<T> {
   const pool = getPool();
   if (!pool) throw new Error('Base de datos no configurada');
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const result = await fn(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  return pool.transaction(fn);
 }
 
 /** INSERT ... ON CONFLICT (pk) DO UPDATE con todas las columnas indicadas. */
-async function upsertRow(c: PoolClient, table: string, pk: string, data: Row, touchUpdatedAt = true) {
+async function upsertRow(c: DbClient, table: string, pk: string, data: Row, touchUpdatedAt = true) {
   const cols = Object.keys(data);
   const params = cols.map((_, i) => `$${i + 1}`);
   const updates = cols.filter(k => k !== pk).map(k => `${k} = EXCLUDED.${k}`);
@@ -117,7 +105,7 @@ async function upsertRow(c: PoolClient, table: string, pk: string, data: Row, to
   );
 }
 
-async function insertRow(c: PoolClient, table: string, data: Row) {
+async function insertRow(c: DbClient, table: string, data: Row) {
   const cols = Object.keys(data);
   await c.query(
     `INSERT INTO ${table} (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`,
@@ -398,7 +386,7 @@ function ledgerFromRow(r: Row): AuditLogEntry {
 // -----------------------------------------------------------------------------
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const savers: Record<EntityName, (c: PoolClient, o: any) => Promise<void>> = {
+const savers: Record<EntityName, (c: DbClient, o: any) => Promise<void>> = {
   async areas(c, o: OrgArea) {
     const prev = await c.query('SELECT name FROM org_areas WHERE id = $1', [o.id]);
     await upsertRow(c, 'org_areas', 'id', {
@@ -642,14 +630,26 @@ const savers: Record<EntityName, (c: PoolClient, o: any) => Promise<void>> = {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 /** Actualiza el nombre del proceso en todo lo que lo referencia. */
-async function renameProcessReferences(c: PoolClient, oldName: string, newName: string) {
+async function renameProcessReferences(c: DbClient, oldName: string, newName: string) {
   for (const table of ['risks', 'controls', 'operational_flaws', 'anomaly_alerts', 'kri_definitions', 'audit_findings']) {
     await c.query(`UPDATE ${table} SET process = $2 WHERE process = $1`, [oldName, newName]);
   }
-  await c.query('UPDATE service_providers SET supported_processes = array_replace(supported_processes, $1, $2) WHERE $1 = ANY(supported_processes)', [oldName, newName]);
-  await c.query(
-    `UPDATE periodic_audits SET scope = (SELECT jsonb_agg(CASE WHEN v = to_jsonb($1::text) THEN to_jsonb($2::text) ELSE v END) FROM jsonb_array_elements(scope) v)
-      WHERE scope @> jsonb_build_array($1::text)`, [oldName, newName]);
+  // Listas guardadas como arreglo (proveedores) o JSON (alcance de auditorías): se actualizan en el servidor
+  // para que funcione igual en PostgreSQL y SQLite.
+  const providers = await c.query('SELECT id, supported_processes FROM service_providers');
+  for (const r of providers.rows) {
+    const list: string[] = r.supported_processes ?? [];
+    if (list.includes(oldName)) {
+      await c.query('UPDATE service_providers SET supported_processes = $2 WHERE id = $1', [r.id, list.map(x => (x === oldName ? newName : x))]);
+    }
+  }
+  const audits = await c.query('SELECT id, scope FROM periodic_audits');
+  for (const r of audits.rows) {
+    const list: unknown[] = Array.isArray(r.scope) ? r.scope : [];
+    if (list.includes(oldName)) {
+      await c.query('UPDATE periodic_audits SET scope = $2 WHERE id = $1', [r.id, json(list.map(x => (x === oldName ? newName : x)))]);
+    }
+  }
 }
 
 /** Cuántos registros usan un proceso o un área (no se permite eliminarlos si están en uso). */
@@ -699,7 +699,7 @@ export function isEntity(name: string): name is EntityName {
   return (ENTITY_ORDER as readonly string[]).includes(name);
 }
 
-export async function saveEntity<T extends { id: string }>(entity: EntityName, obj: T, client?: PoolClient): Promise<void> {
+export async function saveEntity<T extends { id: string }>(entity: EntityName, obj: T, client?: DbClient): Promise<void> {
   if (client) return savers[entity](client, obj);
   await withTransaction(c => savers[entity](c, obj));
 }
@@ -709,11 +709,10 @@ export async function deleteEntity(entity: EntityName, id: string): Promise<void
   await withTransaction(c => c.query(`DELETE FROM ${table} WHERE ${pk} = $1`, [id]));
 }
 
-export async function saveSetting(key: SettingKey, value: unknown, client?: PoolClient): Promise<void> {
+export async function saveSetting(key: SettingKey, value: unknown, client?: DbClient): Promise<void> {
   const sql = `INSERT INTO system_settings (key, value) VALUES ($1, $2)
                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`;
-  if (client) await client.query(sql, [key, json(value)]);
-  else await getPool()!.query(sql, [key, json(value)]);
+  await (client ?? getPool()!).query(sql, [key, json(value)]);
 }
 
 // -----------------------------------------------------------------------------
@@ -737,8 +736,8 @@ export type LedgerInput = Pick<AuditLogEntry, 'id' | 'userName' | 'userRole' | '
  * serializa las escrituras concurrentes para que la cadena no se bifurque.
  * Si el bloque ya existe (reintento), devuelve el existente.
  */
-export async function appendLedger(input: LedgerInput, ipAddress: string, client?: PoolClient): Promise<AuditLogEntry> {
-  const run = async (c: PoolClient) => {
+export async function appendLedger(input: LedgerInput, ipAddress: string, client?: DbClient): Promise<AuditLogEntry> {
+  const run = async (c: DbClient) => {
     await c.query('SELECT pg_advisory_xact_lock(727002)');
     const existing = await c.query('SELECT * FROM crypto_audit_ledger WHERE id = $1', [input.id]);
     if (existing.rows.length) return ledgerFromRow(existing.rows[0]);
@@ -759,7 +758,7 @@ export async function appendLedger(input: LedgerInput, ipAddress: string, client
 }
 
 /** Inserta bloques ya formados (solo para cargar datos de ejemplo). */
-export async function importLedgerBlock(c: PoolClient, e: AuditLogEntry): Promise<void> {
+export async function importLedgerBlock(c: DbClient, e: AuditLogEntry): Promise<void> {
   await c.query(
     `INSERT INTO crypto_audit_ledger (id, block_number, timestamp, user_name, user_role, action, entity_type, entity_code, details, ip_address, previous_hash, hash)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (id) DO NOTHING`,
@@ -790,19 +789,27 @@ export async function convertCurrency(to: 'CLP' | 'USD', rate: number, actor: { 
     const f = to === 'CLP' ? rate : 1 / rate;
     const d = to === 'CLP' ? 0 : 2;
 
-    const risks = await c.query(
-      `UPDATE risks SET financial_exposure_usd = ROUND(financial_exposure_usd * $1::numeric, $2::int),
-              residual_exposure_usd = ROUND(residual_exposure_usd * $1::numeric, $2::int),
-              mitigation_plan = CASE WHEN mitigation_plan ? 'budgetUSD' AND jsonb_typeof(mitigation_plan->'budgetUSD') = 'number'
-                THEN jsonb_set(mitigation_plan, '{budgetUSD}', to_jsonb(ROUND((mitigation_plan->>'budgetUSD')::numeric * $1::numeric, $2::int)))
-                ELSE mitigation_plan END`, [f, d]);
-    const flaws = await c.query(
-      `UPDATE operational_flaws SET real_loss_amount_usd = ROUND(COALESCE(real_loss_amount_usd, 0) * $1::numeric, $2::int),
-              recovered_amount_usd = ROUND(COALESCE(recovered_amount_usd, 0) * $1::numeric, $2::int)`, [f, d]);
-    const providers = await c.query(`UPDATE service_providers SET annual_cost_usd = ROUND(annual_cost_usd * $1::numeric, $2::int)`, [f, d]);
-    await c.query(
-      `UPDATE system_settings SET value = to_jsonb(ROUND((value #>> '{}')::numeric * $1::numeric, $2::int)), updated_at = CURRENT_TIMESTAMP
-        WHERE key = 'loss_registration_threshold_usd' AND jsonb_typeof(value) = 'number'`, [f, d]);
+    const conv = (v: unknown) => Number((Number(v ?? 0) * f).toFixed(d));
+
+    const riskRows = (await c.query('SELECT id, financial_exposure_usd, residual_exposure_usd, mitigation_plan FROM risks')).rows;
+    for (const r of riskRows) {
+      const plan = r.mitigation_plan && typeof r.mitigation_plan === 'object' ? { ...r.mitigation_plan } : r.mitigation_plan;
+      if (plan && typeof plan.budgetUSD === 'number') plan.budgetUSD = conv(plan.budgetUSD);
+      await c.query('UPDATE risks SET financial_exposure_usd = $2, residual_exposure_usd = $3, mitigation_plan = $4 WHERE id = $1',
+        [r.id, conv(r.financial_exposure_usd), conv(r.residual_exposure_usd), json(plan)]);
+    }
+    const flawRows = (await c.query('SELECT id, real_loss_amount_usd, recovered_amount_usd FROM operational_flaws')).rows;
+    for (const r of flawRows) {
+      await c.query('UPDATE operational_flaws SET real_loss_amount_usd = $2, recovered_amount_usd = $3 WHERE id = $1',
+        [r.id, conv(r.real_loss_amount_usd), conv(r.recovered_amount_usd)]);
+    }
+    const providerRows = (await c.query('SELECT id, annual_cost_usd FROM service_providers')).rows;
+    for (const r of providerRows) {
+      await c.query('UPDATE service_providers SET annual_cost_usd = $2 WHERE id = $1', [r.id, conv(r.annual_cost_usd)]);
+    }
+    const th = await c.query(`SELECT value FROM system_settings WHERE key = 'loss_registration_threshold_usd'`);
+    if (typeof th.rows[0]?.value === 'number') await saveSetting('loss_registration_threshold_usd', conv(th.rows[0].value), c);
+    const risks = { rowCount: riskRows.length }, flaws = { rowCount: flawRows.length }, providers = { rowCount: providerRows.length };
 
     const ap = await c.query(`SELECT value FROM system_settings WHERE key = 'risk_appetite'`);
     if (ap.rows[0]?.value && Array.isArray(ap.rows[0].value.limits)) {

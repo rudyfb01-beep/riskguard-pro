@@ -11,6 +11,8 @@ import {
   checkDbHealth,
   getDbStats,
   getPool,
+  dialect,
+  getSqlitePath,
 } from './server/db';
 import { dataApi, getDbReady } from './server/api';
 import { currentUser, hasAny, requireAuth, requireCsrfHeader } from './server/auth';
@@ -18,7 +20,13 @@ import { currentUser, hasAny, requireAuth, requireCsrfHeader } from './server/au
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
 const app = express();
-const angularApp = new AngularNodeAppEngine();
+// Hosts aceptados para el renderizado en el servidor (protección SSRF de Angular): equipo local y APP_URL.
+// NG_ALLOWED_HOSTS (lista separada por comas) reemplaza esta lista, p. ej. para incluir la IP del equipo en la red.
+const allowedHosts = ['localhost', '127.0.0.1', '[::1]'];
+try {
+  if (process.env['APP_URL']) allowedHosts.push(new URL(process.env['APP_URL']).hostname);
+} catch { /* APP_URL inválida: se ignora */ }
+const angularApp = new AngularNodeAppEngine({ allowedHosts });
 
 // Límite amplio: las evidencias de controles pueden incluir archivos adjuntos.
 // Detrás de un proxy inverso (HTTPS), TRUST_PROXY permite conocer la IP real y si la conexión es segura.
@@ -294,11 +302,12 @@ if (isMainModule(import.meta.url) || process.env['pm_id']) {
 
     console.log(`Node Express server listening on http://localhost:${port}`);
     if (getPool()) {
+      const engine = dialect() === 'sqlite' ? `SQLite (${getSqlitePath()})` : 'PostgreSQL';
       getDbReady()
-        .then(r => console.log(`[PostgreSQL] Esquema al día${r.baseSeeded ? ' · datos base cargados' : ''}${r.demoSeeded ? ' · datos de ejemplo cargados' : ''}.`))
-        .catch(err => console.error('[PostgreSQL] No se pudo preparar la base de datos:', (err as Error).message));
+        .then(r => console.log(`[Base de datos] ${engine}: esquema al día${r.baseSeeded ? ' · datos base cargados' : ''}${r.demoSeeded ? ' · datos de ejemplo cargados' : ''}.`))
+        .catch(err => console.error(`[Base de datos] ${engine}: no se pudo preparar la base de datos:`, (err as Error).message));
     } else {
-      console.log('[PostgreSQL] Sin DATABASE_URL: la aplicación funciona en modo demostración (sin guardar).');
+      console.log('[Base de datos] DB_CLIENT=none: la aplicación funciona en modo demostración (sin guardar).');
     }
     if (getPool() && !process.env['SMTP_HOST']) {
       console.warn(process.env['AUTH_DEV_LOG_CODES'] === 'true'

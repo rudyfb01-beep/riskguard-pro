@@ -386,13 +386,13 @@ import { MoneyPipe } from '../utils/money.pipe';
             <!-- Big Gauge / OHI Number -->
             <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center mb-4">
               <span class="text-3xl font-extrabold font-mono text-slate-900">
-                {{ riskService.metrics().operationalHealthIndex }}
+                @if (riskService.metrics().hasHealthData) { {{ riskService.metrics().operationalHealthIndex }} } @else { — }
                 <span class="text-xs text-slate-500 font-sans font-normal">/ 100</span>
               </span>
               <div class="mt-1 flex items-center justify-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span class="text-xs font-bold text-emerald-800">
-                  Nivel Resiliente & Controlado
+                <span class="w-2.5 h-2.5 rounded-full" [class]="healthDot()"></span>
+                <span class="text-xs font-bold" [class]="healthText()">
+                  {{ riskService.metrics().healthLabel }}
                 </span>
               </div>
             </div>
@@ -438,6 +438,14 @@ import { MoneyPipe } from '../utils/money.pipe';
 })
 export class RiskCharts {
   readonly riskService = inject(RiskDataService);
+
+  healthDot(): string {
+    return { good: 'bg-emerald-500', warn: 'bg-amber-500', bad: 'bg-rose-500', neutral: 'bg-slate-400' }[this.riskService.metrics().healthTone];
+  }
+
+  healthText(): string {
+    return { good: 'text-emerald-800', warn: 'text-amber-800', bad: 'text-rose-800', neutral: 'text-slate-500' }[this.riskService.metrics().healthTone];
+  }
 
   readonly selectedProcess = signal<string>('TODOS');
   readonly riskSelected = output<Risk>();

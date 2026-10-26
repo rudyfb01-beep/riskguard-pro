@@ -80,15 +80,12 @@ import { MoneyPipe } from '../utils/money.pipe';
           <mat-icon class="text-emerald-500 text-lg">health_and_safety</mat-icon>
         </div>
         <div class="text-2xl font-bold font-mono text-slate-900 tabular-nums">
-          {{ riskService.metrics().operationalHealthIndex }}/100
+          @if (riskService.metrics().hasHealthData) { {{ riskService.metrics().operationalHealthIndex }}/100 } @else { —/100 }
         </div>
         <div class="mt-2 text-xs text-slate-500">
-          @if (riskService.metrics().operationalHealthIndex >= 80) {
-            <span class="text-emerald-700 font-medium">Postura Operacional Óptima</span>
-          } @else if (riskService.metrics().operationalHealthIndex >= 60) {
-            <span class="text-amber-700 font-medium">Postura Aceptable con Alertas</span>
-          } @else {
-            <span class="text-rose-700 font-medium">Atención Requerida</span>
+          <span class="font-medium" [class]="healthClass()">{{ riskService.metrics().healthLabel }}</span>
+          @if (!riskService.metrics().hasHealthData) {
+            <span class="block mt-0.5">Registra riesgos y controles para calcularlo.</span>
           }
         </div>
       </div>
@@ -98,4 +95,8 @@ import { MoneyPipe } from '../utils/money.pipe';
 })
 export class ExecutiveKpis {
   readonly riskService = inject(RiskDataService);
+
+  healthClass(): string {
+    return { good: 'text-emerald-700', warn: 'text-amber-700', bad: 'text-rose-700', neutral: 'text-slate-500' }[this.riskService.metrics().healthTone];
+  }
 }
