@@ -285,7 +285,7 @@ export class SidebarNav {
         title: 'Estratégico & Ejecutivo',
         items: [
           { id: 'tablero', label: 'Tablero Ejecutivo', icon: 'dashboard' },
-          { id: 'tableros-departamento', label: 'Tableros por Proceso', icon: 'corporate_fare', badge: 'Dpto', badgeClass: 'bg-indigo-900/60 text-indigo-300 border border-indigo-700/50' },
+          { id: 'tableros-departamento', label: 'Tableros por Proceso', icon: 'corporate_fare' },
           { id: 'graficos-analitica', label: 'Gráficos & Analítica', icon: 'analytics' },
         ]
       },
