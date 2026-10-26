@@ -194,17 +194,17 @@ import { MoneyPipe } from '../utils/money.pipe';
 
         </div>
 
-        <!-- 4x4 Mini-Heatmap & Department Details Grid -->
+        <!-- 4×4 Mini-Heatmap & Department Details Grid -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-          <!-- Left: 4x4 Department Heatmap -->
+          <!-- Left: 4×4 Department Heatmap -->
           <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between">
             <div>
               <div class="flex items-center justify-between mb-3">
                 <div class="flex items-center gap-2">
                   <mat-icon class="text-emerald-600 text-sm">grid_view</mat-icon>
                   <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    Matriz 4x4: {{ dept.process }}
+                    Matriz 4×4: {{ dept.process }}
                   </h4>
                 </div>
                 <div class="flex items-center gap-1 bg-slate-100 p-0.5 rounded text-[11px]">
@@ -225,7 +225,7 @@ import { MoneyPipe } from '../utils/money.pipe';
                 </div>
               </div>
 
-              <!-- 4x4 Heatmap Table -->
+              <!-- 4×4 Heatmap Table -->
               <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                 <div class="grid grid-cols-4 gap-1.5 aspect-square">
                   @for (row of dept.grid; track $index) {

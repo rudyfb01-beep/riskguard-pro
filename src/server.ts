@@ -208,7 +208,14 @@ Escribe un resumen en español de 2 párrafos concisos y de alto nivel gerencial
 
     res.json({
       success: true,
-      summary: `Durante el periodo actual se observa una mitigación efectiva del riesgo neto promedio del 68% gracias al fortalecimiento de los controles automáticos en los procesos de Ciberseguridad y Tesorería. No obstante, se requiere atención prioritaria sobre las alertas de KRI vigentes en Ejecución de Procesos para mantener la exposición total dentro del umbral de apetito de riesgo aprobado por el Consejo de Administración.`
+      summary: (() => {
+        const m = (metrics ?? {}) as { mitigationEfficiencyPct?: number; activeAlertsCount?: number; avgControlEffectiveness?: number };
+        const top = Array.isArray(topRisks) ? (topRisks as { code: string; title: string; residualLevel: string }[]).slice(0, 3) : [];
+        return `Durante el periodo, la mitigación de la exposición alcanza ${m.mitigationEfficiencyPct ?? '—'}% y la efectividad promedio de los controles ${m.avgControlEffectiveness ?? '—'}%. `
+          + `Hay ${m.activeAlertsCount ?? 0} alerta(s) de KRI activa(s) o en investigación.`
+          + (top.length ? ` Se recomienda priorizar los riesgos ${top.map(r => `${r.code} (${r.residualLevel})`).join(', ')} y verificar que se mantengan dentro del apetito aprobado por el Consejo de Administración.` : '')
+          + ' (Resumen generado sin IA: configure GEMINI_API_KEY para un análisis redactado.)';
+      })()
     });
   } catch {
     res.status(500).json({ error: 'Error generando resumen ejecutivo' });

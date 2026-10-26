@@ -342,7 +342,7 @@ export class RiskModal implements OnInit {
     description: new FormControl(''),
     category: new FormControl<BaselCategory>('Fallas Tecnológicas', [Validators.required]),
     financialExposureUSD: new FormControl(this.riskService.currencyCode() === 'CLP' ? 150_000_000 : 150000, [Validators.required, Validators.min(0)]),
-    responsible: new FormControl('Ing. Carlos Mendoza'),
+    responsible: new FormControl(this.riskService.currentProfile().name),
     inherentLikelihood: new FormControl(3, [Validators.required]),
     inherentImpact: new FormControl(3, [Validators.required]),
     mitigationTitle: new FormControl('Plan de Reforzamiento Operacional y Monitoreo'),

@@ -86,7 +86,7 @@ export interface Risk {
   responsible: string;
   status: 'Activo' | 'Bajo Monitoreo' | 'Mitigado' | 'Cerrado';
   
-  // Inherent Risk (Riesgo Inherente) en Matriz 4x4
+  // Inherent Risk (Riesgo Inherente) en Matriz 4×4
   inherentLikelihood: number; // 1 to 4 (1: Improbable, 2: Posible, 3: Probable, 4: Frecuente)
   inherentImpact: number;     // 1 to 4 (1: Menor, 2: Moderado, 3: Mayor, 4: Catastrófico)
   inherentScore: number;      // 1 to 16 (Likelihood x Impact)
@@ -96,7 +96,7 @@ export interface Risk {
   // Attached Controls
   controlIds: string[];
 
-  // Residual Risk (Riesgo Residual) en Matriz 4x4
+  // Residual Risk (Riesgo Residual) en Matriz 4×4
   residualLikelihood: number; // 1 to 4
   residualImpact: number;     // 1 to 4
   residualScore: number;      // 1 to 16

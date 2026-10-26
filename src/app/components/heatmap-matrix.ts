@@ -16,7 +16,7 @@ import { Risk, RiskLevel } from '../models/risk.model';
         <div>
           <h2 class="text-base font-semibold text-slate-900 flex items-center gap-2">
             <mat-icon class="text-emerald-600 text-lg">grid_view</mat-icon>
-            <span>Matriz de Calor 4x4 (Probabilidad × Impacto)</span>
+            <span>Matriz de Calor 4×4 (Probabilidad × Impacto)</span>
           </h2>
           <p class="text-xs text-slate-500 mt-0.5">
             Pasa el mouse sobre cualquier cuadrante con riesgos para ver el detalle y pincha para ir directamente al riesgo
@@ -109,7 +109,7 @@ import { Risk, RiskLevel } from '../models/risk.model';
         }
       </div>
 
-      <!-- 4x4 Matrix Layout -->
+      <!-- 4×4 Matrix Layout -->
       <div class="overflow-visible">
         <div class="w-full">
           
@@ -257,25 +257,25 @@ import { Risk, RiskLevel } from '../models/risk.model';
         </div>
       </div>
 
-      <!-- Color Legend for 4x4 Scale -->
+      <!-- Color Legend for 4×4 Scale -->
       <div class="flex flex-wrap items-center justify-between gap-4 mt-4 pt-3 border-t border-slate-100 text-xs text-slate-600">
         <div class="flex flex-wrap items-center gap-4">
-          <span class="font-medium text-slate-700">Severidad de Riesgo 4x4:</span>
+          <span class="font-medium text-slate-700">Severidad de Riesgo 4×4:</span>
           <div class="flex items-center gap-1.5">
             <span class="w-3 h-3 rounded bg-emerald-100 border border-emerald-400"></span>
-            <span>Bajo (1-3 pts)</span>
+            <span>Bajo (1–3 pts)</span>
           </div>
           <div class="flex items-center gap-1.5">
             <span class="w-3 h-3 rounded bg-amber-100 border border-amber-400"></span>
-            <span>Medio (4-7 pts)</span>
+            <span>Medio (4–6 pts)</span>
           </div>
           <div class="flex items-center gap-1.5">
             <span class="w-3 h-3 rounded bg-orange-100 border border-orange-400"></span>
-            <span>Alto (8-11 pts)</span>
+            <span>Alto (8–9 pts)</span>
           </div>
           <div class="flex items-center gap-1.5">
             <span class="w-3 h-3 rounded bg-rose-100 border border-rose-400"></span>
-            <span>Crítico (12-16 pts)</span>
+            <span>Crítico (12–16 pts)</span>
           </div>
         </div>
 

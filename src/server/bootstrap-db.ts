@@ -25,6 +25,16 @@ const PERMISSION_MIGRATIONS: { perm: keyof UserPermissions; roles: string[] }[] 
  * RAN 20-7/20-8/20-9/20-10 (una sola vez): matriz de requisitos y cláusulas mínimas de contrato
  * del Anexo 1 de la RAN 20-7 en el catálogo de proveedores (se agregan las que falten).
  */
+/** Una sola vez: el puntaje de cada auditoría se recalcula con la regla vigente (100 − 15/8/3 por hallazgo). */
+async function migrateAuditScores(c: PoolClient) {
+  if ((await c.query(`SELECT 1 FROM system_settings WHERE key = 'migration_audit_scores_v1'`)).rowCount) return;
+  await c.query(
+    `UPDATE periodic_audits a SET compliance_score = GREATEST(0, 100 - COALESCE((
+        SELECT SUM(CASE f.type WHEN 'No Conformidad Mayor' THEN 15 WHEN 'No Conformidad Menor' THEN 8 WHEN 'Observación' THEN 3 ELSE 0 END)
+          FROM audit_findings f WHERE f.audit_id = a.id), 0))`);
+  await c.query(`INSERT INTO system_settings (key, value) VALUES ('migration_audit_scores_v1', 'true') ON CONFLICT (key) DO NOTHING`);
+}
+
 async function migrateRanCompliance(c: PoolClient) {
   if ((await c.query(`SELECT 1 FROM system_settings WHERE key = 'migration_ran_compliance_v1'`)).rowCount) return;
   for (const req of RAN_REQUIREMENTS) {
@@ -188,6 +198,7 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
     const hasRisks = (await c.query('SELECT 1 FROM risks LIMIT 1')).rowCount! > 0;
     await seedCatalogs(c, wantDemo || hasRisks);
     await migrateRanCompliance(c);
+    await migrateAuditScores(c);
   });
 
   // El correo del administrador inicial se puede fijar o corregir con ADMIN_EMAIL.

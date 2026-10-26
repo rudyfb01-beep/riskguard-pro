@@ -143,7 +143,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                     <tr>
                       <th class="py-3 px-4">Puesto Organizacional</th>
                       <th class="py-3 px-3">Departamento</th>
-                      <th class="py-3 px-3 text-center" title="Crear y editar riesgos en matriz 4x4">Riesgos</th>
+                      <th class="py-3 px-3 text-center" title="Crear y editar riesgos en matriz 4×4">Riesgos</th>
                       <th class="py-3 px-3 text-center" title="Evaluar controles y subir evidencias">Controles</th>
                       <th class="py-3 px-3 text-center" title="Registrar auditorías periódicas y hallazgos">Auditorías</th>
                       <th class="py-3 px-3 text-center" title="Reportar incidentes y pérdidas reales">Incidencias</th>
@@ -631,7 +631,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                   <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
                     <input type="checkbox" formControlName="canEditRisks" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
                     <div>
-                      <span class="font-bold text-slate-900 block">Gestión de Riesgos 4x4</span>
+                      <span class="font-bold text-slate-900 block">Gestión de Riesgos 4×4</span>
                       <span class="text-[11px] text-slate-500">Crear, actualizar y ponderar riesgos en la matriz</span>
                     </div>
                   </label>
@@ -831,7 +831,7 @@ export class RolesManagementModal {
   activePermissionLabels() {
     const p = this.riskService.currentProfile().permissions;
     return [
-      { key: 'risks', label: 'Riesgos 4x4', granted: p.canEditRisks },
+      { key: 'risks', label: 'Riesgos 4×4', granted: p.canEditRisks },
       { key: 'controls', label: 'Controles', granted: p.canEvaluateControls },
       { key: 'audits', label: 'Auditorías', granted: p.canExecuteAudits },
       { key: 'flaws', label: 'Incidencias', granted: p.canReportFlaws },
@@ -905,7 +905,7 @@ export class RolesManagementModal {
 
     this.riskService.addOrganizationalRole({
       title: v.title || 'Nuevo Puesto',
-      department: v.department || 'Operaciones',
+      department: v.department || '',
       description: v.description || '',
       badge: v.badge || 'Puesto Personalizado',
       permissions: {
@@ -961,7 +961,7 @@ export class RolesManagementModal {
       email: v.email || '',
       roleId: v.roleId || undefined,
       role: selectedRole ? selectedRole.title : 'Colaborador',
-      department: selectedRole ? selectedRole.department : 'Operaciones',
+      department: selectedRole ? selectedRole.department : '',
       badge: selectedRole ? selectedRole.badge : 'Colaborador',
       permissions: selectedRole ? selectedRole.permissions : undefined
     });

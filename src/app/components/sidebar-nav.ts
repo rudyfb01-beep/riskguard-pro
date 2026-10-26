@@ -143,7 +143,7 @@ export interface NavGroup {
                 class="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium border border-slate-700/80 transition-colors cursor-pointer"
               >
                 <mat-icon class="text-sm text-emerald-400">add_box</mat-icon>
-                <span>Nuevo Riesgo 4x4</span>
+                <span>Nuevo Riesgo 4×4</span>
               </button>
 
               <button
@@ -285,14 +285,14 @@ export class SidebarNav {
         title: 'Estratégico & Ejecutivo',
         items: [
           { id: 'tablero', label: 'Tablero Ejecutivo', icon: 'dashboard' },
-          { id: 'tableros-departamento', label: 'Tableros por Dpto.', icon: 'corporate_fare', badge: 'Dpto', badgeClass: 'bg-indigo-900/60 text-indigo-300 border border-indigo-700/50' },
-          { id: 'graficos-analitica', label: 'Gráficos & Analítica', icon: 'analytics', badge: 'Nuevo', badgeClass: 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/50' },
+          { id: 'tableros-departamento', label: 'Tableros por Proceso', icon: 'corporate_fare', badge: 'Dpto', badgeClass: 'bg-indigo-900/60 text-indigo-300 border border-indigo-700/50' },
+          { id: 'graficos-analitica', label: 'Gráficos & Analítica', icon: 'analytics' },
         ]
       },
       {
         title: 'Gestión Operativa',
         items: [
-          { id: 'matriz-riesgos', label: 'Matriz 4x4 & Inventario', icon: 'grid_view', badge: risksCount, badgeClass: 'bg-slate-800 text-slate-200' },
+          { id: 'matriz-riesgos', label: 'Matriz 4×4 & Inventario', icon: 'grid_view', badge: risksCount, badgeClass: 'bg-slate-800 text-slate-200' },
           { id: 'controles', label: 'Controles y Evidencias', icon: 'verified_user', badge: controlsCount, badgeClass: 'bg-slate-800 text-slate-200' },
         ]
       },

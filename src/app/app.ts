@@ -151,7 +151,7 @@ export class App {
       case 'tablero':
         return { title: 'Tablero Ejecutivo', section: 'Dirección & Estrategia', icon: 'dashboard' };
       case 'tableros-departamento':
-        return { title: 'Tableros por Departamento', section: 'Dirección & Estrategia', icon: 'corporate_fare' };
+        return { title: 'Tableros por Proceso', section: 'Dirección & Estrategia', icon: 'corporate_fare' };
       case 'graficos-analitica':
         return { title: 'Gráficos & Analítica Avanzada', section: 'Dirección & Estrategia', icon: 'analytics' };
       case 'matriz-riesgos':
@@ -283,6 +283,15 @@ export class App {
     this.activeTab.set(tab);
   }
 
+  /** Código y nombre de un control por su id (para el inventario de riesgos). */
+  controlCode(id: string): string {
+    return this.riskService.controls().find(c => c.id === id)?.code ?? id;
+  }
+
+  controlName(id: string): string {
+    return this.riskService.controls().find(c => c.id === id)?.name ?? 'Control eliminado';
+  }
+
   /** Navega a un módulo desde la matriz de cumplimiento (ignora pestañas desconocidas). */
   openModule(tab: string) {
     this.setTab(tab as ActiveTab);
@@ -296,7 +305,7 @@ export class App {
     this.showToast(`Informe departamental para ${processName} preparado.`);
   }
 
-  // Navigate directly to a specific risk from the 4x4 Heatmap Matrix
+  // Navigate directly to a specific risk from the 4×4 Heatmap Matrix
   navigateToRisk(risk: Risk) {
     this.activeTab.set('matriz-riesgos');
     this.riskService.riskSearchTerm.set('');
@@ -405,17 +414,19 @@ export class App {
         description: 'Dirección IP externa intentando acceso con diccionario de contraseñas contra portal corporativo.'
       },
       {
-        title: 'Falla Operativa: Desfase de conciliación superior a $75,000 USD en caja corresponsal',
+        title: `Falla operativa: desfase de conciliación superior a ${this.riskService.catalog.formatMoney(this.riskService.currencyCode() === 'CLP' ? 70_000_000 : 75_000)} en caja corresponsal`,
         process: 'Tesorería',
         kriMetric: 'Descuadre Diario No Conciliado',
-        threshold: '<= $5,000 USD',
-        currentValue: '$78,420 USD',
+        threshold: `<= ${this.riskService.catalog.formatMoney(this.riskService.currencyCode() === 'CLP' ? 5_000_000 : 5_000)}`,
+        currentValue: this.riskService.catalog.formatMoney(this.riskService.currencyCode() === 'CLP' ? 74_500_000 : 78_420),
         severity: 'Crítico' as const,
         description: 'La conciliación automática nocturna identificó tres lotes pendientes de liquidación sin acuse de recibo.'
       }
     ];
 
-    const pick = examples[Math.floor(Math.random() * examples.length)];
+    const raw = examples[Math.floor(Math.random() * examples.length)];
+    // La alerta de prueba se asigna al proceso equivalente del mantenedor.
+    const pick = { ...raw, process: this.riskService.closestProcess(raw.process) };
     const alert = await this.riskService.triggerAlert(pick);
     this.showToast(`¡Alerta generada en tiempo real! ${alert.code} registrada en la bitácora inalterable.`);
     this.setTab('alertas-kri');

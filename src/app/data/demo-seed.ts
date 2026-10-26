@@ -927,7 +927,7 @@ export const DEMO_AUDITS: PeriodicAudit[] = [
     scope: ['Tesorería', 'Operaciones de Pago', 'Infraestructura Cloud'],
     executionDate: '2026-03-31',
     status: 'Finalizada',
-    complianceScore: 91,
+    complianceScore: 97,
     findings: [
       {
         id: 'fnd-1',
@@ -963,7 +963,7 @@ export const DEMO_AUDITS: PeriodicAudit[] = [
     scope: ['Cumplimiento Legal', 'Tesorería', 'Ciberseguridad & TI'],
     executionDate: '2026-06-30',
     status: 'En Curso',
-    complianceScore: 84,
+    complianceScore: 92,
     findings: [
       {
         id: 'fnd-3',

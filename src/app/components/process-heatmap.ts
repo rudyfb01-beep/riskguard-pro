@@ -23,11 +23,11 @@ import { MoneyPipe } from '../utils/money.pipe';
               Mapa de Calor por Proceso de Negocio
             </h2>
             <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-              Matriz 4x4 por Proceso
+              Matriz 4×4 por Proceso
             </span>
           </div>
           <p class="text-xs text-slate-500 mt-1">
-            Distribución cuantitativa de calor 4x4 (Probabilidad × Impacto), exposición económica y mitigación de controles por cada macroproceso.
+            Distribución cuantitativa de calor 4×4 (Probabilidad × Impacto), exposición económica y mitigación de controles por cada macroproceso.
             Pasa el mouse sobre cualquier cuadrante y pincha para navegar directamente al riesgo.
           </p>
         </div>
@@ -68,7 +68,7 @@ import { MoneyPipe } from '../utils/money.pipe';
               title="Ver cuadrículas de calor por proceso"
             >
               <mat-icon class="text-xs mr-1 align-middle">grid_view</mat-icon>
-              <span>Tarjetas 4x4</span>
+              <span>Tarjetas 4×4</span>
             </button>
             <button
               type="button"
@@ -97,7 +97,7 @@ import { MoneyPipe } from '../utils/money.pipe';
         </div>
       </div>
 
-      <!-- VIEW 1: PROCESS CARDS WITH 4x4 MINI HEATMAPS -->
+      <!-- VIEW 1: PROCESS CARDS WITH 4×4 MINI HEATMAPS -->
       @if (viewMode() === 'cards') {
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           @for (summary of riskService.processHeatmapSummaries(); track summary.process) {
@@ -151,19 +151,19 @@ import { MoneyPipe } from '../utils/money.pipe';
                   </div>
                 </div>
 
-                <!-- 4x4 Mini Heatmap Matrix for this process -->
+                <!-- 4×4 Mini Heatmap Matrix for this process -->
                 <div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs mb-3">
                   <div class="flex items-center justify-between mb-1.5 px-0.5">
                     <span class="text-[10px] font-semibold text-slate-700 flex items-center gap-1">
                       <mat-icon class="text-xs text-emerald-600">grid_on</mat-icon>
-                      <span>Matriz 4x4 de Calor</span>
+                      <span>Matriz 4×4 de Calor</span>
                     </span>
                     <span class="text-[9px] text-slate-400 font-mono">
                       Score prom: <strong>{{ avgScore }}</strong> / 16
                     </span>
                   </div>
 
-                  <!-- 4x4 Grid Container -->
+                  <!-- 4×4 Grid Container -->
                   <div class="space-y-1">
                     
                     <!-- Rows (Likelihood: 4 down to 1) -->
@@ -309,7 +309,7 @@ import { MoneyPipe } from '../utils/money.pipe';
                 <th class="py-3 px-4">Proceso Operativo</th>
                 <th class="py-3 px-3 text-center">Riesgos</th>
                 <th class="py-3 px-3 text-center">Nivel de Calor</th>
-                <th class="py-3 px-3">Distribución 4x4 (P×I)</th>
+                <th class="py-3 px-3">Distribución 4×4 (P×I)</th>
                 <th class="py-3 px-3 text-right">Exposición Inherente</th>
                 <th class="py-3 px-3 text-right">Exposición Residual</th>
                 <th class="py-3 px-3 text-center">Mitigación</th>
@@ -353,7 +353,7 @@ import { MoneyPipe } from '../utils/money.pipe';
                     </span>
                   </td>
 
-                  <!-- 4x4 Quadrant distribution badges -->
+                  <!-- 4×4 Quadrant distribution badges -->
                   <td class="py-3 px-3">
                     <div class="flex flex-wrap items-center gap-1 max-w-xs">
                       @if (summary.risksCount === 0) {
@@ -418,7 +418,7 @@ import { MoneyPipe } from '../utils/money.pipe';
                         type="button"
                         (click)="filterMainHeatmap(summary.process)"
                         class="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors"
-                        title="Ver en la Matriz 4x4 Principal"
+                        title="Ver en la Matriz 4×4 Principal"
                       >
                         <mat-icon class="text-sm">filter_center_focus</mat-icon>
                       </button>
@@ -472,7 +472,7 @@ import { MoneyPipe } from '../utils/money.pipe';
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 bg-slate-50/50 p-4 rounded-xl border border-slate-200">
               
-              <!-- Left Column: Detailed 4x4 Matrix for this process -->
+              <!-- Left Column: Detailed 4×4 Matrix for this process -->
               <div class="lg:col-span-2 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
                   <div class="flex items-center gap-2">
@@ -481,7 +481,7 @@ import { MoneyPipe } from '../utils/money.pipe';
                     </span>
                     <div>
                       <h3 class="text-sm font-bold text-slate-900">{{ activeSummary.process }}</h3>
-                      <p class="text-[11px] text-slate-500">Matriz 4x4 interactiva enfocada exclusivamente en este proceso</p>
+                      <p class="text-[11px] text-slate-500">Matriz 4×4 interactiva enfocada exclusivamente en este proceso</p>
                     </div>
                   </div>
                   <span
@@ -492,7 +492,7 @@ import { MoneyPipe } from '../utils/money.pipe';
                   </span>
                 </div>
 
-                <!-- 4x4 Full Grid for Detailed Process -->
+                <!-- 4×4 Full Grid for Detailed Process -->
                 <div class="grid grid-cols-[100px_repeat(4,1fr)] gap-2 text-xs">
                   <!-- Impact header -->
                   <div class="h-8 flex items-center justify-center font-semibold text-slate-400 text-[10px] uppercase bg-slate-50 rounded border border-slate-100">
