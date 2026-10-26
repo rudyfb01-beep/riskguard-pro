@@ -436,7 +436,7 @@
     @if (persistence.mode() === 'demo') {
       <div class="mb-4 p-3 rounded-xl border border-amber-300 bg-amber-50 text-xs text-amber-900 flex items-start gap-2 no-print">
         <mat-icon class="text-sm text-amber-600 shrink-0">science</mat-icon>
-        <span><strong>Modo demostración:</strong> no hay base de datos configurada (DATABASE_URL), así que los cambios se pierden al recargar la página.</span>
+        <span><strong>Modo demostración:</strong> esta instancia no guarda en una base de datos, así que los cambios se pierden al recargar la página.</span>
       </div>
     }
     @if (persistence.mode() === 'error') {
