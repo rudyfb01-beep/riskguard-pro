@@ -164,6 +164,9 @@ function toSqliteValue(v: unknown): unknown {
   return v;
 }
 
+/** Fila de PRAGMA table_info. */
+interface SqliteColumnInfo { name: string; type: string; notnull: number; dflt_value: string | null }
+
 const SQLITE_TS = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?$/;
 
 /** Valores de SQLite → los mismos tipos que entrega PostgreSQL, según el tipo declarado de la columna. */
@@ -288,14 +291,13 @@ class SqlitePool implements DbPool {
     const ref = new Sqlite(':memory:');
     ref.function('lower', { deterministic: true }, (v: unknown) => (typeof v === 'string' ? v.toLocaleLowerCase('es') : v) as never);
     ref.exec(schemaSql);
-    type Col = { name: string; type: string; notnull: number; dflt_value: string | null };
     const tables = ref.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`).all() as { name: string }[];
     const added: string[] = [];
     for (const { name } of tables) {
-      const current = this.db.prepare(`PRAGMA table_info(${name})`).all() as Col[];
+      const current = this.db.prepare(`PRAGMA table_info(${name})`).all() as unknown as SqliteColumnInfo[];
       if (!current.length) continue; // tabla nueva: la crea el script
       const have = new Set(current.map(c => c.name));
-      for (const c of ref.prepare(`PRAGMA table_info(${name})`).all() as Col[]) {
+      for (const c of ref.prepare(`PRAGMA table_info(${name})`).all() as unknown as SqliteColumnInfo[]) {
         if (have.has(c.name)) continue;
         // SQLite no admite valores por defecto variables (p. ej. la fecha actual) en ADD COLUMN.
         const constantDefault = c.dflt_value !== null && !/\(/.test(c.dflt_value);
