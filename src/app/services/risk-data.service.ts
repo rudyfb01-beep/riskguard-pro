@@ -25,6 +25,7 @@ import {
   Ran208Details
 } from '../models/risk.model';
 import { computeBlockHash } from '../utils/crypto-ledger';
+import { ImportRow } from '../utils/risk-import';
 import { DEFAULT_ORGANIZATIONAL_ROLES, DEFAULT_REGULATORY_MILESTONES, formatMinutes } from '../data/base-seed';
 import { DEMO_ALERTS, DEMO_AUDITS, DEMO_CONTROLS, DEMO_FLAWS, DEMO_KRIS, DEMO_LEDGER, DEMO_RISKS, DEMO_USERS } from '../data/demo-seed';
 
@@ -1459,6 +1460,96 @@ export class RiskDataService {
       `Creación de riesgo "${newRisk.title}". Inherente: ${newRisk.inherentScore} (${newRisk.inherentLevel}). Residual: ${newRisk.residualScore} (${newRisk.residualLevel}).`
     );
     return newRisk;
+  }
+
+  /**
+   * Carga masiva desde una matriz en Excel/CSV (ver utils/risk-import.ts).
+   * Crea los riesgos nuevos y, con `updateExisting`, actualiza los que tienen el mismo código;
+   * si no, los omite. Deja un solo registro en la bitácora con el resumen.
+   */
+  async importRisks(
+    rows: ImportRow[],
+    opts: { updateExisting: boolean; hasExposure: boolean; hasControls: boolean; fileName: string },
+  ): Promise<{ created: number; updated: number; skipped: number }> {
+    this.ensure(['canEditRisks'], 'importar riesgos');
+    const today = new Date().toISOString().split('T')[0];
+    const nextYear = new Date(Date.now() + 365 * 86_400_000).toISOString().split('T')[0];
+    const stamp = Date.now().toString(36);
+    const byCode = new Map(this.risks().map(r => [r.code.toUpperCase(), r]));
+    const usedCodes = new Set(byCode.keys());
+    let seq = this.risks().reduce((m, r) => Math.max(m, Number(r.code.match(/(\d+)$/)?.[1] ?? 0)), 100);
+    const nextCode = () => { let c: string; do { c = `RGO-${++seq}`; } while (usedCodes.has(c)); usedCodes.add(c); return c; };
+    const actionsOf = (text: string) => text.split(/\r?\n|;/).map(a => a.trim()).filter(Boolean);
+
+    const created: Risk[] = [];
+    const updated = new Map<string, Risk>();
+    let skipped = 0;
+
+    rows.forEach((row, i) => {
+      if (row.errors.length) { skipped++; return; }
+      const existing = row.code ? byCode.get(row.code) : undefined;
+      if (existing && !opts.updateExisting) { skipped++; return; }
+
+      const exposure = existing && !opts.hasExposure ? existing.financialExposureUSD : row.exposure;
+      const controlIds = existing && !opts.hasControls ? existing.controlIds : row.controlIds;
+      const residual = this.calculateResidual(row.likelihood, row.impact, exposure, controlIds);
+      const base = {
+        title: row.title,
+        description: row.description || existing?.description || '',
+        process: row.process,
+        category: row.category,
+        responsible: row.responsible || existing?.responsible || this.currentProfile().name,
+        status: row.status,
+        inherentLikelihood: row.likelihood,
+        inherentImpact: row.impact,
+        inherentScore: row.likelihood * row.impact,
+        inherentLevel: this.calculateRiskLevel(row.likelihood, row.impact),
+        financialExposureUSD: exposure,
+        controlIds,
+        ...residual,
+        lastReviewDate: today,
+      };
+
+      if (existing) {
+        updated.set(existing.id, {
+          ...existing, ...base,
+          mitigationPlan: row.mitigation
+            ? { ...existing.mitigationPlan, title: actionsOf(row.mitigation)[0] ?? existing.mitigationPlan.title, actions: actionsOf(row.mitigation) }
+            : existing.mitigationPlan,
+        });
+        return;
+      }
+      const code = row.code && !usedCodes.has(row.code) ? (usedCodes.add(row.code), row.code) : nextCode();
+      const actions = actionsOf(row.mitigation);
+      created.push({
+        id: `rsk-imp-${stamp}-${i + 1}`,
+        code,
+        ...base,
+        mitigationPlan: {
+          id: `mit-imp-${stamp}-${i + 1}`,
+          title: actions[0] ?? `Plan de Mitigación para ${code}`,
+          owner: base.responsible,
+          dueDate: nextYear,
+          budgetUSD: 0,
+          progressPct: 0,
+          status: 'No Iniciado',
+          actions,
+        },
+        createdAt: today,
+      });
+    });
+
+    if (created.length || updated.size) {
+      this.risks.update(list => [...created, ...list.map(r => updated.get(r.id) ?? r)]);
+    }
+    const result = { created: created.length, updated: updated.size, skipped };
+    await this.appendAuditLog(
+      'IMPORTACIÓN_RIESGOS',
+      'Riesgo',
+      'IMPORTACIÓN',
+      `Importación de matriz de riesgos desde "${opts.fileName}": ${result.created} creados${created.length ? ` (${created.map(r => r.code).join(', ')})` : ''}, ${result.updated} actualizados${updated.size ? ` (${[...updated.values()].map(r => r.code).join(', ')})` : ''}, ${result.skipped} omitidos.`,
+    );
+    return result;
   }
 
   // Update an existing risk

@@ -195,6 +195,26 @@ con una cadena aleatoria larga.
   cálculo de APR. Son formatos internos; el formato oficial de archivos del MSI CACs se puede
   agregar cuando se disponga de su especificación.
 
+## Importar una matriz de riesgos desde Excel
+
+En **Matriz 4×4 & Inventario → Importar Excel** se carga una matriz existente (.xlsx o .csv; el
+formato .xls antiguo debe guardarse antes como .xlsx). Requiere el permiso de editar riesgos.
+
+- Detecta la hoja, la fila de encabezados y las columnas por su nombre (Riesgo, Proceso,
+  Probabilidad, Impacto, Categoría, Responsable, Exposición, Controles, Estado, Plan de acción…);
+  cada asociación se puede corregir antes de importar. También reconoce la exportación de la propia
+  aplicación, así que sirve para editar la matriz en Excel y volver a cargarla.
+- Probabilidad e impacto pueden venir como número (escalas 1–3, 1–4, 1–5, 1–6 o 1–10, que se
+  convierten a 1–4) o como texto (Improbable, Posible, Probable, Casi seguro; Menor, Moderado, Mayor,
+  Catastrófico…). La categoría se asocia a una de las 7 de Basilea.
+- Las celdas combinadas de proceso, categoría y responsable se repiten hacia abajo.
+- Si un código ya existe, se puede actualizar ese riesgo u omitirlo. Los procesos que no están en
+  el mantenedor se asocian al más parecido o, con permiso de mantenedores, se crean.
+- Los controles se vinculan por código o nombre; el riesgo residual se calcula con ellos.
+- La vista previa marca las observaciones y las filas con errores (que no se importan). La
+  importación queda en la bitácora con el detalle de los riesgos creados y actualizados.
+- **Descargar plantilla** entrega un CSV con los encabezados que se reconocen automáticamente.
+
 ## Mantenedores
 
 En **Configuración → Mantenedores** (permiso "Administrar mantenedores", que por defecto tiene el
