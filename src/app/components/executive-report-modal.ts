@@ -128,7 +128,7 @@ import { MoneyPipe } from '../utils/money.pipe';
               <div class="border border-slate-200 p-3 rounded-lg bg-white">
                 <span class="text-slate-500 block text-[11px]">Salud Operacional (OHI)</span>
                 <span class="text-base font-bold font-mono text-indigo-700 tabular-nums">
-                  {{ riskService.metrics().operationalHealthIndex }} / 100
+                  @if (riskService.metrics().hasHealthData) { {{ riskService.metrics().operationalHealthIndex }} / 100 } @else { Sin datos }
                 </span>
                 <span class="text-[10px] text-slate-500 block">Efectividad Controles: {{ riskService.metrics().avgControlEffectiveness }}%</span>
               </div>

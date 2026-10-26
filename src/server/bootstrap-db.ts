@@ -10,7 +10,7 @@ import { UserPermissions } from '../app/models/risk.model';
 import { DEMO_APR_INPUTS, EMPTY_APR_INPUTS } from '../app/models/apr.model';
 import { RAN_REQUIREMENTS } from '../app/data/compliance-seed';
 import { DEFAULT_GENERAL_PARAMETERS, DEFAULT_PROVIDER_CATALOGS, DEFAULT_RISK_APPETITE, DEFAULT_RISK_SCALE } from '../app/models/catalog.model';
-import { PoolClient } from 'pg';
+import { DbClient } from './db';
 
 /**
  * Permisos agregados en versiones posteriores: en bases existentes se completan
@@ -26,16 +26,18 @@ const PERMISSION_MIGRATIONS: { perm: keyof UserPermissions; roles: string[] }[] 
  * del Anexo 1 de la RAN 20-7 en el catálogo de proveedores (se agregan las que falten).
  */
 /** Una sola vez: el puntaje de cada auditoría se recalcula con la regla vigente (100 − 15/8/3 por hallazgo). */
-async function migrateAuditScores(c: PoolClient) {
+async function migrateAuditScores(c: DbClient) {
   if ((await c.query(`SELECT 1 FROM system_settings WHERE key = 'migration_audit_scores_v1'`)).rowCount) return;
-  await c.query(
-    `UPDATE periodic_audits a SET compliance_score = GREATEST(0, 100 - COALESCE((
-        SELECT SUM(CASE f.type WHEN 'No Conformidad Mayor' THEN 15 WHEN 'No Conformidad Menor' THEN 8 WHEN 'Observación' THEN 3 ELSE 0 END)
-          FROM audit_findings f WHERE f.audit_id = a.id), 0))`);
+  const weight: Record<string, number> = { 'No Conformidad Mayor': 15, 'No Conformidad Menor': 8, 'Observación': 3 };
+  const findings = (await c.query('SELECT audit_id, type FROM audit_findings')).rows;
+  for (const a of (await c.query('SELECT id FROM periodic_audits')).rows) {
+    const penalty = findings.filter(f => f.audit_id === a.id).reduce((sum, f) => sum + (weight[f.type] ?? 0), 0);
+    await c.query('UPDATE periodic_audits SET compliance_score = $2 WHERE id = $1', [a.id, Math.max(0, 100 - penalty)]);
+  }
   await c.query(`INSERT INTO system_settings (key, value) VALUES ('migration_audit_scores_v1', 'true') ON CONFLICT (key) DO NOTHING`);
 }
 
-async function migrateRanCompliance(c: PoolClient) {
+async function migrateRanCompliance(c: DbClient) {
   if ((await c.query(`SELECT 1 FROM system_settings WHERE key = 'migration_ran_compliance_v1'`)).rowCount) return;
   for (const req of RAN_REQUIREMENTS) {
     const exists = (await c.query('SELECT 1 FROM compliance_requirements WHERE id = $1', [req.id])).rowCount;
@@ -55,7 +57,7 @@ async function migrateRanCompliance(c: PoolClient) {
  * Carga inicial de mantenedores (una sola vez, cuando las tablas están vacías):
  * áreas base + las que ya usan los puestos, y procesos de referencia + los que ya usan los datos.
  */
-async function seedCatalogs(c: PoolClient, useDemoProcesses: boolean) {
+async function seedCatalogs(c: DbClient, useDemoProcesses: boolean) {
   if ((await c.query('SELECT 1 FROM org_areas LIMIT 1')).rowCount === 0) {
     for (const a of DEFAULT_AREAS) await saveEntity('areas', a, c);
     const used = await c.query(
@@ -69,7 +71,9 @@ async function seedCatalogs(c: PoolClient, useDemoProcesses: boolean) {
   }
   if ((await c.query('SELECT 1 FROM business_processes LIMIT 1')).rowCount === 0) {
     const base = useDemoProcesses ? DEMO_PROCESSES : COOPERATIVE_PROCESSES;
-    for (const p of base) await saveEntity('processes', p, c);
+    // Si el área de referencia ya no existe (fue renombrada o eliminada), el proceso queda sin área.
+    const areaIds = new Set((await c.query('SELECT id FROM org_areas')).rows.map(r => r.id));
+    for (const p of base) await saveEntity('processes', { ...p, areaId: p.areaId && areaIds.has(p.areaId) ? p.areaId : undefined }, c);
     const used = await c.query(
       `SELECT process AS name FROM risks UNION SELECT process FROM controls UNION SELECT process FROM operational_flaws
         UNION SELECT process FROM kri_definitions UNION SELECT process FROM anomaly_alerts UNION SELECT process FROM audit_findings`);
@@ -117,12 +121,19 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
       await c.query(`INSERT INTO system_settings (key, value) VALUES ('security_checklist_seeded', 'true') ON CONFLICT (key) DO NOTHING`);
     }
     for (const m of PERMISSION_MIGRATIONS) {
-      await c.query(
-        `UPDATE organizational_roles SET permissions = permissions || jsonb_build_object($1::text, id = ANY($2::text[]))
-          WHERE NOT (permissions ? $1)`, [m.perm, m.roles]);
-      await c.query(
-        `UPDATE user_profiles u SET permissions = u.permissions || jsonb_build_object($1::text, COALESCE((r.permissions->>$1)::boolean, FALSE))
-           FROM organizational_roles r WHERE r.id = u.role_id AND NOT (u.permissions ? $1)`, [m.perm]);
+      const roles = (await c.query('SELECT id, permissions FROM organizational_roles')).rows;
+      for (const r of roles) {
+        if (r.permissions && !(m.perm in r.permissions)) {
+          await c.query('UPDATE organizational_roles SET permissions = $2 WHERE id = $1', [r.id, JSON.stringify({ ...r.permissions, [m.perm]: m.roles.includes(r.id) })]);
+        }
+      }
+      const rolePerms = new Map((await c.query('SELECT id, permissions FROM organizational_roles')).rows.map(r => [r.id, r.permissions]));
+      for (const u of (await c.query('SELECT id, role_id, permissions FROM user_profiles')).rows) {
+        if (u.permissions && u.role_id && rolePerms.has(u.role_id) && !(m.perm in u.permissions)) {
+          const value = rolePerms.get(u.role_id)?.[m.perm] === true;
+          await c.query('UPDATE user_profiles SET permissions = $2 WHERE id = $1', [u.id, JSON.stringify({ ...u.permissions, [m.perm]: value })]);
+        }
+      }
     }
     if ((await c.query('SELECT 1 FROM regulatory_milestone_templates LIMIT 1')).rowCount === 0) {
       for (const m of DEFAULT_REGULATORY_MILESTONES) await saveEntity('regulatory-milestones', m, c);

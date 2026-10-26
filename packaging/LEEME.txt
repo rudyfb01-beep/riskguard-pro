@@ -1,0 +1,71 @@
+RISKGUARD PRO · INSTALACIÓN LOCAL CON SQLITE
+=============================================
+
+Esta versión funciona en un solo equipo, sin servidor de base de datos: toda la
+información queda en el archivo data/riskguard.db.
+
+REQUISITO
+---------
+Node.js 24 LTS (o 22.16 o superior). Descárgalo desde https://nodejs.org e instálalo
+con las opciones por defecto. No hace falta instalar nada más.
+
+
+PRIMER INICIO
+-------------
+1. Descomprime la carpeta en un lugar fijo (por ejemplo C:\RiskGuardPro o Documentos).
+2. Abre configuracion.env con el Bloc de notas y cambia ADMIN_EMAIL por tu correo.
+   (Si quieres conocer la aplicación con datos de ejemplo, pon SEED_DEMO_DATA=true
+   ANTES del primer inicio.)
+3. Windows: doble clic en iniciar.bat
+   macOS / Linux: en una terminal, ./iniciar.sh
+4. Se abre el navegador en http://localhost:3000. Escribe el correo de ADMIN_EMAIL.
+5. El código de 6 dígitos aparece en la ventana negra de la aplicación (línea
+   "[Auth] SMTP no configurado. Código de acceso para <correo>: 123456").
+   Escríbelo en el navegador.
+
+La ventana de la aplicación debe quedar abierta mientras la usas. Al cerrarla, la
+aplicación se detiene; los datos quedan guardados.
+
+Con datos de ejemplo, los usuarios de prueba usan correos @demo.riskguard.cl
+(por ejemplo elena.vasconcelos@demo.riskguard.cl).
+
+
+RESPALDOS
+---------
+- Windows: doble clic en respaldar.bat · macOS / Linux: ./respaldar.sh
+- Crea una copia en la carpeta respaldos/ (se puede hacer con la aplicación abierta).
+- Para restaurar: detén la aplicación, copia el respaldo a data/riskguard.db y borra
+  data/riskguard.db-wal y data/riskguard.db-shm si existen.
+
+Guarda copias de respaldos/ fuera del equipo (unidad de red o nube institucional).
+
+
+ACTUALIZAR A UNA VERSIÓN NUEVA
+------------------------------
+Reemplaza todo EXCEPTO la carpeta data/, la carpeta respaldos/ y configuracion.env.
+Al iniciar, la base se actualiza sola.
+
+
+CORREO (OPCIONAL)
+-----------------
+Para que el código llegue por correo, completa SMTP_HOST, SMTP_USER, SMTP_PASS y
+SMTP_FROM en configuracion.env y cambia AUTH_DEV_LOG_CODES=false.
+
+
+USO EN RED O POR VARIOS USUARIOS
+--------------------------------
+SQLite está pensado para un equipo o un grupo pequeño. Para uso institucional con
+varios usuarios simultáneos, accesos desde otros equipos y respaldos administrados,
+se recomienda la instalación con PostgreSQL (ver LOCAL_SETUP.md en el repositorio):
+basta con definir DB_CLIENT=postgres y DATABASE_URL en configuracion.env.
+Si la abres desde otros equipos de la red, configura el correo (SMTP) y deja
+AUTH_DEV_LOG_CODES=false.
+
+
+PROBLEMAS FRECUENTES
+--------------------
+- "No se encontró Node.js": instala Node.js y abre de nuevo iniciar.bat.
+- "EADDRINUSE" / puerto en uso: otra aplicación usa el puerto 3000. Cambia PORT en
+  configuracion.env (por ejemplo PORT=3010) y abre http://localhost:3010
+- La página no carga: espera unos segundos a que la ventana muestre
+  "esquema al día" y recarga el navegador.

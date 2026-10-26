@@ -701,6 +701,13 @@ export class RiskDataService {
     const appliedAlertsPenalty = Math.round(alertsPenalty * 0.5);
 
     const operationalHealthIndex = Math.max(0, Math.min(100, Math.round(controlWeight + exposureMitigationWeight + complianceWeight - appliedAlertsPenalty)));
+    // Sin riesgos ni controles registrados el índice no tiene base: se informa "sin datos".
+    const hasHealthData = allRisks.length > 0 || allControls.length > 0;
+    const health = !hasHealthData
+      ? { label: 'Sin datos suficientes', tone: 'neutral' as const }
+      : operationalHealthIndex >= 80 ? { label: 'Postura Operacional Óptima', tone: 'good' as const }
+      : operationalHealthIndex >= 60 ? { label: 'Postura Aceptable con Alertas', tone: 'warn' as const }
+      : { label: 'Atención Requerida', tone: 'bad' as const };
 
     return {
       totalRisks: allRisks.length,
@@ -717,7 +724,10 @@ export class RiskDataService {
       criticalAlertsCount,
       auditCompliancePct,
       appliedAlertsPenalty,
-      operationalHealthIndex
+      operationalHealthIndex,
+      hasHealthData,
+      healthLabel: health.label,
+      healthTone: health.tone,
     };
   });
 

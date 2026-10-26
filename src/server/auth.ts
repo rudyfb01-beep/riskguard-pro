@@ -60,6 +60,9 @@ export function clientIp(req: express.Request): string {
   return req.ip || req.socket.remoteAddress || 'desconocida';
 }
 
+/** Fecha ISO (UTC) desplazada en minutos desde ahora; se usa en vez de now() para que el SQL sea portable. */
+const isoIn = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
+
 async function findActiveUserByEmail(email: string) {
   const r = await getPool()!.query('SELECT * FROM user_profiles WHERE lower(email) = $1 AND active = TRUE', [email]);
   return r.rows[0];
@@ -84,16 +87,15 @@ export async function requestLoginCode(rawEmail: unknown, ip: string): Promise<v
   const user = await findActiveUserByEmail(email);
   if (user) {
     const recent = await getPool()!.query(
-      `SELECT count(*)::int AS n FROM auth_login_codes WHERE user_id = $1 AND created_at > now() - interval '15 minutes'`,
-      [user.id]
+      `SELECT count(*) AS n FROM auth_login_codes WHERE user_id = $1 AND created_at > $2`,
+      [user.id, isoIn(-15)]
     );
-    if (recent.rows[0].n < MAX_CODES_PER_WINDOW) {
+    if (Number(recent.rows[0].n) < MAX_CODES_PER_WINDOW) {
       const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-      await getPool()!.query('UPDATE auth_login_codes SET consumed_at = now() WHERE user_id = $1 AND consumed_at IS NULL', [user.id]);
+      await getPool()!.query('UPDATE auth_login_codes SET consumed_at = $2 WHERE user_id = $1 AND consumed_at IS NULL', [user.id, isoIn(0)]);
       await getPool()!.query(
-        `INSERT INTO auth_login_codes (user_id, code_hash, expires_at, request_ip)
-         VALUES ($1, $2, now() + make_interval(mins => $3::int), $4)`,
-        [user.id, codeHash(user.id, code), CODE_TTL_MINUTES, ip]
+        `INSERT INTO auth_login_codes (user_id, code_hash, created_at, expires_at, request_ip) VALUES ($1, $2, $3, $4, $5)`,
+        [user.id, codeHash(user.id, code), isoIn(0), isoIn(CODE_TTL_MINUTES), ip]
       );
       // Se envía en segundo plano: así el tiempo de respuesta no revela si el correo existe.
       sendLoginCode(user.email, user.name, code, CODE_TTL_MINUTES).catch(err =>
@@ -126,9 +128,9 @@ export async function verifyLoginCode(
   }
   const r = await getPool()!.query(
     `SELECT id, code_hash, attempts FROM auth_login_codes
-     WHERE user_id = $1 AND consumed_at IS NULL AND expires_at > now()
+     WHERE user_id = $1 AND consumed_at IS NULL AND expires_at > $2
      ORDER BY created_at DESC LIMIT 1`,
-    [user.id]
+    [user.id, isoIn(0)]
   );
   const row = r.rows[0];
   if (!row) throw invalid;
@@ -140,14 +142,13 @@ export async function verifyLoginCode(
     try {
       await getPool()!.query(
         `UPDATE auth_login_codes
-            SET attempts = $2::int,
-                consumed_at = CASE WHEN $2::int >= $3::int THEN now() ELSE NULL END
+            SET attempts = $2, consumed_at = $3
           WHERE id = $1`,
-        [row.id, attempts, MAX_CODE_ATTEMPTS]
+        [row.id, attempts, attempts >= MAX_CODE_ATTEMPTS ? isoIn(0) : null]
       );
     } catch (err) {
       // Si no se puede registrar el intento, se invalida el código (falla cerrada).
-      await getPool()!.query('UPDATE auth_login_codes SET consumed_at = now() WHERE id = $1', [row.id]).catch(() => undefined);
+      await getPool()!.query('UPDATE auth_login_codes SET consumed_at = $2 WHERE id = $1', [row.id, isoIn(0)]).catch(() => undefined);
       throw err;
     }
     if (attempts >= MAX_CODE_ATTEMPTS) {
@@ -156,17 +157,17 @@ export async function verifyLoginCode(
     throw new AuthError(401, `Código incorrecto. Te quedan ${MAX_CODE_ATTEMPTS - attempts} intentos.`);
   }
 
-  await getPool()!.query('UPDATE auth_login_codes SET consumed_at = now() WHERE id = $1', [row.id]);
+  await getPool()!.query('UPDATE auth_login_codes SET consumed_at = $2 WHERE id = $1', [row.id, isoIn(0)]);
   const token = randomBytes(32).toString('base64url');
   await getPool()!.query(
-    `INSERT INTO auth_sessions (token_hash, user_id, expires_at, ip, user_agent)
-     VALUES ($1, $2, now() + make_interval(mins => $3::int), $4, $5)`,
-    [sha256(token), user.id, Math.min(SESSION_IDLE_MINUTES, SESSION_MAX_HOURS * 60), ip, userAgent.slice(0, 300)]
+    `INSERT INTO auth_sessions (token_hash, user_id, created_at, last_seen_at, expires_at, ip, user_agent)
+     VALUES ($1, $2, $3, $3, $4, $5, $6)`,
+    [sha256(token), user.id, isoIn(0), isoIn(Math.min(SESSION_IDLE_MINUTES, SESSION_MAX_HOURS * 60)), ip, userAgent.slice(0, 300)]
   );
-  await getPool()!.query('UPDATE user_profiles SET last_login_at = now() WHERE id = $1', [user.id]);
+  await getPool()!.query('UPDATE user_profiles SET last_login_at = $2 WHERE id = $1', [user.id, isoIn(0)]);
   // Limpieza oportunista de registros vencidos.
-  await getPool()!.query(`DELETE FROM auth_sessions WHERE expires_at < now() - interval '1 day'`);
-  await getPool()!.query(`DELETE FROM auth_login_codes WHERE created_at < now() - interval '7 days'`);
+  await getPool()!.query('DELETE FROM auth_sessions WHERE expires_at < $1', [isoIn(-24 * 60)]);
+  await getPool()!.query('DELETE FROM auth_login_codes WHERE created_at < $1', [isoIn(-7 * 24 * 60)]);
 
   const profile = userFromRow(user);
   await appendLedger({
@@ -183,24 +184,28 @@ export async function verifyLoginCode(
 /** Devuelve el usuario de la sesión y extiende su vigencia (hasta el máximo absoluto). */
 export async function getSessionUser(token: string | undefined): Promise<UserProfile | null> {
   if (!token || token.length > 200) return null;
+  const tokenHash = sha256(token);
   const r = await getPool()!.query(
-    `UPDATE auth_sessions s
-        SET last_seen_at = now(),
-            expires_at = LEAST(now() + make_interval(mins => $2::int), s.created_at + make_interval(hours => $3::int))
-       FROM user_profiles u
-      WHERE s.token_hash = $1 AND s.expires_at > now() AND u.id = s.user_id AND u.active = TRUE
-      RETURNING u.*`,
-    [sha256(token), SESSION_IDLE_MINUTES, SESSION_MAX_HOURS]
+    `SELECT s.created_at AS session_created_at, u.* FROM auth_sessions s JOIN user_profiles u ON u.id = s.user_id
+      WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.active = TRUE`,
+    [tokenHash, isoIn(0)]
   );
-  return r.rows[0] ? userFromRow(r.rows[0]) : null;
+  const row = r.rows[0];
+  if (!row) return null;
+  // Renovación por actividad, sin superar el máximo absoluto desde el inicio de la sesión.
+  const createdAt = new Date(row.session_created_at).getTime();
+  const expiresAt = Math.min(Date.now() + SESSION_IDLE_MINUTES * 60_000, createdAt + SESSION_MAX_HOURS * 3_600_000);
+  await getPool()!.query('UPDATE auth_sessions SET last_seen_at = $2, expires_at = $3 WHERE token_hash = $1',
+    [tokenHash, isoIn(0), new Date(expiresAt).toISOString()]);
+  return userFromRow(row);
 }
 
 export async function destroySession(token: string | undefined, ip: string): Promise<void> {
   if (!token) return;
+  const tokenHash = sha256(token);
   const r = await getPool()!.query(
-    `DELETE FROM auth_sessions s USING user_profiles u WHERE s.token_hash = $1 AND u.id = s.user_id RETURNING u.*`,
-    [sha256(token)]
-  );
+    'SELECT u.* FROM auth_sessions s JOIN user_profiles u ON u.id = s.user_id WHERE s.token_hash = $1', [tokenHash]);
+  await getPool()!.query('DELETE FROM auth_sessions WHERE token_hash = $1', [tokenHash]);
   if (r.rows[0]) {
     const u = userFromRow(r.rows[0]);
     await appendLedger({

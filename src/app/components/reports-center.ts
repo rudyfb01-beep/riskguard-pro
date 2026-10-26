@@ -226,7 +226,7 @@ export type ReportType =
             <div class="border border-slate-200 p-3 rounded-lg bg-white">
               <span class="text-slate-500 block text-[11px]">Índice de Salud Operacional (OHI)</span>
               <span class="text-base font-bold font-mono text-indigo-700 tabular-nums">
-                {{ reportMetrics().ohi }} / 100
+                @if (reportMetrics().hasHealthData) { {{ reportMetrics().ohi }} / 100 } @else { Sin datos }
               </span>
               <span class="text-[10px] text-slate-500 block">Efectividad Controles: {{ reportMetrics().avgControlEff }}%</span>
             </div>
@@ -601,9 +601,10 @@ ${appetite}`;
 
     const avgControlEff = controls.length > 0
       ? Math.round(controls.reduce((acc, c) => acc + c.totalEffectiveness, 0) / controls.length)
-      : 85;
+      : 0;
 
     const ohi = this.riskService.metrics().operationalHealthIndex;
+    const hasHealthData = this.riskService.metrics().hasHealthData;
 
     return {
       inherentUSD,
@@ -615,7 +616,8 @@ ${appetite}`;
       resMedCount,
       resLowCount,
       avgControlEff,
-      ohi
+      ohi,
+      hasHealthData
     };
   });
 
