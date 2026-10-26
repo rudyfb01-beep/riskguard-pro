@@ -9,6 +9,7 @@ import { TopBar } from './components/top-bar';
 import { ExecutiveKpis } from './components/executive-kpis';
 import { HeatmapMatrix } from './components/heatmap-matrix';
 import { RiskModal } from './components/risk-modal';
+import { RiskImportModal } from './components/risk-import-modal';
 import { FlawModal } from './components/flaw-modal';
 import { ControlModal } from './components/control-modal';
 import { ExecutiveReportModal } from './components/executive-report-modal';
@@ -66,6 +67,7 @@ export type ActiveTab =
     RiskCharts,
     ReportsCenter,
     RiskModal,
+    RiskImportModal,
     FlawModal,
     ControlModal,
     ExecutiveReportModal,
@@ -197,6 +199,7 @@ export class App {
 
   // Modals state
   readonly isRiskModalOpen = signal<boolean>(false);
+  readonly isImportRisksOpen = signal<boolean>(false);
   readonly editingRisk = signal<Risk | null>(null);
 
   readonly isFlawModalOpen = signal<boolean>(false);
@@ -340,6 +343,17 @@ export class App {
     if (!this.riskService.requirePermission(['canEditRisks'], 'crear riesgos')) return;
     this.editingRisk.set(null);
     this.isRiskModalOpen.set(true);
+  }
+
+  // Importación de matriz desde Excel/CSV
+  openImportRisks() {
+    if (!this.riskService.requirePermission(['canEditRisks'], 'importar riesgos')) return;
+    this.isImportRisksOpen.set(true);
+  }
+
+  onRisksImported(r: { created: number; updated: number; skipped: number }) {
+    this.isImportRisksOpen.set(false);
+    this.showToast(`Matriz importada: ${r.created} riesgos nuevos, ${r.updated} actualizados${r.skipped ? `, ${r.skipped} omitidos` : ''}.`);
   }
 
   // Open Edit Risk Modal

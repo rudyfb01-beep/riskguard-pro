@@ -656,6 +656,15 @@
               <span>Nuevo Riesgo</span>
             </button>
             <button
+              (click)="openImportRisks()"
+              [class.perm-locked]="!can('canEditRisks')"
+              title="Cargar riesgos desde una matriz en Excel (.xlsx) o CSV"
+              class="px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+            >
+              <mat-icon class="text-sm">upload_file</mat-icon>
+              <span>Importar Excel</span>
+            </button>
+            <button
               (click)="riskService.exportToExcel('risks')"
               [class.perm-locked]="!can('canExportReports')"
               class="px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
@@ -2001,6 +2010,13 @@
       (closeModal)="isRiskModalOpen.set(false)"
       (riskSaved)="showToast('Riesgo operacional guardado con éxito'); isRiskModalOpen.set(false)"
     ></app-risk-modal>
+  }
+
+  @if (isImportRisksOpen()) {
+    <app-risk-import-modal
+      (closeModal)="isImportRisksOpen.set(false)"
+      (imported)="onRisksImported($event)"
+    ></app-risk-import-modal>
   }
 
   @if (isFlawModalOpen()) {
