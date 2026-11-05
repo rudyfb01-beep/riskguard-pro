@@ -42,7 +42,8 @@ const WRITE_PERMISSIONS: Record<EntityName, (keyof UserPermissions)[]> = {
   'info-assets': ['canManageInfoSecurity'],
   vulnerabilities: ['canManageInfoSecurity'],
   'security-assessment': ['canManageInfoSecurity'],
-  compliance: ['canManageRegulatoryReports'],
+  norms: ['canManageCompliance', 'canManageRegulatoryReports'],
+  compliance: ['canManageCompliance', 'canManageRegulatoryReports'],
   'security-tests': ['canManageInfoSecurity'],
 };
 

@@ -876,10 +876,33 @@ ALTER TABLE continuity_tests ADD COLUMN IF NOT EXISTS ran209 JSONB;
 ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS cyber JSONB;
 ALTER TABLE info_assets ADD COLUMN IF NOT EXISTS critical_infrastructure BOOLEAN NOT NULL DEFAULT FALSE;
 
--- Matriz de requisitos normativos con su evaluación
+-- Biblioteca normativa: RAN de la CMF, leyes, circulares, estándares y políticas internas
+CREATE TABLE IF NOT EXISTS compliance_norms (
+    id VARCHAR(60) PRIMARY KEY,
+    code VARCHAR(60) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    kind VARCHAR(40) NOT NULL DEFAULT 'Otra',
+    issuer VARCHAR(120),
+    source TEXT,
+    url TEXT,
+    version VARCHAR(60) NOT NULL DEFAULT '1',
+    effective_date DATE,
+    status VARCHAR(40) NOT NULL DEFAULT 'Vigente' CHECK (status IN ('Vigente', 'Publicada, aún no vigente', 'En consulta', 'Derogada')),
+    applicability VARCHAR(30) NOT NULL DEFAULT 'Aplica' CHECK (applicability IN ('Aplica', 'Aplica parcialmente', 'Por determinar', 'No aplica')),
+    applicability_note TEXT,
+    owner VARCHAR(255),
+    notes TEXT,
+    versions JSONB NOT NULL DEFAULT '[]',
+    sort_order INTEGER NOT NULL DEFAULT 100,
+    referential BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_compliance_norms_code ON compliance_norms (lower(code));
+
+-- Matriz de requisitos normativos con su evaluación ("chapter" es el id de la norma)
 CREATE TABLE IF NOT EXISTS compliance_requirements (
     id VARCHAR(120) PRIMARY KEY,
-    chapter VARCHAR(10) NOT NULL CHECK (chapter IN ('20-7', '20-8', '20-9', '20-10')),
+    chapter VARCHAR(60) NOT NULL,
     numeral VARCHAR(40) NOT NULL,
     title VARCHAR(255) NOT NULL,
     requirement TEXT NOT NULL,
@@ -893,8 +916,16 @@ CREATE TABLE IF NOT EXISTS compliance_requirements (
     due_date DATE,
     last_review_date DATE,
     reviewed_by VARCHAR(255),
+    control_ids JSONB NOT NULL DEFAULT '[]',
+    norm_version VARCHAR(60),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+-- Cumplimiento multinorma: el requisito ya no se limita a las RAN, se vincula a controles
+-- y guarda la versión de la norma con que se evaluó.
+ALTER TABLE compliance_requirements DROP CONSTRAINT IF EXISTS compliance_requirements_chapter_check;
+ALTER TABLE compliance_requirements ALTER COLUMN chapter TYPE VARCHAR(60);
+ALTER TABLE compliance_requirements ADD COLUMN IF NOT EXISTS control_ids JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE compliance_requirements ADD COLUMN IF NOT EXISTS norm_version VARCHAR(60);
 CREATE INDEX IF NOT EXISTS idx_compliance_chapter ON compliance_requirements (chapter);
 
 -- Pruebas de seguridad (RAN 20-10 4.1 y 4.2)

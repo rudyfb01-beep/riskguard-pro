@@ -576,6 +576,30 @@ CREATE TABLE IF NOT EXISTS business_processes (
     UNIQUE (code)
 );
 
+CREATE TABLE IF NOT EXISTS compliance_norms (
+    id TEXT NOT NULL,
+    code TEXT NOT NULL,
+    title TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'Otra',
+    issuer TEXT,
+    source TEXT,
+    url TEXT,
+    version TEXT NOT NULL DEFAULT '1',
+    effective_date DATE,
+    status TEXT NOT NULL DEFAULT 'Vigente',
+    applicability TEXT NOT NULL DEFAULT 'Aplica',
+    applicability_note TEXT,
+    owner TEXT,
+    notes TEXT,
+    versions JSONTEXT NOT NULL DEFAULT '[]',
+    sort_order INTEGER NOT NULL DEFAULT 100,
+    referential BOOLEAN NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    CHECK (((applicability) IN ('Aplica', 'Aplica parcialmente', 'Por determinar', 'No aplica'))),
+    CHECK (((status) IN ('Vigente', 'Publicada, aún no vigente', 'En consulta', 'Derogada'))),
+    PRIMARY KEY (id)
+);
+
 CREATE TABLE IF NOT EXISTS compliance_requirements (
     id TEXT NOT NULL,
     chapter TEXT NOT NULL,
@@ -592,8 +616,9 @@ CREATE TABLE IF NOT EXISTS compliance_requirements (
     due_date DATE,
     last_review_date DATE,
     reviewed_by TEXT,
+    control_ids JSONTEXT NOT NULL DEFAULT '[]',
+    norm_version TEXT,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-    CHECK (((chapter) IN ('20-7', '20-8', '20-9', '20-10'))),
     CHECK (((frequency) IN ('Permanente', 'Anual', 'Semestral', 'Por evento'))),
     CHECK (((status) IN ('Sin evaluar', 'Cumple', 'Cumple parcialmente', 'No cumple', 'No aplica'))),
     PRIMARY KEY (id)
@@ -661,6 +686,7 @@ CREATE INDEX IF NOT EXISTS idx_vulnerabilities_status ON vulnerabilities (status
 CREATE UNIQUE INDEX IF NOT EXISTS ux_org_areas_name ON org_areas (lower((name)));
 CREATE UNIQUE INDEX IF NOT EXISTS ux_business_processes_name ON business_processes (lower((name)));
 CREATE INDEX IF NOT EXISTS idx_business_processes_area ON business_processes (area_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_compliance_norms_code ON compliance_norms (lower((code)));
 CREATE INDEX IF NOT EXISTS idx_compliance_chapter ON compliance_requirements (chapter);
 
 -- =============================================================================

@@ -8,7 +8,7 @@ import { SEED_BIA, SEED_PLANS, SEED_PROVIDERS, SEED_TESTS } from '../app/data/re
 import { BASE_ASSESSMENT_ITEMS, DEMO_ASSESSMENT, DEMO_ASSETS, DEMO_SECURITY_TESTS, DEMO_VULNERABILITIES } from '../app/data/security-seed';
 import { UserPermissions } from '../app/models/risk.model';
 import { DEMO_APR_INPUTS, EMPTY_APR_INPUTS } from '../app/models/apr.model';
-import { RAN_REQUIREMENTS } from '../app/data/compliance-seed';
+import { BASE_NORMS, OTHER_BASE_REQUIREMENTS, RAN_REQUIREMENTS } from '../app/data/compliance-seed';
 import { DEFAULT_GENERAL_PARAMETERS, DEFAULT_PROVIDER_CATALOGS, DEFAULT_RISK_APPETITE, DEFAULT_RISK_SCALE } from '../app/models/catalog.model';
 import { DbClient } from './db';
 
@@ -19,6 +19,7 @@ import { DbClient } from './db';
 const PERMISSION_MIGRATIONS: { perm: keyof UserPermissions; roles: string[] }[] = [
   { perm: 'canManageInfoSecurity', roles: ['role-riesgo-op', 'role-gerencia-general', 'role-ciso'] },
   { perm: 'canManageCatalogs', roles: ['role-riesgo-op'] },
+  { perm: 'canManageCompliance', roles: ['role-riesgo-op', 'role-cumplimiento'] },
 ];
 
 /**
@@ -51,6 +52,23 @@ async function migrateRanCompliance(c: DbClient) {
     await saveSetting('provider_catalogs', v, c);
   }
   await c.query(`INSERT INTO system_settings (key, value) VALUES ('migration_ran_compliance_v1', 'true') ON CONFLICT (key) DO NOTHING`);
+}
+
+/**
+ * Cumplimiento multinorma (una sola vez): biblioteca normativa base (RAN y leyes chilenas
+ * aplicables) y los requisitos de las normas nuevas. No modifica lo ya evaluado.
+ */
+async function migrateComplianceNorms(c: DbClient) {
+  if ((await c.query(`SELECT 1 FROM system_settings WHERE key = 'migration_compliance_norms_v1'`)).rowCount) return;
+  for (const n of BASE_NORMS) {
+    const exists = (await c.query('SELECT 1 FROM compliance_norms WHERE id = $1 OR lower(code) = lower($2)', [n.id, n.code])).rowCount;
+    if (!exists) await saveEntity('norms', n, c);
+  }
+  for (const req of OTHER_BASE_REQUIREMENTS) {
+    const exists = (await c.query('SELECT 1 FROM compliance_requirements WHERE id = $1', [req.id])).rowCount;
+    if (!exists) await saveEntity('compliance', req, c);
+  }
+  await c.query(`INSERT INTO system_settings (key, value) VALUES ('migration_compliance_norms_v1', 'true') ON CONFLICT (key) DO NOTHING`);
 }
 
 /**
@@ -209,6 +227,7 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
     const hasRisks = (await c.query('SELECT 1 FROM risks LIMIT 1')).rowCount! > 0;
     await seedCatalogs(c, wantDemo || hasRisks);
     await migrateRanCompliance(c);
+    await migrateComplianceNorms(c);
     await migrateAuditScores(c);
   });
 

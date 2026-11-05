@@ -312,10 +312,45 @@ class SqlitePool implements DbPool {
     return added;
   }
 
+  /**
+   * SQLite no permite quitar una restricción CHECK con ALTER TABLE: las tablas cuya definición
+   * antigua lo requiere se renombran aquí, el script crea la tabla nueva y `finishRebuilds`
+   * copia los datos. Devuelve las tablas renombradas.
+   */
+  prepareRebuilds(): string[] {
+    const renamed: string[] = [];
+    for (const { table, legacy } of SQLITE_REBUILDS) {
+      const row = this.db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?`).get(table) as { sql: string } | undefined;
+      if (!row || !legacy.test(row.sql)) continue;
+      // Los índices se mueven con la tabla renombrada: se eliminan para que el script los cree en la nueva.
+      const indexes = this.db.prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL`).all(table) as { name: string }[];
+      for (const { name } of indexes) this.db.exec(`DROP INDEX IF EXISTS ${name}`);
+      this.db.exec(`ALTER TABLE ${table} RENAME TO ${table}__anterior`);
+      renamed.push(table);
+    }
+    return renamed;
+  }
+
+  finishRebuilds(tables: string[]) {
+    for (const table of tables) {
+      const cols = (t: string) => (this.db.prepare(`PRAGMA table_info(${t})`).all() as unknown as SqliteColumnInfo[]).map(c => c.name);
+      const fresh = new Set(cols(table));
+      const common = cols(`${table}__anterior`).filter(c => fresh.has(c)).join(', ');
+      this.db.exec(`INSERT INTO ${table} (${common}) SELECT ${common} FROM ${table}__anterior`);
+      this.db.exec(`DROP TABLE ${table}__anterior`);
+    }
+  }
+
   version(): string {
     return String((this.db.prepare('SELECT sqlite_version() AS v').get() as { v: string }).v);
   }
 }
+
+/** Tablas a reconstruir cuando su definición guardada coincide con la versión antigua. */
+const SQLITE_REBUILDS: { table: string; legacy: RegExp }[] = [
+  // Cumplimiento multinorma: el requisito dejó de limitarse a los capítulos 20-7 a 20-10.
+  { table: 'compliance_requirements', legacy: /CHECK\s*\(+\s*chapter\s*\)*\s+IN\b/i },
+];
 
 // =============================================================================
 // Estado, estadísticas y esquema
@@ -401,9 +436,13 @@ export async function applySchema(baseDir: string = process.cwd()): Promise<void
     if (!schemaFile) throw new Error('Archivo database/schema.sqlite.sql no encontrado.');
     const schemaSql = readFileSync(schemaFile, 'utf8');
     const added = await p.transaction(async () => {
-      // Primero las columnas nuevas (los índices del script pueden usarlas) y luego el script completo.
+      // Primero las tablas a reconstruir y las columnas nuevas (los índices del script pueden usarlas);
+      // luego el script completo y, al final, se copian los datos de las tablas reconstruidas.
+      const rebuilt = p.prepareRebuilds();
       const cols = p.addMissingColumns(schemaSql);
       p.exec(schemaSql);
+      p.finishRebuilds(rebuilt);
+      if (rebuilt.length) console.log(`[SQLite] Tablas reconstruidas por actualización: ${rebuilt.join(', ')}`);
       return cols;
     });
     if (added.length) console.log(`[SQLite] Columnas agregadas por actualización: ${added.join(', ')}`);

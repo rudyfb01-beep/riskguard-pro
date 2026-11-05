@@ -182,7 +182,7 @@ export class App {
       case 'reportes-pdf':
         return { title: 'Centro de Reportes & PDF', section: 'Gobernanza & Cumplimiento', icon: 'picture_as_pdf' };
       case 'cumplimiento-ran':
-        return { title: 'Cumplimiento RAN', section: 'Gobernanza & Cumplimiento', icon: 'policy' };
+        return { title: 'Cumplimiento Normativo', section: 'Gobernanza & Cumplimiento', icon: 'policy' };
       case 'mantenedores':
         return { title: 'Mantenedores', section: 'Configuración', icon: 'tune' };
     }

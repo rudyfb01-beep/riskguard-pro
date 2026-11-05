@@ -2,17 +2,26 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { RiskDataService } from './risk-data.service';
 import { ResilienceService } from './resilience.service';
 import { SecurityService } from './security.service';
-import { RAN_REQUIREMENTS } from '../data/compliance-seed';
+import { BASE_NORMS, BASE_REQUIREMENTS } from '../data/compliance-seed';
 import {
-  CLOUD_DUE_DILIGENCE, ComplianceAutoResult, ComplianceRequirement, MIN_SCENARIOS, RAN_CHAPTERS, RanChapter,
+  CLOUD_DUE_DILIGENCE, ComplianceAutoResult, ComplianceNorm, ComplianceRequirement, ComplianceStatus, ControlCoverage,
+  MIN_SCENARIOS, NormVersion,
 } from '../models/compliance.model';
+import { RegulatoryMilestoneTemplate } from '../models/risk.model';
 import { ServiceProvider } from '../models/resilience.model';
+import {
+  ParsedRequirementRow, complianceScore, controlCoverage, isGap, needsVersionReview, normId, requirementId,
+} from '../utils/compliance';
 
 const DAY = 86_400_000;
 
+/** Permisos que permiten mantener normas y evaluar requisitos (el segundo, por compatibilidad). */
+export const COMPLIANCE_PERMS = ['canManageCompliance', 'canManageRegulatoryReports'] as const;
+
 /**
- * Cumplimiento de las RAN 20-7, 20-8, 20-9 y 20-10: matriz de requisitos, verificaciones
- * automáticas con los datos de los módulos y vencimiento de las revisiones periódicas.
+ * Cumplimiento normativo multinorma: biblioteca de normas con versiones, requisitos por norma
+ * vinculados a controles, verificaciones automáticas con los datos de los módulos, brechas y
+ * vencimiento de las revisiones periódicas.
  */
 @Injectable({ providedIn: 'root' })
 export class ComplianceService {
@@ -20,13 +29,28 @@ export class ComplianceService {
   private readonly res = inject(ResilienceService);
   private readonly sec = inject(SecurityService);
 
-  readonly requirements = signal<ComplianceRequirement[]>(structuredClone(RAN_REQUIREMENTS));
+  readonly norms = signal<ComplianceNorm[]>(structuredClone(BASE_NORMS));
+  readonly requirements = signal<ComplianceRequirement[]>(structuredClone(BASE_REQUIREMENTS));
 
-  /** Orden de la norma (el de la matriz base); los requisitos agregados después van al final. */
-  private readonly order = new Map(RAN_REQUIREMENTS.map((r, i) => [r.id, i]));
+  /** Orden de la matriz base; los requisitos agregados después van al final, por numeral. */
+  private readonly order = new Map(BASE_REQUIREMENTS.map((r, i) => [r.id, i]));
   readonly sorted = computed(() => [...this.requirements()].sort((a, b) =>
-    (this.order.get(a.id) ?? 9999) - (this.order.get(b.id) ?? 9999) || a.numeral.localeCompare(b.numeral)));
-  readonly chapters = RAN_CHAPTERS;
+    (this.order.get(a.id) ?? 9999) - (this.order.get(b.id) ?? 9999)
+    || a.numeral.localeCompare(b.numeral, 'es', { numeric: true }) || a.title.localeCompare(b.title, 'es')));
+  readonly sortedNorms = computed(() => [...this.norms()].sort((a, b) => a.order - b.order || a.code.localeCompare(b.code, 'es', { numeric: true })));
+  private readonly normById = computed(() => new Map(this.norms().map(n => [n.id, n])));
+
+  norm(id: string): ComplianceNorm | undefined {
+    return this.normById().get(id);
+  }
+
+  normLabel(id: string): string {
+    return this.norm(id)?.code ?? id;
+  }
+
+  canManage(): boolean {
+    return this.rs.canAny(...COMPLIANCE_PERMS);
+  }
 
   private today(): string {
     return new Date().toISOString().slice(0, 10);
@@ -270,55 +294,248 @@ export class ComplianceService {
         const n = this.sec.assets().filter(a => a.criticalInfrastructure).length;
         return { text: n ? `${n} activos identificados como infraestructura crítica.` : 'No hay activos marcados como infraestructura crítica.', suggested: n ? 'Cumple' : 'No cumple' };
       }
+
+      // ----- Ley 21.719 (datos personales)
+      case 'p21719.inventory': {
+        const personal = this.sec.assets().filter(a => a.handlesPersonalData);
+        if (!personal.length) return { text: 'Ningún activo de información está marcado con datos personales: revise el inventario.', suggested: 'No cumple' };
+        return this.ratio(personal.filter(a => this.within(a.lastReviewDate, 365)).length, personal.length, 'activos con datos personales revisados en los últimos 12 meses');
+      }
+      case 'p21719.processors': {
+        const member = providers.filter(p => p.handlesMemberData);
+        return this.ratio(member.filter(p => p.clauses['confidentiality'] && p.clauses['secureDeletion']).length, member.length,
+          'proveedores con datos de socios cuyo contrato incluye confidencialidad y eliminación segura al término');
+      }
+      case 'p21719.transfers': {
+        const abroad = providers.filter(p => p.handlesMemberData && p.dataLocation === 'Extranjero');
+        return this.ratio(abroad.filter(p => !!p.ran207?.cloudDueDiligence['legalReport']).length, abroad.length,
+          'proveedores que tratan datos de socios en el extranjero con informe legal de privacidad de la jurisdicción');
+      }
+
+      // ----- Ley 21.663 (ciberseguridad, ANCI)
+      case 'p21663.earlyAlert':
+        return this.anciRatio(['anci-alerta-temprana'], 'alertas tempranas a la ANCI enviadas dentro de plazo');
+      case 'p21663.followUp':
+        return this.anciRatio(['anci-segundo-informe', 'anci-informe-final'], 'informes de seguimiento y finales a la ANCI enviados dentro de plazo');
+      case 'p21663.dual': {
+        const both = this.rs.flaws().filter(f => f.regulatoryReport?.reportableToCMF && f.regulatoryReport.reportableToANCI);
+        const ok = both.filter(f => {
+          const ids = new Set(f.regulatoryReport!.submissions.map(s => s.milestoneId));
+          return ids.has('cmf-aviso-inicial') && ids.has('anci-alerta-temprana');
+        });
+        return this.ratio(ok.length, both.length, 'incidentes reportables a la CMF y a la ANCI con el primer aviso enviado a ambas');
+      }
     }
     return null;
+  }
+
+  /** Envíos a la ANCI dentro de plazo, entre los hitos ya vencidos o enviados. */
+  private anciRatio(milestoneIds: string[], label: string): ComplianceAutoResult {
+    const now = Date.now();
+    let ok = 0, total = 0;
+    for (const f of this.rs.flaws()) {
+      const r = f.regulatoryReport;
+      if (!r?.reportableToANCI) continue;
+      for (const m of this.rs.milestonesFor(r).filter((x: RegulatoryMilestoneTemplate) => milestoneIds.includes(x.id))) {
+        const st = this.rs.milestoneStatus(r, m, now);
+        if (st === 'Pendiente') continue;
+        total++;
+        if (st === 'Enviado a tiempo') ok++;
+      }
+    }
+    return this.ratio(ok, total, label);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cobertura por controles y revisión por cambio de versión
+  // ---------------------------------------------------------------------------
+
+  coverage(r: ComplianceRequirement): ControlCoverage | null {
+    return controlCoverage(r.controlIds, this.rs.controls());
+  }
+
+  needsVersionReview(r: ComplianceRequirement): boolean {
+    return needsVersionReview(r, this.norm(r.chapter));
+  }
+
+  /** Estado sugerido: el de la verificación automática y, si no hay, el de los controles vinculados. */
+  suggestedStatus(r: ComplianceRequirement): ComplianceStatus | undefined {
+    return this.autoCheck(r.autoCheck)?.suggested ?? this.coverage(r)?.suggested;
   }
 
   // ---------------------------------------------------------------------------
   // Resúmenes
   // ---------------------------------------------------------------------------
 
-  private score(items: ComplianceRequirement[]) {
-    const rated = items.filter(i => i.status !== 'Sin evaluar' && i.status !== 'No aplica');
-    const pts = rated.reduce((s, i) => s + (i.status === 'Cumple' ? 1 : i.status === 'Cumple parcialmente' ? 0.5 : 0), 0);
-    return { pct: rated.length ? Math.round((pts / rated.length) * 100) : null, rated: rated.length };
-  }
-
-  readonly byChapter = computed(() => this.chapters.map(ch => {
-    const items = this.sorted().filter(r => r.chapter === ch.id);
-    const s = this.score(items);
+  private stats(items: ComplianceRequirement[]) {
+    const s = complianceScore(items);
     return {
-      ...ch, items, total: items.length, pct: s.pct, rated: s.rated,
-      gaps: items.filter(i => i.status === 'No cumple' || i.status === 'Cumple parcialmente').length,
+      total: items.length, pct: s.pct, rated: s.rated,
+      gaps: items.filter(isGap).length,
       unevaluated: items.filter(i => i.status === 'Sin evaluar').length,
       overdue: items.filter(i => this.isReviewOverdue(i)).length,
+      versionReview: items.filter(i => this.needsVersionReview(i)).length,
+      withoutControls: items.filter(i => i.status !== 'No aplica' && !(i.controlIds?.length) && !i.autoCheck).length,
     };
-  }));
+  }
 
+  readonly byNorm = computed(() => {
+    const all = this.sorted();
+    return this.sortedNorms().map(n => ({ norm: n, items: all.filter(r => r.chapter === n.id), ...this.stats(all.filter(r => r.chapter === n.id)) }));
+  });
+
+  /** Requisitos cuya norma ya no existe (no deberían quedar; se muestran para no perderlos). */
+  readonly orphans = computed(() => this.sorted().filter(r => !this.norm(r.chapter)));
+
+  /** Resumen general: solo cuentan las normas que aplican (o están por determinar). */
   readonly summary = computed(() => {
-    const all = this.requirements();
-    const s = this.score(all);
-    return {
-      total: all.length, pct: s.pct, rated: s.rated,
-      gaps: all.filter(i => i.status === 'No cumple' || i.status === 'Cumple parcialmente').length,
-      unevaluated: all.filter(i => i.status === 'Sin evaluar').length,
-      overdue: all.filter(i => this.isReviewOverdue(i)).length,
-    };
+    const applicable = new Set(this.norms().filter(n => n.applicability !== 'No aplica' && n.status !== 'Derogada').map(n => n.id));
+    return { ...this.stats(this.requirements().filter(r => applicable.has(r.chapter))), norms: applicable.size };
   });
 
   // ---------------------------------------------------------------------------
   // Evaluación
   // ---------------------------------------------------------------------------
 
-  async evaluate(item: ComplianceRequirement) {
-    this.rs.ensure(['canManageRegulatoryReports'], 'evaluar el cumplimiento normativo');
-    const updated: ComplianceRequirement = { ...item, lastReviewDate: this.today(), reviewedBy: this.rs.currentProfile().name };
-    this.requirements.update(list => list.map(x => (x.id === item.id ? updated : x)));
-    await this.rs.appendAuditLog('EVALUACIÓN_CUMPLIMIENTO', 'Reporte Regulatorio', `RAN ${item.chapter} ${item.numeral}`,
-      `Cumplimiento RAN ${item.chapter} ${item.numeral} "${item.title}": ${item.status}.${item.actionPlan ? ` Plan: ${item.actionPlan}` : ''}`);
+  private ensure(action: string) {
+    this.rs.ensure([...COMPLIANCE_PERMS], action);
   }
 
-  chapterTitle(id: RanChapter): string {
-    return this.chapters.find(c => c.id === id)?.title ?? id;
+  async evaluate(item: ComplianceRequirement) {
+    this.ensure('evaluar el cumplimiento normativo');
+    const norm = this.norm(item.chapter);
+    const updated: ComplianceRequirement = {
+      ...item, lastReviewDate: this.today(), reviewedBy: this.rs.currentProfile().name, normVersion: norm?.version ?? item.normVersion,
+    };
+    this.requirements.update(list => list.map(x => (x.id === item.id ? updated : x)));
+    const label = `${this.normLabel(item.chapter)} ${item.numeral}`.trim();
+    const controls = item.controlIds?.length ? ` Controles: ${item.controlIds.map(id => this.rs.controls().find(c => c.id === id)?.code ?? id).join(', ')}.` : '';
+    await this.rs.appendAuditLog('EVALUACIÓN_CUMPLIMIENTO', 'Cumplimiento', label,
+      `Cumplimiento ${label} "${item.title}": ${item.status}.${item.actionPlan ? ` Plan: ${item.actionPlan}` : ''}${controls}`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Biblioteca normativa
+  // ---------------------------------------------------------------------------
+
+  /** Crea o actualiza una norma (sin cambiar su versión; para eso, `registerVersion`). */
+  async saveNorm(data: Omit<ComplianceNorm, 'id' | 'versions' | 'order'> & { id?: string }): Promise<ComplianceNorm> {
+    this.ensure('mantener la biblioteca normativa');
+    const code = data.code.trim();
+    const title = data.title.trim();
+    if (!code || !title) throw new Error('La norma necesita código y título.');
+    const prev = data.id ? this.norm(data.id) : undefined;
+    if (this.norms().some(n => n.id !== data.id && n.code.trim().toLowerCase() === code.toLowerCase())) {
+      throw new Error(`Ya existe una norma con el código "${code}".`);
+    }
+    const me = this.rs.currentProfile().name;
+    const norm: ComplianceNorm = prev
+      ? { ...prev, ...data, code, title, id: prev.id, version: prev.version, versions: prev.versions, order: prev.order }
+      : {
+        ...data, code, title, id: normId(code, new Set(this.norms().map(n => n.id))),
+        version: data.version.trim() || '1', order: Math.max(0, ...this.norms().map(n => n.order)) + 10,
+        versions: [{ version: data.version.trim() || '1', date: data.effectiveDate || this.today(), summary: 'Norma incorporada a la biblioteca.', registeredBy: me, registeredAt: new Date().toISOString() }],
+      };
+    this.norms.update(list => (prev ? list.map(n => (n.id === norm.id ? norm : n)) : [...list, norm]));
+    await this.rs.appendAuditLog('MANTENEDOR_NORMA', 'Cumplimiento', norm.code,
+      prev ? `Norma actualizada: ${norm.code} "${norm.title}" (${norm.status}; ${norm.applicability}).`
+        : `Norma incorporada: ${norm.code} "${norm.title}" (versión ${norm.version}).`);
+    return norm;
+  }
+
+  /**
+   * Registra una versión nueva de la norma. Los requisitos evaluados con la versión anterior
+   * quedan marcados para revisión hasta que se vuelvan a evaluar.
+   */
+  async registerVersion(id: string, v: { version: string; date: string; summary: string }) {
+    this.ensure('registrar versiones de normas');
+    const norm = this.norm(id);
+    if (!norm) throw new Error('Norma no encontrada.');
+    const version = v.version.trim();
+    if (!version) throw new Error('Indique la versión.');
+    if (norm.versions.some(x => x.version.toLowerCase() === version.toLowerCase())) throw new Error(`La versión "${version}" ya está registrada.`);
+    const entry: NormVersion = { version, date: v.date || this.today(), summary: v.summary.trim(), registeredBy: this.rs.currentProfile().name, registeredAt: new Date().toISOString() };
+    this.norms.update(list => list.map(n => (n.id === id ? { ...n, version, versions: [...n.versions, entry] } : n)));
+    const affected = this.requirements().filter(r => r.chapter === id && this.needsVersionReview(r)).length;
+    await this.rs.appendAuditLog('VERSIÓN_NORMA', 'Cumplimiento', norm.code,
+      `${norm.code}: versión ${norm.version} → ${version} (${entry.date}). ${entry.summary}${affected ? ` ${affected === 1 ? '1 requisito evaluado queda' : `${affected} requisitos evaluados quedan`} por revisar.` : ''}`);
+    return affected;
+  }
+
+  /** Elimina una norma y sus requisitos. */
+  async deleteNorm(id: string) {
+    this.ensure('eliminar normas');
+    const norm = this.norm(id);
+    if (!norm) return;
+    const n = this.requirements().filter(r => r.chapter === id).length;
+    this.requirements.update(list => list.filter(r => r.chapter !== id));
+    this.norms.update(list => list.filter(x => x.id !== id));
+    await this.rs.appendAuditLog('MANTENEDOR_NORMA', 'Cumplimiento', norm.code, `Norma eliminada: ${norm.code} "${norm.title}" con ${n} requisitos.`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Requisitos
+  // ---------------------------------------------------------------------------
+
+  async saveRequirement(data: Pick<ComplianceRequirement, 'chapter' | 'numeral' | 'title' | 'requirement' | 'frequency' | 'module'> & { id?: string; owner?: string }) {
+    this.ensure('mantener requisitos normativos');
+    const norm = this.norm(data.chapter);
+    if (!norm) throw new Error('Seleccione la norma del requisito.');
+    const title = data.title.trim();
+    if (!title) throw new Error('El requisito necesita un título.');
+    const prev = data.id ? this.requirements().find(r => r.id === data.id) : undefined;
+    const req: ComplianceRequirement = prev
+      ? { ...prev, numeral: data.numeral.trim(), title, requirement: data.requirement.trim() || title, frequency: data.frequency, module: data.module || undefined }
+      : {
+        id: requirementId(norm.id, title, new Set(this.requirements().map(r => r.id))), chapter: norm.id,
+        numeral: data.numeral.trim(), title, requirement: data.requirement.trim() || title, module: data.module || undefined,
+        frequency: data.frequency, status: 'Sin evaluar', evidence: '', owner: data.owner?.trim() ?? '', actionPlan: '', controlIds: [],
+      };
+    this.requirements.update(list => (prev ? list.map(r => (r.id === req.id ? req : r)) : [...list, req]));
+    await this.rs.appendAuditLog('MANTENEDOR_REQUISITO', 'Cumplimiento', `${norm.code} ${req.numeral}`.trim(),
+      `${prev ? 'Requisito modificado' : 'Requisito agregado'}: ${norm.code} ${req.numeral} "${req.title}".`);
+    return req;
+  }
+
+  async deleteRequirement(id: string) {
+    this.ensure('eliminar requisitos normativos');
+    const req = this.requirements().find(r => r.id === id);
+    if (!req) return;
+    this.requirements.update(list => list.filter(r => r.id !== id));
+    await this.rs.appendAuditLog('MANTENEDOR_REQUISITO', 'Cumplimiento', `${this.normLabel(req.chapter)} ${req.numeral}`.trim(),
+      `Requisito eliminado: ${this.normLabel(req.chapter)} ${req.numeral} "${req.title}".`);
+  }
+
+  /** Agrega a la norma los requisitos leídos de un Excel o CSV. Omite los que repiten numeral y título. */
+  async importRequirements(chapter: string, rows: ParsedRequirementRow[]): Promise<{ added: number; skipped: number }> {
+    this.ensure('importar requisitos normativos');
+    const norm = this.norm(chapter);
+    if (!norm) throw new Error('Norma no encontrada.');
+    const key = (numeral: string, title: string) => `${numeral.trim().toLowerCase()}|${title.trim().toLowerCase()}`;
+    const existing = new Set(this.requirements().filter(r => r.chapter === chapter).map(r => key(r.numeral, r.title)));
+    const taken = new Set(this.requirements().map(r => r.id));
+    const fresh: ComplianceRequirement[] = [];
+    for (const row of rows) {
+      const k = key(row.numeral, row.title);
+      if (existing.has(k)) continue;
+      existing.add(k);
+      const id = requirementId(chapter, row.title, taken);
+      taken.add(id);
+      fresh.push({
+        id, chapter, numeral: row.numeral, title: row.title, requirement: row.requirement, frequency: row.frequency,
+        status: 'Sin evaluar', evidence: '', owner: row.owner, actionPlan: '', controlIds: [],
+      });
+    }
+    if (fresh.length) {
+      this.requirements.update(list => [...list, ...fresh]);
+      await this.rs.appendAuditLog('IMPORTACIÓN_REQUISITOS', 'Cumplimiento', norm.code,
+        `${fresh.length} requisitos importados a ${norm.code}${rows.length - fresh.length ? ` (${rows.length - fresh.length} repetidos omitidos)` : ''}.`);
+    }
+    return { added: fresh.length, skipped: rows.length - fresh.length };
+  }
+
+  /** Requisitos que un control ayuda a cumplir (para mostrarlo desde la matriz de controles). */
+  requirementsForControl(controlId: string): ComplianceRequirement[] {
+    return this.sorted().filter(r => r.controlIds?.includes(controlId));
   }
 }

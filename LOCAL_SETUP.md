@@ -263,17 +263,46 @@ Las **auditorías** (plan, alcance, hallazgos y su subsanación) se registran en
 Periódicas con el permiso "Ejecutar auditorías". El puntaje de cada auditoría se calcula de sus
 hallazgos.
 
-## Cumplimiento RAN 20-7, 20-8, 20-9 y 20-10
+## Cumplimiento normativo (multinorma)
 
-Estos capítulos de la RAN aplican a las cooperativas a través del Capítulo CAC-3 de la NCG 567 (el
-"Directorio" de la RAN corresponde al Consejo de Administración). En **Gobernanza & Cumplimiento →
-Cumplimiento RAN** está la matriz de 71 requisitos por numeral (20-7: 20, 20-8: 6, 20-9: 23,
-20-10: 22). Cada requisito muestra el módulo que lo soporta, una verificación automática con los
-datos del sistema y un estado sugerido; Cumplimiento registra el estado, la evidencia, el
-responsable, el plan de acción y la fecha de revisión (con aviso cuando vence según su frecuencia).
-La matriz se exporta a Excel. Evaluar requiere el permiso de reportes regulatorios (CMF/ANCI).
+En **Gobernanza & Cumplimiento → Cumplimiento Normativo** está la biblioteca de normas de la
+cooperativa. Cada norma tiene código, tipo (norma CMF, ley, circular, estándar o política interna),
+emisor, fuente oficial y enlace, estado (vigente, publicada aún no vigente, en consulta, derogada),
+aplicabilidad con su justificación, responsable, versión vigente e historial de versiones.
 
-Datos que la aplicación registra para soportar los requisitos:
+La biblioteca viene con:
+
+| Norma | Requisitos | Verificaciones automáticas |
+| :--- | :--- | :--- |
+| RAN 20-7, 20-8, 20-9 y 20-10 (vía CAC-3 de la NCG 567) | 71 por numeral (20 + 6 + 23 + 22) | Con proveedores, incidentes, continuidad y seguridad |
+| Ley 20.393 (modelo de prevención de delitos, texto de la Ley 21.595) | 10 | — |
+| Ley 21.719 (datos personales; vigencia 01-12-2026) | 13 | Inventario de activos con datos personales, contratos con encargados, transferencias al extranjero |
+| Ley 19.913 y Circulares UAF 49 y 59 (prevención LA/FT) | 14 | — |
+| Ley 21.663 (Marco de Ciberseguridad, ANCI) | 6 | Alerta temprana, informes de seguimiento y final, doble reporte CMF/ANCI |
+
+Las normas que trae la aplicación están marcadas como **referenciales**: sus requisitos están
+resumidos de fuentes públicas y Cumplimiento debe validarlos contra el texto oficial vigente.
+
+Qué se puede hacer:
+
+- **Agregar normas** (por ejemplo, la Ley 21.643 o una política interna) y editarlas.
+- **Agregar, editar o eliminar requisitos**, o **importarlos** desde Excel (copiar y pegar) o desde un
+  archivo .xlsx o .csv con las columnas Numeral, Título, Detalle, Frecuencia y Responsable.
+- **Evaluar** cada requisito: estado, evidencia, responsable, plan de acción y plazo, y los
+  **controles de la matriz que lo cubren**. Los controles vinculados sugieren un estado (todos
+  efectivos → Cumple; alguno parcial o deficiente → Cumple parcialmente; todos deficientes → No cumple).
+- **Registrar una nueva versión** de una norma (fecha y qué cambió). Los requisitos evaluados con la
+  versión anterior quedan marcados "por revisar" hasta que se vuelvan a evaluar.
+- Ver **brechas**, revisiones vencidas según la frecuencia, requisitos por revisar por cambio de versión
+  y requisitos sin controles ni verificación automática; exportar la matriz completa a Excel.
+
+Todos los cambios quedan en la bitácora inalterable. Mantener normas y evaluar requiere el permiso
+"Cumplimiento Normativo" (por defecto, Jefe de Riesgo Operacional y Oficial de Cumplimiento); el
+permiso de reportes regulatorios (CMF/ANCI) también lo permite, por compatibilidad. En bases
+existentes, la biblioteca y los requisitos de las leyes se agregan una sola vez al actualizar, sin
+modificar las evaluaciones ya registradas.
+
+Datos que la aplicación registra para soportar los requisitos de las RAN:
 
 | Capítulo | Dónde | Qué se registra |
 | :--- | :--- | :--- |
@@ -351,7 +380,7 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 | Terceros | `service_providers` |
 | Continuidad | `bia_processes`, `bia_process_providers`, `continuity_plans`, `continuity_plan_processes`, `continuity_tests` |
 | Seguridad de la información | `info_assets`, `vulnerabilities`, `security_assessment_items`, `security_tests` |
-| Cumplimiento RAN | `compliance_requirements` (y columnas `ran207`, `ran209`, `cyber` en proveedores, continuidad e incidentes) |
+| Cumplimiento normativo | `compliance_norms`, `compliance_requirements` (y columnas `ran207`, `ran209`, `cyber` en proveedores, continuidad e incidentes) |
 | Ajustes | `system_settings` |
 
 Vistas de apoyo a reportes: `v_loss_database`, `v_regulatory_deadlines`, `v_provider_rto_gaps`,

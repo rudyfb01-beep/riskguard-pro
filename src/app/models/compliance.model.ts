@@ -1,7 +1,10 @@
 // =============================================================================
-// CUMPLIMIENTO NORMATIVO: MATRIZ DE REQUISITOS RAN 20-7, 20-8, 20-9 Y 20-10
-// (aplicables a las cooperativas vía Capítulo CAC-3 de la NCG 567; el "Directorio"
-// de la RAN corresponde al Consejo de Administración)
+// CUMPLIMIENTO NORMATIVO MULTINORMA
+// Biblioteca de normas (RAN de la CMF, leyes, circulares, estándares y políticas internas),
+// cada una con sus requisitos, su versión vigente y el historial de cambios. Los requisitos
+// se vinculan con los controles de la matriz y con la evidencia.
+// Las RAN 20-7, 20-8, 20-9 y 20-10 aplican a las cooperativas vía el Capítulo CAC-3 de la
+// NCG 567 (el "Directorio" de la RAN corresponde al Consejo de Administración).
 // =============================================================================
 
 export type RanChapter = '20-7' | '20-8' | '20-9' | '20-10';
@@ -13,16 +16,58 @@ export const RAN_CHAPTERS: { id: RanChapter; title: string; source: string }[] =
   { id: '20-10', title: 'Gestión de la seguridad de la información y ciberseguridad', source: 'RAN 20-10 (vigente desde el 01-12-2020)' },
 ];
 
+export type NormKind = 'Norma CMF' | 'Ley' | 'Reglamento' | 'Circular UAF' | 'Estándar' | 'Política interna' | 'Otra';
+export const NORM_KINDS: NormKind[] = ['Norma CMF', 'Ley', 'Reglamento', 'Circular UAF', 'Estándar', 'Política interna', 'Otra'];
+
+export type NormStatus = 'Vigente' | 'Publicada, aún no vigente' | 'En consulta' | 'Derogada';
+export const NORM_STATUSES: NormStatus[] = ['Vigente', 'Publicada, aún no vigente', 'En consulta', 'Derogada'];
+
+export type NormApplicability = 'Aplica' | 'Aplica parcialmente' | 'Por determinar' | 'No aplica';
+export const NORM_APPLICABILITY: NormApplicability[] = ['Aplica', 'Aplica parcialmente', 'Por determinar', 'No aplica'];
+
+/** Un cambio de versión de la norma (texto nuevo, modificación, circular que la reemplaza). */
+export interface NormVersion {
+  version: string;
+  date: string;             // YYYY-MM-DD: publicación o vigencia de la versión
+  summary: string;          // qué cambió
+  registeredBy: string;
+  registeredAt: string;     // ISO
+}
+
+/** Norma de la biblioteca normativa. El `id` es el que usan sus requisitos en `chapter`. */
+export interface ComplianceNorm {
+  id: string;
+  code: string;             // "RAN 20-7", "Ley 21.719"
+  title: string;
+  kind: NormKind;
+  issuer: string;           // CMF, Congreso, UAF, ISO, la cooperativa
+  source: string;           // referencia oficial (circular, publicación en el Diario Oficial)
+  url?: string;
+  version: string;          // versión vigente
+  effectiveDate?: string;   // YYYY-MM-DD
+  status: NormStatus;
+  applicability: NormApplicability;
+  applicabilityNote: string;
+  owner: string;            // responsable de la norma dentro de la cooperativa
+  notes: string;
+  versions: NormVersion[];  // historial, de la más antigua a la más reciente
+  order: number;            // orden en la biblioteca
+  /** Contenido de referencia que trae la aplicación: debe validarlo Cumplimiento. */
+  referential?: boolean;
+}
+
 export type ComplianceStatus = 'Sin evaluar' | 'Cumple' | 'Cumple parcialmente' | 'No cumple' | 'No aplica';
 export const COMPLIANCE_STATUSES: ComplianceStatus[] = ['Sin evaluar', 'Cumple', 'Cumple parcialmente', 'No cumple', 'No aplica'];
 
 export type ComplianceFrequency = 'Permanente' | 'Anual' | 'Semestral' | 'Por evento';
+export const COMPLIANCE_FREQUENCIES: ComplianceFrequency[] = ['Permanente', 'Anual', 'Semestral', 'Por evento'];
 
 /** Requisito normativo con su evaluación. `autoCheck` enlaza una verificación automática con datos del sistema. */
 export interface ComplianceRequirement {
   id: string;
-  chapter: RanChapter;
-  numeral: string;          // referencia en la norma (p. ej. "I.7", "III.1.f", "1.1")
+  /** Id de la norma a la que pertenece (para las RAN: '20-7', '20-8', '20-9' o '20-10'). */
+  chapter: string;
+  numeral: string;          // referencia en la norma (p. ej. "I.7", "III.1.f", "art. 4 N° 1")
   title: string;
   requirement: string;
   module?: string;          // pestaña de la aplicación que lo soporta
@@ -35,6 +80,22 @@ export interface ComplianceRequirement {
   dueDate?: string;         // YYYY-MM-DD (plan de acción)
   lastReviewDate?: string;  // YYYY-MM-DD (última verificación)
   reviewedBy?: string;
+  /** Controles de la matriz que cubren el requisito. */
+  controlIds?: string[];
+  /** Versión de la norma con la que se hizo la última evaluación. */
+  normVersion?: string;
+}
+
+/** Cobertura de un requisito por sus controles vinculados. */
+export interface ControlCoverage {
+  total: number;
+  effective: number;
+  partial: number;
+  deficient: number;
+  missing: number;          // vínculos a controles que ya no existen
+  avgEffectiveness: number | null;
+  suggested?: ComplianceStatus;
+  text: string;
 }
 
 /** Resultado de una verificación automática con datos del sistema. */
