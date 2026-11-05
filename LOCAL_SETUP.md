@@ -428,6 +428,33 @@ ninguno, y qué categorías. Los correos traen un enlace que abre el registro (`
 anticipación, se envía un correo de prueba y se ve el registro de envíos (enviado, en resumen,
 omitido o con error). Sin SMTP los avisos quedan en la campana y los correos figuran como omitidos.
 
+## Evidencias (archivos)
+
+Los módulos que piden respaldo permiten adjuntar archivos reales (clic o arrastrar):
+
+| Módulo | Dónde |
+| :--- | :--- |
+| Controles | "Probar y Adjuntar": los archivos quedan en el control y asociados a la prueba registrada |
+| Matriz de riesgos | Documentos de respaldo del riesgo |
+| Planes de acción | "Evidencias del plan": el responsable adjunta mientras el plan está abierto; puede enviarlo a verificación solo con archivos |
+| Cumplimiento | Al evaluar un requisito |
+| Auditorías | Informe y papeles de trabajo (tarjeta) y evidencia de cada hallazgo |
+| Incidentes | Al editar el incidente (capturas, logs, informes, comunicaciones) |
+| Continuidad | Documento del plan y anexos; informe de cada prueba (tabla de pruebas) |
+| Seguridad de la información | Vulnerabilidades y pruebas de seguridad (informe del pentest) |
+| Autoevaluaciones | En cada pregunta de evidencia y como anexos; quien responde adjunta mientras la encuesta está abierta |
+| Aprobaciones | Respaldos de la solicitud; además se ven los archivos del registro que se aprueba |
+| Proveedores | Contrato, anexos de servicio, certificaciones y debida diligencia |
+
+- **Formatos:** PDF, Word, Excel, PowerPoint, imágenes (PNG, JPG, GIF), CSV, texto, correo (.msg, .eml) y ZIP. El servidor comprueba que el contenido corresponda a la extensión (un ejecutable renombrado a .pdf se rechaza) y no acepta HTML ni SVG.
+- **Tamaño:** máximo `EVIDENCE_MAX_MB` por archivo (15 MB por defecto).
+- **Integridad:** el servidor calcula el SHA-256 y registra la carga en la bitácora criptográfica en la misma transacción. El botón "Verificar" recalcula el hash del contenido guardado.
+- **Descarga:** siempre como descarga, salvo la vista de PDF e imágenes, que se abren con una política de seguridad que bloquea scripts.
+- **Bajas:** exigen un motivo y quedan en la bitácora. El archivo deja de mostrarse, pero el contenido se conserva en la base para auditoría.
+- **Permisos:** los del módulo (por ejemplo, evaluar controles o administrar cumplimiento). El responsable de un plan o quien responde una autoevaluación también puede adjuntar en lo suyo.
+- **Almacenamiento:** los archivos se guardan en la base de datos (tabla `evidence_files`), así que el respaldo de la base incluye las evidencias. Considere el tamaño al dimensionar la base.
+- **Archivos anteriores:** los adjuntos de la versión previa eran solo nombres, sin contenido; se muestran como "registros anteriores sin archivo".
+
 ## Variables de entorno
 
 | Variable | Descripción |
@@ -444,6 +471,7 @@ omitido o con error). Sin SMTP los avisos quedan en la campana y los correos fig
 | `APP_URL` | Dirección pública de la aplicación (p. ej. `https://grc.tucooperativa.cl`) para los enlaces de los correos. |
 | `NOTIFY_INTERVAL_MINUTES` | Cada cuántos minutos se revisan los plazos y se envían correos (15 por defecto; `0` lo desactiva). |
 | `NOTIFY_DEV_LOG` | `true` escribe en el log los correos de aviso cuando no hay SMTP (solo para evaluar). |
+| `EVIDENCE_MAX_MB` | Tamaño máximo por archivo de evidencia (15 por defecto). Detrás de un proxy, ajuste también su límite de carga (p. ej. `client_max_body_size` en nginx). |
 | `TZ` | Zona horaria del servidor (p. ej. `America/Santiago`): define la hora del resumen diario y el día de los plazos. |
 | `AUTH_SECRET` | Clave para firmar los códigos. Recomendada; obligatoria con varias instancias. |
 | `SESSION_IDLE_MINUTES`, `SESSION_MAX_HOURS` | Vigencia de la sesión (60 minutos de inactividad y 10 horas en total por defecto). |
@@ -470,6 +498,8 @@ enviar la cabecera `X-Requested-With: RiskGuard` (protección CSRF).
 | `GET/PUT /api/notifications/preferences` | Preferencia de correo de la persona (`inmediato`, `resumen`, `ninguno` y categorías). |
 | `POST /api/notifications/test` | Envía un correo de prueba a la persona de la sesión. |
 | `GET /api/notifications/outbox` · `POST /api/notifications/run` | Registro de envíos / revisar plazos ahora (Mantenedores). |
+| `POST /api/evidence?entityType=&entityId=&context=&description=` | Carga un archivo (cuerpo binario, nombre en `X-File-Name`). |
+| `GET /api/evidence/:id` · `GET /api/evidence/:id/verify` · `DELETE /api/evidence/:id` | Descarga (`?inline=1` para ver PDF/imágenes) / verifica el SHA-256 / baja con `{reason}`. |
 | `GET /api/db/health` · `GET /api/db/stats` | Diagnóstico de la conexión y conteos. |
 | `POST /api/db/init` | Vuelve a aplicar el esquema y los datos base. |
 
@@ -504,6 +534,7 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 | Planes de acción | `action_plans` |
 | Autoevaluaciones | `survey_campaigns`, `survey_responses` |
 | Aprobaciones y avisos | `approval_requests`, `notifications`, `notification_preferences` (y la columna `acceptance` en `risks`) |
+| Evidencias | `evidence_files` (contenido y SHA-256) |
 | Ajustes | `system_settings` |
 
 Vistas de apoyo a reportes: `v_loss_database`, `v_regulatory_deadlines`, `v_provider_rto_gaps`,

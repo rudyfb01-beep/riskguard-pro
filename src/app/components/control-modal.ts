@@ -1,7 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, input, output, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
+import { EvidenceFiles } from './evidence-files';
+import { EvidenceService } from '../services/evidence.service';
+import { EvidenceFile } from '../models/evidence.model';
+import { formatBytes } from '../utils/evidence';
 import { RiskDataService } from '../services/risk-data.service';
 import { Control, ControlAutomation, ControlEvidenceAttachment, ControlFrequency, ControlTestExecution, ControlType } from '../models/risk.model';
 
@@ -9,7 +13,7 @@ import { LinkedPlans } from './linked-plans';
 @Component({
   selector: 'app-control-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, MatIconModule, LinkedPlans],
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule, LinkedPlans, EvidenceFiles],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden my-4">
@@ -263,97 +267,20 @@ import { LinkedPlans } from './linked-plans';
               ></textarea>
             </div>
 
-            <!-- Upload / Attachment Zone -->
-            <div class="space-y-2">
-              <div class="flex items-center justify-between">
-                <span class="block text-xs font-semibold text-slate-700">
-                  Archivos de Evidencia Adjuntos (PDF, Excel, Logs, Capturas)
-                </span>
-                
-                <button
-                  type="button"
-                  (click)="attachMockSampleEvidence()"
-                  class="text-[11px] text-indigo-700 hover:text-indigo-900 font-medium flex items-center gap-1"
-                  title="Adjuntar plantilla de acta oficial de prueba de auditoría"
-                >
-                  <mat-icon class="text-xs">add_to_photos</mat-icon>
-                  <span>Adjuntar Muestra Estándar</span>
-                </button>
-              </div>
-
-              <!-- Dropzone File Selector -->
-              <div class="border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-white rounded-xl p-4 text-center transition-colors">
-                <input
-                  #fileInput
-                  type="file"
-                  multiple
-                  accept=".pdf,.xlsx,.csv,.png,.jpg,.jpeg,.docx,.txt"
-                  (change)="onFileSelected($event)"
-                  class="hidden"
-                />
-
-                <button
-                  type="button"
-                  class="w-full flex flex-col items-center justify-center gap-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-lg p-2"
-                  (click)="fileInput.click()"
-                >
-                  <mat-icon class="text-2xl text-slate-400">cloud_upload</mat-icon>
-                  <div class="text-xs font-medium text-slate-700">
-                    <span class="text-indigo-600 font-semibold underline">Haga clic para subir archivos</span> o arrástrelos aquí
-                  </div>
-                  <span class="text-[10px] text-slate-400">
-                    Soporta PDF de auditoría, hojas de cálculo Excel/CSV, capturas de logs (Máx 15MB)
-                  </span>
-                </button>
-              </div>
-
-              <!-- Attached Files List -->
-              @if (attachedFiles().length > 0) {
-                <div class="space-y-1.5 pt-1">
-                  @for (att of attachedFiles(); track att.id) {
-                    <div class="p-2.5 bg-white border border-slate-200 rounded-lg flex items-center justify-between text-xs hover:border-slate-300 transition-colors">
-                      <div class="flex items-center gap-2.5 truncate mr-2">
-                        <span class="p-1 rounded bg-slate-100 text-slate-700 shrink-0">
-                          <mat-icon class="text-sm">{{ getFileIcon(att.fileName) }}</mat-icon>
-                        </span>
-                        <div class="truncate">
-                          <span class="font-medium text-slate-900 block truncate" [title]="att.fileName">{{ att.fileName }}</span>
-                          <span class="text-[10px] text-slate-400 block font-mono">
-                            {{ att.fileSize }} · {{ att.uploadedAt }} · Por: {{ att.uploadedBy }}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div class="flex items-center gap-1 shrink-0">
-                        <!-- Download action -->
-                        <button
-                          type="button"
-                          (click)="riskService.downloadAttachment(att)"
-                          class="p-1 text-slate-500 hover:text-indigo-700 rounded hover:bg-slate-100 transition-colors"
-                          title="Descargar archivo de evidencia"
-                        >
-                          <mat-icon class="text-sm">download</mat-icon>
-                        </button>
-
-                        <!-- Delete action -->
-                        <button
-                          type="button"
-                          (click)="removeAttachment(att.id)"
-                          class="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors"
-                          title="Quitar archivo adjunto"
-                        >
-                          <mat-icon class="text-sm">delete</mat-icon>
-                        </button>
-                      </div>
-                    </div>
-                  }
-                </div>
-              } @else {
-                <div class="text-center py-2 text-[11px] text-slate-400 italic">
-                  No hay archivos adjuntos en esta evaluación. Puede subir documentos de soporte o pulsar "Adjuntar Muestra Estándar".
-                </div>
+            <!-- Evidencia: archivos reales (se guardan en el servidor con su SHA-256) -->
+            @if (existingControl(); as ec) {
+              <app-evidence-files entity="controls" [entityId]="ec.id" [label]="ec.code" [parent]="ec"
+                title="Archivos de evidencia (actas, muestras, logs, capturas)" emptyText="Sin archivos adjuntos."
+                (uploaded)="onUploaded($event)" />
+              @if (legacyAttachments().length) {
+                <p class="text-[11px] text-slate-500">
+                  Registros anteriores sin archivo (versión previa, solo el nombre):
+                  @for (a of legacyAttachments(); track a.id) { <span class="font-mono">{{ a.fileName }}</span>{{ $last ? '' : ', ' }} }
+                </p>
               }
-            </div>
+            } @else {
+              <p class="text-[11px] text-slate-500 italic flex items-center gap-1"><mat-icon class="text-sm">info</mat-icon>Guarde el control para adjuntar archivos de evidencia.</p>
+            }
 
           </div>
 
@@ -405,7 +332,14 @@ export class ControlModal implements OnInit {
   readonly existingControl = input<Control | null>(null);
   readonly closeModal = output<void>();
 
-  readonly attachedFiles = signal<ControlEvidenceAttachment[]>([]);
+  readonly sessionFiles = signal<EvidenceFile[]>([]);
+  /** Adjuntos de la versión anterior (solo metadatos, sin archivo). */
+  private readonly legacyAll = signal<ControlEvidenceAttachment[]>([]);
+  private readonly evidence = inject(EvidenceService);
+  readonly legacyAttachments = computed(() => {
+    const ids = new Set(this.evidence.files().map(f => f.id));
+    return this.legacyAll().filter(a => !ids.has(a.id));
+  });
 
   form = new FormGroup({
     name: new FormControl('', [Validators.required, Validators.minLength(4)]),
@@ -442,7 +376,7 @@ export class ControlModal implements OnInit {
       });
 
       if (existing.attachments && existing.attachments.length > 0) {
-        this.attachedFiles.set([...existing.attachments]);
+        this.legacyAll.set([...existing.attachments]);
       }
     } else {
       this.form.patchValue({
@@ -459,60 +393,10 @@ export class ControlModal implements OnInit {
     return Math.round((d * 0.4) + (o * 0.6));
   }
 
-  getFileIcon(fileName: string): string {
-    const ext = fileName.split('.').pop()?.toLowerCase();
-    if (ext === 'pdf') return 'picture_as_pdf';
-    if (ext === 'xlsx' || ext === 'csv' || ext === 'xls') return 'table_view';
-    if (ext === 'png' || ext === 'jpg' || ext === 'jpeg') return 'image';
-    return 'description';
-  }
 
-  onFileSelected(event: Event) {
-    const inputEl = event.target as HTMLInputElement;
-    if (!inputEl.files || inputEl.files.length === 0) return;
-
-    const newAttachments: ControlEvidenceAttachment[] = [];
-    const files = Array.from(inputEl.files);
-
-    files.forEach(f => {
-      const sizeKb = Math.round(f.size / 1024);
-      const sizeStr = sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${sizeKb} KB`;
-
-      newAttachments.push({
-        id: `att-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        fileName: f.name,
-        fileSize: sizeStr,
-        fileType: f.type || 'application/octet-stream',
-        uploadedAt: new Date().toISOString().split('T')[0],
-        uploadedBy: this.riskService.currentProfile().name,
-        description: `Evidencia de prueba cargada por ${this.riskService.currentProfile().name}`,
-        fileHashSha256: 'sha256-' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
-      });
-    });
-
-    this.attachedFiles.update(list => [...list, ...newAttachments]);
-    inputEl.value = '';
-  }
-
-  attachMockSampleEvidence() {
-    const existing = this.existingControl();
-    const ctrlCode = existing ? existing.code : 'CTR-NUEVO';
-    const mockFile: ControlEvidenceAttachment = {
-      id: `att-${Date.now()}`,
-      fileName: `Acta_Auditoria_Prueba_${ctrlCode}_${new Date().toISOString().split('T')[0]}.pdf`,
-      fileSize: '1.4 MB',
-      fileType: 'application/pdf',
-      uploadedAt: new Date().toISOString().split('T')[0],
-      uploadedBy: this.riskService.currentProfile().name,
-      description: `Acta formal de inspección y validación de muestra para el control ${ctrlCode}.`,
-      fileHashSha256: 'a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef0'
-    };
-
-    this.attachedFiles.update(list => [...list, mockFile]);
-  }
-
-  removeAttachment(attId: string) {
-    this.attachedFiles.update(list => list.filter(a => a.id !== attId));
+  /** Archivos cargados en esta evaluación: quedan asociados a la prueba registrada al guardar. */
+  onUploaded(f: EvidenceFile) {
+    this.sessionFiles.update(l => [...l, f]);
   }
 
   canSave(): boolean {
@@ -529,7 +413,10 @@ export class ControlModal implements OnInit {
 
     const val = this.form.value;
     const existing = this.existingControl();
-    const attachments = this.attachedFiles();
+    const attachments: ControlEvidenceAttachment[] = this.sessionFiles().map(f => ({
+      id: f.id, fileName: f.fileName, fileSize: formatBytes(f.sizeBytes), fileType: f.mimeType, uploadedAt: f.uploadedAt.slice(0, 10),
+      uploadedBy: f.uploadedBy, description: f.description, fileHashSha256: f.sha256,
+    }));
 
     const testExecution: Partial<ControlTestExecution> = {
       testMethod: val.testMethod || 'Inspección de Muestra',

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
+import { EvidenceFiles } from './evidence-files';
 import { RiskDataService } from '../services/risk-data.service';
 import { downloadCsv } from '../utils/csv';
 import { CLOUD_DUE_DILIGENCE, EMPTY_RAN207, ProviderRan207, SIGNIFICANCE_CRITERIA, Subcontractor } from '../models/compliance.model';
@@ -19,7 +20,7 @@ import { LinkedPlans, PlanChips } from './linked-plans';
 @Component({
   selector: 'app-providers-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, MoneyPipe, LinkedPlans, PlanChips],
+  imports: [CommonModule, MatIconModule, MoneyPipe, LinkedPlans, PlanChips, EvidenceFiles],
   template: `
     <div class="space-y-4">
       <!-- Header -->
@@ -347,6 +348,12 @@ import { LinkedPlans, PlanChips } from './linked-plans';
 
             <!-- Columna lateral -->
             <div class="space-y-4">
+              @if (!isNew()) {
+                <div class="p-3.5 rounded-xl border border-slate-200">
+                  <app-evidence-files entity="providers" [entityId]="d.id" [label]="d.code" [parent]="d"
+                    title="Contrato y certificaciones" emptyText="Adjunte el contrato, anexos de nivel de servicio, certificaciones (SOC 2, ISO 27001) y la debida diligencia." />
+                </div>
+              }
               @if (!isNew()) {
                 <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
                   <span class="text-xs font-bold text-slate-800">Evaluación de riesgo del proveedor</span>

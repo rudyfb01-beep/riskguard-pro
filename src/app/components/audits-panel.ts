@@ -6,6 +6,7 @@ import { AuditFinding, PeriodicAudit } from '../models/risk.model';
 import { ActionPlanService } from '../services/action-plan.service';
 import { LinkedPlans, PlanChips } from './linked-plans';
 import { ApprovalBox } from './approval-box';
+import { EvidenceFiles } from './evidence-files';
 import { ApprovalService } from '../services/approval.service';
 
 const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100';
@@ -19,7 +20,7 @@ const FINDING_STATUSES: AuditFinding['status'][] = ['Abierto', 'En Subsanación'
 @Component({
   selector: 'app-audits-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, LinkedPlans, PlanChips, ApprovalBox],
+  imports: [CommonModule, MatIconModule, LinkedPlans, PlanChips, ApprovalBox, EvidenceFiles],
   template: `
     <div class="space-y-4">
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
@@ -102,6 +103,11 @@ const FINDING_STATUSES: AuditFinding['status'][] = ['Abierto', 'En Subsanación'
               } @empty {
                 <p class="text-[11px] text-slate-400">Sin hallazgos registrados.</p>
               }
+            </div>
+
+            <div class="pt-2 border-t border-slate-100">
+              <app-evidence-files entity="audits" [entityId]="audit.id" context="informe" [label]="audit.code" [parent]="audit"
+                title="Informe y papeles de trabajo" emptyText="Sin archivos: adjunte el programa, los papeles de trabajo y el informe." />
             </div>
 
             @if (audit.status === 'Finalizada' || approvals.forTarget('audits', audit.id).length) {
@@ -193,6 +199,12 @@ const FINDING_STATUSES: AuditFinding['status'][] = ['Abierto', 'En Subsanación'
               <select [class]="inputCls" (change)="setFinding('status', $any($event.target).value)">@for (s of findingStatuses; track s) { <option [value]="s" [selected]="s === f.status">{{ s }}</option> }</select></label>
             <datalist id="audit-people-f">@for (u of rs.userProfiles(); track u.id) { <option [value]="u.name"></option> }</datalist>
           </fieldset>
+          @if (!findingIsNew() && findingAudit(); as fa) {
+            <div class="px-6 pb-4">
+              <app-evidence-files entity="audits" [entityId]="fa.id" [context]="f.id" [label]="fa.code" [parent]="fa"
+                title="Evidencia del hallazgo" emptyText="Sin archivos." />
+            </div>
+          }
           @if (f.type !== 'Conforme') {
             <div class="px-6 pb-4">
               @if (findingIsNew()) {

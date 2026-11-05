@@ -4,8 +4,11 @@ import { ensureDatabase } from './bootstrap-db';
 import {
   appendLedger, convertCurrency, countReferences, deleteEntity, EntityName, entityExists, getActionPlan, getApproval, getNotificationPreferences, getSetting,
   getSurveyResponse, isEntity, listNotifications, loadAll, markNotificationsRead, notificationOutbox, saveApprovalWithEffect, saveEntity,
-  saveNotificationPreference, saveSetting, SETTING_KEYS, SettingKey,
+  saveNotificationPreference, saveSetting, SETTING_KEYS, SettingKey, getEvidence, getEvidenceContent, insertEvidence, markEvidenceDeleted,
 } from './repository';
+import { DEFAULT_EVIDENCE_MAX_MB, EVIDENCE_ENTITY_LABELS, EvidenceEntity, EvidenceFile } from '../app/models/evidence.model';
+import { canAttachEvidence, canRemoveEvidence, checkEvidenceFile, formatBytes, isPreviewable, safeFileName } from '../app/utils/evidence';
+import { createHash, randomUUID } from 'node:crypto';
 import { ApprovalRequest } from '../app/models/approval.model';
 import { applyApprovalEffect, checkApprovalChange, normalizeMatrix, targetPrecondition } from '../app/utils/approvals';
 import { appetiteStatus, normalizeRiskAppetite } from '../app/models/catalog.model';
@@ -185,7 +188,7 @@ dataApi.post('/auth/logout', async (req, res) => {
 // -----------------------------------------------------------------------------
 
 /** Sin DATABASE_URL la app funciona en modo demostración: no hay API de datos. */
-dataApi.use(['/data', '/ledger', '/settings', '/admin', '/notifications'], async (req, res, next) => {
+dataApi.use(['/data', '/ledger', '/settings', '/admin', '/notifications', '/evidence'], async (req, res, next) => {
   if (!getPool()) {
     if (req.method === 'GET' && req.baseUrl.endsWith('/data') && req.path === '/') {
       res.json({ mode: 'demo' });
@@ -284,6 +287,158 @@ dataApi.put('/data/:entity/:id', async (req, res) => {
       if (entity === 'survey-responses' && !camp) camp = (await getSurveyResponse(id))?.campaign ?? null;
       void notifyChange(entity, before, body, currentUser(res)!.name, { campaign: camp });
     }
+  } catch (err) {
+    res.status(422).json({ error: friendlyDbError(err) });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// Evidencias (archivos)
+// -----------------------------------------------------------------------------
+
+const EVIDENCE_MAX_BYTES = Math.max(1, Number(process.env['EVIDENCE_MAX_MB'] ?? DEFAULT_EVIDENCE_MAX_MB)) * 1024 * 1024;
+
+/** Registro de origen de una evidencia (para permisos y para nombrarlo en la bitácora). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function evidenceParent(entity: EvidenceEntity, id: string): Promise<any | null> {
+  const all = await loadAll();
+  const lists: Record<EvidenceEntity, { id: string }[]> = {
+    controls: all.controls, risks: all.risks, 'action-plans': all.actionPlans, compliance: all.compliance, audits: all.audits, flaws: all.flaws,
+    'continuity-tests': all.continuityTests, plans: all.plans, 'security-tests': all.securityTests, vulnerabilities: all.vulnerabilities,
+    'survey-responses': all.surveyResponses, approvals: all.approvals, providers: all.providers,
+  };
+  return (lists[entity] ?? []).find(x => x.id === id) ?? null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const parentLabel = (p: any) => String(p?.code ?? p?.title ?? p?.subject ?? p?.name ?? p?.id ?? '').slice(0, 120);
+
+/** Límites para la interfaz. */
+dataApi.get('/evidence/config', (_req, res) => {
+  res.json({ maxBytes: EVIDENCE_MAX_BYTES });
+});
+
+/**
+ * Carga de un archivo: el cuerpo es el contenido (application/octet-stream) y los datos van en
+ * la consulta (entityType, entityId, context, description) y en X-File-Name (codificado).
+ */
+const evidenceBody = express.raw({ type: () => true, limit: EVIDENCE_MAX_BYTES + 1024 });
+/** Lee el contenido del archivo; si excede el máximo responde con un mensaje claro (JSON). */
+const readEvidenceBody: express.RequestHandler = (req, res, next) => evidenceBody(req, res, err => {
+  if (!err) { next(); return; }
+  const tooLarge = (err as { type?: string }).type === 'entity.too.large';
+  res.status(tooLarge ? 413 : 400).json({ error: tooLarge ? `El archivo supera el máximo de ${formatBytes(EVIDENCE_MAX_BYTES)}.` : 'No se pudo leer el archivo.' });
+});
+
+dataApi.post('/evidence', readEvidenceBody, async (req, res) => {
+  const user = currentUser(res)!;
+  const entity = String(req.query['entityType'] ?? '') as EvidenceEntity;
+  const entityId = String(req.query['entityId'] ?? '');
+  const context = String(req.query['context'] ?? '').slice(0, 120) || undefined;
+  const description = String(req.query['description'] ?? '').slice(0, 500).trim() || undefined;
+  let rawName = '';
+  try { rawName = decodeURIComponent(String(req.headers['x-file-name'] ?? '')); } catch { rawName = ''; }
+  if (!EVIDENCE_ENTITY_LABELS[entity] || !entityId) {
+    res.status(400).json({ error: 'Indique a qué registro corresponde la evidencia.' });
+    return;
+  }
+  const content: Buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+  const name = safeFileName(rawName || 'archivo');
+  const check = checkEvidenceFile(name, new Uint8Array(content.buffer, content.byteOffset, content.byteLength), EVIDENCE_MAX_BYTES);
+  if ('error' in check) {
+    res.status(415).json({ error: check.error });
+    return;
+  }
+  try {
+    const parent = await evidenceParent(entity, entityId);
+    if (!parent) {
+      res.status(404).json({ error: 'El registro no existe (guárdelo antes de adjuntar archivos).' });
+      return;
+    }
+    if (!canAttachEvidence(entity, user, parent)) {
+      res.status(403).json({ error: 'Tu cargo no puede adjuntar evidencia en este registro.' });
+      return;
+    }
+    const sha256 = createHash('sha256').update(content).digest('hex');
+    const file: EvidenceFile = {
+      id: `evd-${randomUUID()}`, entityType: entity, entityId, context, fileName: name, mimeType: check.mime, sizeBytes: content.length, sha256,
+      description, uploadedBy: user.name, uploadedByEmail: user.email, uploadedAt: new Date().toISOString(),
+    };
+    const ledger = await insertEvidence(file, content, {
+      id: `log-evd-${randomUUID()}`, userName: user.name, userRole: user.role, action: 'CARGA_EVIDENCIA', entityType: 'Evidencia',
+      entityCode: parentLabel(parent),
+      details: `${EVIDENCE_ENTITY_LABELS[entity]} ${parentLabel(parent)}${context ? ` (${context})` : ''}: "${name}" (${formatBytes(content.length)}), SHA-256 ${sha256}.${description ? ` ${description}` : ''}`,
+    }, clientIp(req));
+    res.status(201).json({ file, ledger });
+  } catch (err) {
+    res.status(422).json({ error: friendlyDbError(err) });
+  }
+});
+
+/** Descarga (o vista en el navegador, solo PDF e imágenes, con ?inline=1). */
+dataApi.get('/evidence/:id', async (req, res) => {
+  try {
+    const found = await getEvidenceContent(req.params['id']);
+    if (!found || found.file.deletedAt) {
+      res.status(404).json({ error: 'Archivo no encontrado.' });
+      return;
+    }
+    const { file, content } = found;
+    const inline = req.query['inline'] === '1' && isPreviewable(file.mimeType);
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Content-Length', String(content.length));
+    res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${file.fileName.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(file.fileName)}`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-SHA256', file.sha256);
+    res.end(content);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/** Recalcula el SHA-256 del contenido guardado y lo compara con el registrado al cargar. */
+dataApi.get('/evidence/:id/verify', async (req, res) => {
+  try {
+    const found = await getEvidenceContent(req.params['id']);
+    if (!found) {
+      res.status(404).json({ error: 'Archivo no encontrado.' });
+      return;
+    }
+    const actual = createHash('sha256').update(found.content).digest('hex');
+    res.json({ ok: actual === found.file.sha256, expected: found.file.sha256, actual, sizeBytes: found.content.length });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/** Baja con motivo: el archivo deja de mostrarse, pero el contenido y su registro se conservan. */
+dataApi.delete('/evidence/:id', async (req, res) => {
+  const user = currentUser(res)!;
+  const reason = String(req.body?.reason ?? req.query['reason'] ?? '').trim().slice(0, 500);
+  if (!reason) {
+    res.status(400).json({ error: 'Indique el motivo de la baja.' });
+    return;
+  }
+  try {
+    const file = await getEvidence(req.params['id']);
+    if (!file || file.deletedAt) {
+      res.status(404).json({ error: 'Archivo no encontrado.' });
+      return;
+    }
+    const parent = await evidenceParent(file.entityType, file.entityId);
+    if (!canRemoveEvidence(file, user, parent)) {
+      res.status(403).json({ error: 'Tu cargo no puede dar de baja esta evidencia.' });
+      return;
+    }
+    const at = new Date().toISOString();
+    const ledger = await markEvidenceDeleted(file.id, user.name, reason, at, {
+      id: `log-evd-${randomUUID()}`, userName: user.name, userRole: user.role, action: 'BAJA_EVIDENCIA', entityType: 'Evidencia',
+      entityCode: parentLabel(parent) || file.entityId,
+      details: `Baja de "${file.fileName}" (SHA-256 ${file.sha256}) de ${EVIDENCE_ENTITY_LABELS[file.entityType]} ${parentLabel(parent)}. Motivo: ${reason}. El archivo se conserva.`,
+    }, clientIp(req));
+    res.json({ ok: true, file: { ...file, deletedAt: at, deletedBy: user.name, deleteReason: reason }, ledger });
   } catch (err) {
     res.status(422).json({ error: friendlyDbError(err) });
   }

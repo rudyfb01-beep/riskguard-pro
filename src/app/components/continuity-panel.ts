@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, inject, output, signal } 
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { ApprovalBox } from './approval-box';
+import { EvidenceFiles } from './evidence-files';
+import { EvidenceService } from '../services/evidence.service';
 import { ApprovalService } from '../services/approval.service';
 import { RiskDataService } from '../services/risk-data.service';
 import { ResilienceService } from '../services/resilience.service';
@@ -27,7 +29,7 @@ import { ActionPlanService } from '../services/action-plan.service';
 @Component({
   selector: 'app-continuity-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [LinkedPlans, PlanChips, CommonModule, MatIconModule, ApprovalBox],
+  imports: [LinkedPlans, PlanChips, CommonModule, MatIconModule, ApprovalBox, EvidenceFiles],
   template: `
     <div class="space-y-4">
       <!-- Header -->
@@ -244,6 +246,14 @@ import { ActionPlanService } from '../services/action-plan.service';
                     </td>
                     <td class="py-2.5 px-3"><span class="font-semibold" [class]="resultClass(t.result)">{{ t.result }}</span></td>
                     <td class="py-2.5 px-3 text-[11px] text-slate-700 max-w-[300px]"><div>{{ t.findings }}</div>@if (t.actions) { <div class="text-slate-500 mt-0.5">→ {{ t.actions }}</div> }
+                      <button type="button" (click)="evidenceFor.set(evidenceFor() === t.id ? null : t.id)" class="mt-1 text-[10px] font-semibold text-indigo-700 hover:underline cursor-pointer flex items-center gap-0.5">
+                        <mat-icon class="text-[12px] w-3 h-3">attach_file</mat-icon>Evidencias ({{ evidence.count('continuity-tests', t.id) }})</button>
+                      @if (evidenceFor() === t.id) {
+                        <div class="mt-1.5 min-w-[260px]">
+                          <app-evidence-files entity="continuity-tests" [entityId]="t.id" [label]="planCode(t.planId) + ' ' + t.date" [parent]="t"
+                            title="" emptyText="Adjunte el informe de la prueba, actas y registros de tiempos." />
+                        </div>
+                      }
                       @if (t.result !== 'Exitosa' || actionPlans.forSource('Continuidad', t.id).length) {
                         <div class="mt-1.5">
                           @if (planFor() === t.id) {
@@ -395,6 +405,8 @@ import { ActionPlanService } from '../services/action-plan.service';
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Próxima revisión</span><input type="date" [class]="inputCls" [value]="d.nextReviewDate" (input)="setPlan('nextReviewDate', $any($event.target).value)" /></label>
             </div>
             @if (planSaved(d)) {
+              <app-evidence-files entity="plans" [entityId]="d.id" [label]="d.code" [parent]="d"
+                title="Documento del plan y anexos" emptyText="Adjunte el documento vigente del plan y sus anexos." />
               <app-approval-box kind="plan-continuidad" [targetId]="d.id" [targetLabel]="d.code + ' ' + d.name"
                 title="Aprobación del plan" requestLabel="Solicitar aprobación del plan"
                 hint="Guarde los cambios y envíe el plan a aprobación: al aprobarse queda Vigente con la versión, quien aprobó y la fecha."
@@ -484,6 +496,7 @@ import { ActionPlanService } from '../services/action-plan.service';
             @if (testRtoGap(d); as gap) {
               <p class="text-[11px] text-rose-700 flex items-center gap-1"><mat-icon class="text-xs">error</mat-icon> {{ gap }}</p>
             }
+            <p class="text-[11px] text-slate-500 flex items-center gap-1"><mat-icon class="text-sm">info</mat-icon>Después de registrar la prueba, adjunte su informe y evidencias desde la tabla de pruebas.</p>
           </div>
           <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
             <span class="text-[11px] text-rose-700">{{ formError() }}</span>
@@ -665,6 +678,8 @@ export class ContinuityPanel {
       approvedBy: '', approvalDate: '', nextReviewDate: next, status: 'Borrador',
     });
   }
+  readonly evidenceFor = signal<string | null>(null);
+  readonly evidence = inject(EvidenceService);
   planSaved(d: ContinuityPlan) { return this.res.plans().some(p => p.id === d.id); }
   planWasVigente(d: ContinuityPlan) { return this.res.plans().find(p => p.id === d.id)?.status === 'Vigente'; }
   nextYear() { return new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10); }

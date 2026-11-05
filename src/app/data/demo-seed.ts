@@ -160,27 +160,7 @@ export const DEMO_CONTROLS: Control[] = [
     lastTestedBy: 'Oficial de Ciberseguridad',
     sampleDetails: 'Muestra de 50 sesiones privilegiadas de administración en servidores de bases de datos productivas',
     evidence: 'Logs del módulo CyberArk y auditoría de tokens de sesión válidos sin excepciones.',
-    attachments: [
-      {
-        id: 'att-101',
-        fileName: 'Auditoria_CyberArk_PAM_Q3_Muestra50.pdf',
-        fileSize: '2.4 MB',
-        fileType: 'application/pdf',
-        uploadedAt: '2026-10-12',
-        uploadedBy: 'SecOps Team',
-        description: 'Reporte oficial de extracción de sesiones SSH y RDP auditadas con llave FIDO2.',
-        fileHashSha256: 'a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef0'
-      },
-      {
-        id: 'att-102',
-        fileName: 'Logs_Extraccion_Tokens_FIDO2.csv',
-        fileSize: '680 KB',
-        fileType: 'text/csv',
-        uploadedAt: '2026-10-12',
-        uploadedBy: 'SecOps Team',
-        description: 'Muestra de 1,200 eventos de autenticación criptográfica exitosos sin bypass.'
-      }
-    ],
+    attachments: [],
     testHistory: [
       {
         id: 'tst-101',
@@ -195,17 +175,7 @@ export const DEMO_CONTROLS: Control[] = [
         totalScore: 92,
         conclusion: 'Efectivo / Conforme',
         evidenceNotes: 'Verificación de trazabilidad en bóveda digital. Ningún acceso directo sin MFA.',
-        attachments: [
-          {
-            id: 'att-101',
-            fileName: 'Auditoria_CyberArk_PAM_Q3_Muestra50.pdf',
-            fileSize: '2.4 MB',
-            fileType: 'application/pdf',
-            uploadedAt: '2026-10-12',
-            uploadedBy: 'SecOps Team',
-            description: 'Reporte oficial de sesiones SSH auditadas'
-          }
-        ]
+        attachments: []
       }
     ]
   },
@@ -227,27 +197,7 @@ export const DEMO_CONTROLS: Control[] = [
     lastTestedBy: 'Laura Benítez',
     sampleDetails: 'Muestra aleatoria de 40 transferencias del mes superiores a USD 20,000',
     evidence: 'Muestra aleatoria de 40 transferencias del mes con dobles firmas criptográficas verificadas.',
-    attachments: [
-      {
-        id: 'att-201',
-        fileName: 'Acta_Verificacion_Doble_Firma_Q3.pdf',
-        fileSize: '1.8 MB',
-        fileType: 'application/pdf',
-        uploadedAt: '2026-10-14',
-        uploadedBy: 'Laura Benítez',
-        description: 'Acta notarial de firmas duales para transferencias bancarias de alto valor.',
-        fileHashSha256: '9f8e7d6c5b4a3210fedcba9876543210abcdef0123456789abcdef0123456789'
-      },
-      {
-        id: 'att-202',
-        fileName: 'Muestra_40_Transferencias_Swift.xlsx',
-        fileSize: '520 KB',
-        fileType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        uploadedAt: '2026-10-14',
-        uploadedBy: 'Laura Benítez',
-        description: 'Matriz cruzada de transferencias > $20k verificadas contra token físico.'
-      }
-    ],
+    attachments: [],
     testHistory: [
       {
         id: 'tst-201',
@@ -284,17 +234,7 @@ export const DEMO_CONTROLS: Control[] = [
     lastTestedBy: 'DevOps Lead',
     sampleDetails: 'Simulacro no programado de corte en zona primara de base de datos',
     evidence: 'Informe de simulacro de desastre con RTO de 22s y RPO de 0s.',
-    attachments: [
-      {
-        id: 'att-301',
-        fileName: 'Informe_Simulacro_Failover_DRP.pdf',
-        fileSize: '3.1 MB',
-        fileType: 'application/pdf',
-        uploadedAt: '2026-09-28',
-        uploadedBy: 'DevOps / SRE',
-        description: 'Certificado de prueba de failover conmutado en 22 segundos sin pérdida de registros.'
-      }
-    ]
+    attachments: []
   },
   {
     id: 'ctr-4',
@@ -314,17 +254,7 @@ export const DEMO_CONTROLS: Control[] = [
     lastTestedBy: 'Contralor Adjunto',
     sampleDetails: 'Cruce de 30 días de extractos SWIFT MT940 contra mayor general',
     evidence: 'Matriz de partidas conciliatorias con 0 descuadres superiores a $500.',
-    attachments: [
-      {
-        id: 'att-401',
-        fileName: 'Cruce_Conciliacion_Swift_MT940.xlsx',
-        fileSize: '1.2 MB',
-        fileType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        uploadedAt: '2026-10-17',
-        uploadedBy: 'Contabilidad Central',
-        description: 'Cruce algorítmico de saldos bancarios y auxiliares.'
-      }
-    ]
+    attachments: []
   },
   {
     id: 'ctr-5',
@@ -344,17 +274,7 @@ export const DEMO_CONTROLS: Control[] = [
     lastTestedBy: 'AppSec Engineer',
     sampleDetails: 'Revisión de 120 pipelines de despliegue en repositorio central',
     evidence: 'Pipeline SonarQube con 4 excepciones temporales aprobadas.',
-    attachments: [
-      {
-        id: 'att-501',
-        fileName: 'Reporte_SonarQube_SAST_DAST.pdf',
-        fileSize: '4.5 MB',
-        fileType: 'application/pdf',
-        uploadedAt: '2026-10-10',
-        uploadedBy: 'Seguridad de Aplicaciones',
-        description: 'Auditoría de hallazgos SAST y remediación de vulnerabilidades.'
-      }
-    ]
+    attachments: []
   },
   {
     id: 'ctr-6',
@@ -374,17 +294,7 @@ export const DEMO_CONTROLS: Control[] = [
     lastTestedBy: 'Auditor Interno',
     sampleDetails: 'Muestra del 100% de perfiles de usuario con acceso al ERP contable',
     evidence: 'Informe de revisión de accesos con 3 observaciones en remediación.',
-    attachments: [
-      {
-        id: 'att-601',
-        fileName: 'Matriz_Conflictos_SoD_ERP.xlsx',
-        fileSize: '890 KB',
-        fileType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        uploadedAt: '2026-10-01',
-        uploadedBy: 'Auditoría Interna',
-        description: 'Matriz de segregación de funciones con perfiles cruzados identificados.'
-      }
-    ]
+    attachments: []
   }
 ];
 

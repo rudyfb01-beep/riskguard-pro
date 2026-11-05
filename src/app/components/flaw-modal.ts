@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
+import { EvidenceFiles } from './evidence-files';
 import { RiskDataService } from '../services/risk-data.service';
 import { ResilienceService } from '../services/resilience.service';
 import { SecurityService } from '../services/security.service';
@@ -15,7 +16,7 @@ import { LinkedPlans } from './linked-plans';
 @Component({
   selector: 'app-flaw-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, MatIconModule, MoneyPipe, LinkedPlans],
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule, MoneyPipe, LinkedPlans, EvidenceFiles],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden my-6">
@@ -453,6 +454,14 @@ import { LinkedPlans } from './linked-plans';
 
           </form>
 
+          @if (incidentToEdit(); as inc) {
+            <div class="mt-4">
+              <app-evidence-files entity="flaws" [entityId]="inc.id" [label]="inc.title" [parent]="inc"
+                title="Evidencias del incidente (capturas, logs, informes, comunicaciones)" emptyText="Sin archivos adjuntos." />
+            </div>
+          } @else {
+            <p class="mt-3 text-[11px] text-slate-500 flex items-center gap-1"><mat-icon class="text-sm">info</mat-icon>Después de registrar el incidente puede adjuntar capturas, logs e informes al editarlo.</p>
+          }
           @if (incidentToEdit(); as inc) {
             <div class="mt-4">
               <app-linked-plans sourceType="Incidente" [sourceId]="inc.id" [sourceLabel]="inc.title" [process]="inc.process"

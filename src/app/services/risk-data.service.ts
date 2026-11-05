@@ -1768,41 +1768,7 @@ export class RiskDataService {
   }
 
   // Trigger download of an attached evidence file
-  downloadAttachment(attachment: ControlEvidenceAttachment) {
-    let blob: Blob;
-    if (attachment.fileDataUrl) {
-      // Data URL or custom content
-      blob = new Blob([attachment.fileDataUrl], { type: attachment.fileType });
-    } else {
-      // Mock generated official evidence file representation
-      const sampleText = `================================================================================\n` +
-        `CUSTODIA RISK - EXPEDIENTE OFICIAL DE EVIDENCIA DE CONTROL OPERACIONAL\n` +
-        `================================================================================\n` +
-        `Archivo: ${attachment.fileName}\n` +
-        `Fecha de Carga: ${attachment.uploadedAt}\n` +
-        `Responsable de Carga: ${attachment.uploadedBy}\n` +
-        `Tamaño: ${attachment.fileSize}\n` +
-        `Tipo MIME: ${attachment.fileType}\n` +
-        `Descripción de la Evidencia: ${attachment.description || 'Sin descripción adicional'}\n` +
-        `Hash SHA-256 de Integridad: ${attachment.fileHashSha256 || '9f8e7d6c5b4a3210fedcba9876543210abcdef0123456789abcdef0123456789'}\n` +
-        `Marco Normativo: ISO 31000:2018 / COSO ERM / Basilea III\n` +
-        `================================================================================\n\n` +
-        `[CERTIFICACIÓN DE PRUEBA DE CONTROL]\n` +
-        `Se certifica que la evidencia adjunta ha sido inspeccionada por el equipo de control\n` +
-        `interno y auditoría de riesgos, cumpliendo con los estándares de validez, suficiencia,\n` +
-        `relevancia y trazabilidad criptográfica en la bitácora inalterable.\n`;
-      blob = new Blob([sampleText], { type: 'text/plain;charset=utf-8' });
-    }
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = attachment.fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
 
   // Computed metrics for Incidents & Loss Events
   readonly totalRealLossesUSD = computed(() =>

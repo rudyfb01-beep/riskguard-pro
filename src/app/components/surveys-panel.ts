@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, output, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
+import { EvidenceFiles } from './evidence-files';
 import { SurveyService, CampaignDraft } from '../services/survey.service';
 import { RiskDataService } from '../services/risk-data.service';
 import { CatalogService } from '../services/catalog.service';
@@ -27,7 +28,7 @@ interface NewCampaign { id?: string; kind: SurveyKind; title: string; descriptio
 @Component({
   selector: 'app-surveys-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, EvidenceFiles],
   template: `
     <div class="space-y-4">
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
@@ -192,6 +193,12 @@ interface NewCampaign { id?: string; kind: SurveyKind; title: string; descriptio
                         @case ('opcion') { <ng-container *ngTemplateOutlet="choices; context: { r, it, v, opts: optionsOf(it), editable }" /> }
                         @case ('texto') {
                           <textarea [id]="'a-' + it.id" rows="2" [class]="inputCls" [disabled]="!editable" [value]="v ?? ''" (input)="setAnswer(it.id, $any($event.target).value)"></textarea>
+                          @if (it.id.endsWith(':evidence')) {
+                            <div class="mt-1.5">
+                              <app-evidence-files entity="survey-responses" [entityId]="r.id" [context]="it.id" [label]="r.subject" [parent]="r" [readonly]="!editable"
+                                title="" [withDescription]="false" [emptyText]="editable ? '' : 'Sin archivos.'" />
+                            </div>
+                          }
                         }
                         @default {
                           <input [id]="'a-' + it.id" type="number" min="0" step="1" [class]="inputCls + ' max-w-[10rem]'" [disabled]="!editable" [value]="v ?? ''" (input)="setAnswer(it.id, $any($event.target).value === '' ? null : +$any($event.target).value)" />
@@ -204,6 +211,10 @@ interface NewCampaign { id?: string; kind: SurveyKind; title: string; descriptio
               </div>
             </fieldset>
           }
+        </div>
+        <div class="px-4 pb-4">
+          <app-evidence-files entity="survey-responses" [entityId]="r.id" context="anexos" [label]="r.subject" [parent]="r" [readonly]="!editable"
+            title="Anexos de la autoevaluación" [emptyText]="editable ? 'Opcional: adjunte respaldos generales (actas, informes, planillas).' : 'Sin anexos.'" />
         </div>
         @if (editable) {
           <div class="px-4 py-3 border-t border-slate-100 bg-slate-50 flex flex-wrap items-center justify-end gap-2">

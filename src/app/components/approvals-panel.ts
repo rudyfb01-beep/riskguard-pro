@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, output, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
+import { EvidenceFiles } from './evidence-files';
 import { ApprovalService } from '../services/approval.service';
 import { RiskDataService } from '../services/risk-data.service';
 import { APPROVAL_KIND_LIST, APPROVAL_KINDS, ApprovalKind, ApprovalRequest, ApprovalStatus } from '../models/approval.model';
@@ -15,7 +16,7 @@ type View = 'por-resolver' | 'mias' | 'todas';
 @Component({
   selector: 'app-approvals-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, EvidenceFiles],
   template: `
     <section class="space-y-5">
       <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs">
@@ -89,6 +90,17 @@ type View = 'por-resolver' | 'mias' | 'todas';
                     </li>
                   }
                 </ol>
+              </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-4">
+              <div class="rounded-xl border border-slate-200 p-3">
+                <app-evidence-files entity="approvals" [entityId]="r.id" [label]="r.code" [parent]="r" title="Respaldos de la solicitud"
+                  [emptyText]="r.status === 'Pendiente' ? 'Quien solicita o quien aprueba puede adjuntar respaldos.' : 'Sin respaldos.'" />
+              </div>
+              <div class="rounded-xl border border-slate-200 p-3">
+                <app-evidence-files [entity]="r.targetEntity" [entityId]="r.targetId" [label]="r.targetLabel" [readonly]="true"
+                  [title]="'Evidencias del registro (' + moduleName(r.kind) + ')'" emptyText="El registro no tiene archivos adjuntos." />
               </div>
             </div>
 

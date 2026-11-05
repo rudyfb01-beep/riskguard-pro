@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, output, s
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { ApprovalBox } from './approval-box';
+import { EvidenceFiles } from './evidence-files';
+import { EvidenceService } from '../services/evidence.service';
 import { ApprovalService } from '../services/approval.service';
 import { ActionPlanService, SOURCE_TABS } from '../services/action-plan.service';
 import { RiskDataService } from '../services/risk-data.service';
@@ -27,7 +29,7 @@ interface TimelineItem { at: string; by: string; kind: string; text: string; ton
 @Component({
   selector: 'app-action-plans-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, ApprovalBox],
+  imports: [CommonModule, MatIconModule, ApprovalBox, EvidenceFiles],
   template: `
     <div class="space-y-4">
       <!-- Encabezado -->
@@ -223,6 +225,12 @@ interface TimelineItem { at: string; by: string; kind: string; text: string; ton
                 }
               </div>
 
+              <!-- Evidencias (archivos) -->
+              <div class="px-4 py-3 border-b border-slate-100">
+                <app-evidence-files entity="action-plans" [entityId]="p.id" [label]="p.code" [parent]="p" title="Evidencias del plan"
+                  [emptyText]="openPlan(p) ? 'Adjunte actas, informes o capturas que respalden el avance y el cierre.' : 'Sin archivos.'" />
+              </div>
+
               <!-- Acciones -->
               @if (isOpen(p)) {
                 <div class="px-4 py-3 border-b border-slate-100 space-y-2">
@@ -266,7 +274,7 @@ interface TimelineItem { at: string; by: string; kind: string; text: string; ton
                     }
                     @case ('verificacion') {
                       <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
-                        <label class="block"><span class="block text-[10px] text-slate-600 mb-0.5">Evidencia de cierre * (documento, acta, ticket, enlace)</span>
+                        <label class="block"><span class="block text-[10px] text-slate-600 mb-0.5">Evidencia de cierre * (descripción; adjunte los archivos en "Evidencias del plan")</span>
                           <textarea id="ap-ver-evidence" rows="2" [class]="inputCls" [value]="form().text" (input)="setForm('text', $any($event.target).value)"></textarea></label>
                         <p class="text-[10px] text-slate-500">El plan queda "Por verificar" con avance 100 %. Lo cierra una persona distinta del responsable.</p>
                         <ng-container *ngTemplateOutlet="formActions; context: { label: 'Enviar a verificación', action: 'verificacion' }" />
@@ -391,6 +399,8 @@ interface TimelineItem { at: string; by: string; kind: string; text: string; ton
 export class ActionPlansPanel {
   readonly plans = inject(ActionPlanService);
   readonly approvals = inject(ApprovalService);
+  readonly evidence = inject(EvidenceService);
+  openPlan(p: ActionPlan) { return p.status === 'Pendiente' || p.status === 'En curso'; }
   readonly rs = inject(RiskDataService);
   readonly notify = output<string>();
   readonly openModule = output<string>();
@@ -608,8 +618,12 @@ export class ActionPlansPanel {
       switch (action) {
         case 'avance': await this.plans.addUpdate(p.id, f.text, f.pct); this.notify.emit(`${p.code}: avance registrado (${f.pct} %).`); break;
         case 'verificacion':
-          if (!f.text.trim()) throw new Error('Indique la evidencia de cierre.');
-          await this.plans.submitForVerification(p.id, f.text); this.notify.emit(`${p.code} enviado a verificación.`); break;
+          {
+            const files = this.evidence.forEntity('action-plans', p.id);
+            if (!f.text.trim() && !files.length) throw new Error('Describa la evidencia de cierre o adjunte al menos un archivo.');
+            const text = [f.text.trim(), files.length ? `Archivos: ${files.map(x => x.fileName).join(', ')}` : ''].filter(Boolean).join(' · ');
+            await this.plans.submitForVerification(p.id, text);
+          } this.notify.emit(`${p.code} enviado a verificación.`); break;
         case 'cierre': {
           const r = await this.plans.verify(p.id, f.text);
           this.notify.emit(`${p.code} cerrado.${r.findingClosed ? ' El hallazgo de auditoría también quedó cerrado.' : ''}`); break;

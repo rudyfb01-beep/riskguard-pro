@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
+import { EvidenceFiles } from './evidence-files';
+import { EvidenceService } from '../services/evidence.service';
 import { PermissionDeniedError, RiskDataService } from '../services/risk-data.service';
 import { ComplianceService } from '../services/compliance.service';
 import {
@@ -36,7 +38,7 @@ interface RequirementForm {
 @Component({
   selector: 'app-compliance-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, ComplianceNormModal, LinkedPlans, PlanChips],
+  imports: [CommonModule, MatIconModule, ComplianceNormModal, LinkedPlans, PlanChips, EvidenceFiles],
   template: `
     <div class="space-y-4">
       <!-- Encabezado -->
@@ -338,6 +340,9 @@ interface RequirementForm {
                         </div>
                       }
                       @if (editing()?.id !== i.id) { <div class="mt-1.5"><app-plan-chips sourceType="Cumplimiento" [sourceId]="i.id" /></div> }
+                      @if (editing()?.id !== i.id && evidence.count('compliance', i.id)) {
+                        <div class="mt-1.5"><app-evidence-files entity="compliance" [entityId]="i.id" [label]="i.numeral || i.title" [parent]="i" [readonly]="true" title="Archivos de evidencia" /></div>
+                      }
                       @if (editing()?.id !== i.id && (i.evidence || i.actionPlan)) {
                         <div class="mt-1.5 text-[11px] text-slate-600 space-y-0.5">
                           @if (i.evidence) { <div><strong>Evidencia:</strong> {{ i.evidence }}</div> }
@@ -363,6 +368,10 @@ interface RequirementForm {
                           <select [class]="inputCls" (change)="set('status', $any($event.target).value)">@for (st of statuses; track st) { <option [value]="st" [selected]="st === e.status">{{ st }}</option> }</select></label>
                         <label class="block"><span class="block text-[10px] text-slate-600 mb-0.5">Responsable</span><input [class]="inputCls" [value]="e.owner" (input)="set('owner', $any($event.target).value)" /></label>
                         <label class="block md:col-span-2"><span class="block text-[10px] text-slate-600 mb-0.5">Evidencia (documento, acta, sesión del Consejo, enlace)</span><input [class]="inputCls" [value]="e.evidence" (input)="set('evidence', $any($event.target).value)" /></label>
+                        <div class="md:col-span-4">
+                          <app-evidence-files entity="compliance" [entityId]="e.id" [label]="e.numeral || e.title" [parent]="e" title="Archivos de evidencia (actas, políticas aprobadas, informes)"
+                            emptyText="Sin archivos: adjunte el respaldo del cumplimiento." />
+                        </div>
                         @if (e.actionPlan) {
                           <label class="block md:col-span-4"><span class="block text-[10px] text-slate-600 mb-0.5">Plan de acción (texto anterior; conviértalo en un plan con seguimiento)</span><input [class]="inputCls" [value]="e.actionPlan" (input)="set('actionPlan', $any($event.target).value)" /></label>
                         }
@@ -449,6 +458,7 @@ interface RequirementForm {
 export class CompliancePanel {
   readonly rs = inject(RiskDataService);
   readonly comp = inject(ComplianceService);
+  readonly evidence = inject(EvidenceService);
   readonly actionPlans = inject(ActionPlanService);
   readonly notify = output<string>();
   readonly openModule = output<string>();

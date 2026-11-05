@@ -8,6 +8,9 @@ import { ComplianceService } from './compliance.service';
 import { ActionPlanService } from './action-plan.service';
 import { SurveyService } from './survey.service';
 import { ApprovalService } from './approval.service';
+import { EvidenceService } from './evidence.service';
+import { EvidenceFile } from '../models/evidence.model';
+import { API_HEADERS, apiFetch } from './api-fetch';
 import { AuditLogEntry, UserProfile } from '../models/risk.model';
 
 export type DataMode = 'loading' | 'login' | 'database' | 'demo' | 'error';
@@ -27,15 +30,7 @@ interface Setting {
   last: string;
 }
 
-/** Cabecera anti-CSRF exigida por el servidor en toda escritura. */
-export const API_HEADERS = { 'X-Requested-With': 'RiskGuard' } as const;
-
-/** fetch hacia la API propia: misma cookie de sesión y cabecera de seguridad. */
-export function apiFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  const headers = new Headers(init.headers);
-  for (const [k, v] of Object.entries(API_HEADERS)) headers.set(k, v);
-  return fetch(url, { ...init, headers, credentials: 'same-origin' });
-}
+export { API_HEADERS, apiFetch };
 
 /**
  * Sincroniza el estado de la aplicación con la base de datos del servidor (PostgreSQL o SQLite).
@@ -57,6 +52,7 @@ export class PersistenceService {
   private readonly plans = inject(ActionPlanService);
   private readonly surveys = inject(SurveyService);
   private readonly approvals = inject(ApprovalService);
+  private readonly evidence = inject(EvidenceService);
 
   readonly mode = signal<DataMode>('loading');
   readonly loadError = signal<string | null>(null);
@@ -121,6 +117,8 @@ export class PersistenceService {
       const c = this.collections.find(x => x.entity === entity);
       if (c && this.enabled) c.snapshot.set(obj.id, obj);
     };
+    // Bloques de bitácora que escribe el servidor (cargas y bajas de evidencia).
+    this.evidence.ledgerHook = e => void this.acceptServerLedger(e);
     // Observa todas las colecciones; solo actúa una vez cargados los datos.
     effect(() => {
       const values = this.collections.map(c => c.sig());
@@ -226,6 +224,7 @@ export class PersistenceService {
       c.sig.set(list);
       c.snapshot = new Map(list.map(o => [o.id, o]));
     }
+    this.evidence.hydrate((data['evidenceFiles'] as EvidenceFile[]) ?? []);
     const ledger = (data['ledger'] as AuditLogEntry[]) ?? [];
     this.rs.auditTrail.set(ledger);
     this.ledgerKnown = new Set(ledger.map(e => e.id));
@@ -360,6 +359,22 @@ export class PersistenceService {
         for (const x of full) this.ledgerKnown.add(x.id);
         this.rs.auditTrail.set(full);
       }
+    }
+  }
+
+  /** Incorpora un bloque que el servidor ya agregó a la cadena (no se reenvía). */
+  private async acceptServerLedger(e: AuditLogEntry) {
+    this.ledgerKnown.add(e.id);
+    const list = this.rs.auditTrail();
+    const top = list.reduce<AuditLogEntry | null>((m, x) => (!m || x.blockNumber > m.blockNumber ? x : m), null);
+    if (!top || (top.blockNumber === e.blockNumber - 1 && top.hash === e.previousHash)) {
+      this.rs.auditTrail.update(l => [e, ...l]);
+      return;
+    }
+    const full = await apiFetch('/api/ledger').then(r => r.json()).catch(() => null);
+    if (Array.isArray(full)) {
+      for (const x of full) this.ledgerKnown.add(x.id);
+      this.rs.auditTrail.set(full);
     }
   }
 

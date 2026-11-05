@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
+import { EvidenceService } from '../services/evidence.service';
 import { RiskDataService } from '../services/risk-data.service';
 import { ActionPlanService } from '../services/action-plan.service';
 import { Risk } from '../models/risk.model';
@@ -385,12 +386,13 @@ import { MoneyPipe } from '../utils/money.pipe';
                         <span>Última prueba: {{ c.lastTested }} ({{ c.lastTestedBy || c.owner }})</span>
                       </div>
 
-                      @if (c.attachments && c.attachments.length > 0) {
+                      @let files = evidence.forEntity('controls', c.id);
+                      @if (files.length) {
                         <div class="flex items-center gap-1.5 flex-wrap pt-1">
-                          @for (att of c.attachments; track att.id) {
+                          @for (att of files; track att.id) {
                             <button
                               type="button"
-                              (click)="riskService.downloadAttachment(att)"
+                              (click)="evidence.open(att)"
                               class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 text-[10px] border border-slate-200 transition-colors cursor-pointer"
                               title="Descargar evidencia adjunta"
                             >
@@ -531,6 +533,7 @@ import { MoneyPipe } from '../utils/money.pipe';
 })
 export class DepartmentDashboard {
   readonly riskService = inject(RiskDataService);
+  readonly evidence = inject(EvidenceService);
   readonly actionPlans = inject(ActionPlanService);
 
   readonly viewMode = signal<'focused' | 'comparative'>('focused');

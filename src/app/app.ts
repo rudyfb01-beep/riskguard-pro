@@ -36,6 +36,8 @@ import { NotificationBell } from './components/notification-bell';
 import { ApprovalService } from './services/approval.service';
 import { NotificationService } from './services/notification.service';
 import { SurveyService } from './services/survey.service';
+import { EvidenceService } from './services/evidence.service';
+import { fileIcon, formatBytes } from './utils/evidence';
 import { ActionPlanService } from './services/action-plan.service';
 import { AuditsPanel } from './components/audits-panel';
 import { MoneyPipe } from './utils/money.pipe';
@@ -143,6 +145,9 @@ export class App {
   private readonly approvals = inject(ApprovalService);
   private readonly notifications = inject(NotificationService);
   private readonly surveys = inject(SurveyService);
+  readonly evidence = inject(EvidenceService);
+  readonly fileIcon = fileIcon;
+  readonly formatBytes = formatBytes;
   private deepLinkDone = false;
 
   private closeModals() {

@@ -8,7 +8,7 @@ import { join } from 'node:path';
 const target = join(import.meta.dirname, '..', 'database', 'schema.sqlite.sql');
 const MARKER = '-- =============================================================================\n-- Disparadores';
 
-const CASTS = /::(?:character varying(?:\(\d+\))?|text|numeric|integer|bigint|smallint|jsonb|date|boolean|timestamp with time zone|regclass)(?:\[\])?/g;
+const CASTS = /::(?:character varying(?:\(\d+\))?|bpchar|text|numeric|integer|bigint|smallint|jsonb|date|boolean|timestamp with time zone|regclass)(?:\[\])?/g;
 const strip = (s) => s.replace(CASTS, '');
 const anyArray = (s) => s.replace(/\s*=\s*ANY\s*\(\(?ARRAY\[(.*?)\]\)?(?:::text\[\])?\)/g, (_, list) => ` IN (${strip(list)})`);
 const NOW = "(strftime('%Y-%m-%dT%H:%M:%fZ','now'))";
@@ -18,6 +18,8 @@ function colType(t) {
   if (t === 'text[]') return 'TEXTARRAY';
   if (t === 'jsonb') return 'JSONTEXT';
   if (t === 'boolean') return 'BOOLEAN';
+  if (t === 'bytea') return 'BLOB';
+  if (t.startsWith('character(')) return 'TEXT';
   if (['integer', 'smallint', 'bigint'].includes(t)) return 'INTEGER';
   if (t.startsWith('numeric')) return 'NUMERIC';
   if (t === 'date') return 'DATE';
