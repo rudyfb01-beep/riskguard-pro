@@ -20,10 +20,12 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 tex
 type SubTab = 'bia' | 'planes' | 'pruebas';
 
 /** Continuidad del negocio: análisis de impacto (BIA), planes y pruebas. */
+import { LinkedPlans, PlanChips } from './linked-plans';
+import { ActionPlanService } from '../services/action-plan.service';
 @Component({
   selector: 'app-continuity-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [LinkedPlans, PlanChips, CommonModule, MatIconModule],
   template: `
     <div class="space-y-4">
       <!-- Header -->
@@ -235,7 +237,21 @@ type SubTab = 'bia' | 'planes' | 'pruebas';
                       } @else { — }
                     </td>
                     <td class="py-2.5 px-3"><span class="font-semibold" [class]="resultClass(t.result)">{{ t.result }}</span></td>
-                    <td class="py-2.5 px-3 text-[11px] text-slate-700 max-w-[300px]"><div>{{ t.findings }}</div>@if (t.actions) { <div class="text-slate-500 mt-0.5">→ {{ t.actions }}</div> }</td>
+                    <td class="py-2.5 px-3 text-[11px] text-slate-700 max-w-[300px]"><div>{{ t.findings }}</div>@if (t.actions) { <div class="text-slate-500 mt-0.5">→ {{ t.actions }}</div> }
+                      @if (t.result !== 'Exitosa' || actionPlans.forSource('Continuidad', t.id).length) {
+                        <div class="mt-1.5">
+                          @if (planFor() === t.id) {
+                            <app-linked-plans sourceType="Continuidad" [sourceId]="t.id" [sourceLabel]="'Prueba ' + t.type + ' del ' + t.date + ': ' + t.scenario"
+                              [process]="proc?.name" [defaultTitle]="t.actions" [defaultPriority]="t.result === 'Fallida' ? 'Alta' : 'Media'" />
+                            <button type="button" (click)="planFor.set(null)" class="mt-1 text-[10px] text-slate-500 hover:underline cursor-pointer">Ocultar</button>
+                          } @else {
+                            <span class="inline-flex flex-wrap items-center gap-1.5">
+                              <app-plan-chips sourceType="Continuidad" [sourceId]="t.id" />
+                              <button type="button" (click)="planFor.set(t.id)" class="text-[10px] font-semibold text-teal-700 hover:underline cursor-pointer">{{ actionPlans.forSource('Continuidad', t.id).length ? 'Ver planes' : 'Crear plan de acción' }}</button>
+                            </span>
+                          }
+                        </div>
+                      }</td>
                   </tr>
                 } @empty {
                   <tr><td colspan="7" class="py-8 text-center text-slate-500">No hay pruebas registradas.</td></tr>
@@ -530,6 +546,9 @@ export class ContinuityPanel {
     const rank = { 'Crítico': 0, 'Alto': 1, 'Medio': 2, 'Bajo': 3 };
     return [...this.res.biaProcesses()].sort((a, b) => rank[this.res.biaCriticality(a)] - rank[this.res.biaCriticality(b)] || a.rtoHours - b.rtoHours);
   });
+  readonly actionPlans = inject(ActionPlanService);
+  /** Prueba cuyos planes de acción se muestran. */
+  readonly planFor = signal<string | null>(null);
   readonly sortedTests = computed(() => [...this.res.tests()].sort((a, b) => b.date.localeCompare(a.date)));
 
   // ---- helpers ----

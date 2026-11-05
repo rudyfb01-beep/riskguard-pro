@@ -317,6 +317,46 @@ evidencia, no la reemplaza. La RAN 20-7 tiene una actualización en consulta (ab
 agregaría el archivo I28 de servicios externalizados (semestral para cooperativas); se incorporará
 cuando se publique la versión definitiva.
 
+## Planes de acción
+
+En **Incidentes & Seguimiento → Planes de Acción** está el registro único de planes de acción. Cada
+plan nace de una brecha y queda vinculado a su origen:
+
+| Origen | Dónde se crea |
+| :--- | :--- |
+| Riesgo | Matriz de riesgos → editar riesgo → "Planes de acción del tratamiento" (al crear un riesgo, el plan indicado se crea solo) |
+| Control | Controles → evaluar control (en especial los deficientes o parciales) |
+| Auditoría | Auditorías → hallazgo (un hallazgo nuevo con acción correctiva nace con su plan) |
+| Cumplimiento | Cumplimiento Normativo → evaluar requisito |
+| Autoevaluación de seguridad | Seguridad de la Información → Autoevaluación (las brechas exigen un plan abierto) |
+| Continuidad | Continuidad → Pruebas con observaciones o fallidas |
+| Proveedor | Proveedores → editar proveedor |
+| Incidente | Incidentes y Pérdidas → editar incidente |
+| Otro | "Nuevo plan" en la pestaña (acuerdos del Comité, informes externos) |
+
+Cada plan tiene responsable, prioridad, plazo comprometido y plazo vigente, tareas, registro de
+avances, reprogramaciones con motivo y un cierre en dos pasos:
+
+1. El **responsable** marca tareas, registra avances y lo **envía a verificación** con la evidencia.
+2. Una persona con el permiso **"Administrar Planes de Acción"**, distinta del responsable, **verifica
+   el cierre** o lo **devuelve** indicando qué falta. Si el plan viene de un hallazgo y quien verifica
+   puede registrar auditorías, el hallazgo también se cierra.
+
+Solo quien administra planes puede reasignar, reprogramar, cancelar (con motivo) o eliminar. El
+servidor aplica estas mismas reglas en cada guardado. El responsable se reconoce por su nombre de
+usuario, sin considerar tratamiento (Sr., Dra., Ing.) ni acentos. El permiso se asigna por defecto a
+Jefe de Riesgo Operacional, Gerente General, Auditor Interno y Oficial de Cumplimiento.
+
+La pestaña muestra abiertos, vencidos, los que vencen en 15 días, por verificar, reprogramados y
+cerrados en el año con el porcentaje cerrado dentro del plazo comprometido; tiene las vistas "Mis
+planes" y "Por verificar" y exporta a Excel. El informe ejecutivo incluye un resumen y los planes
+vencidos, y los tableros y reportes muestran el tratamiento de cada riesgo calculado de sus planes.
+
+Al actualizar una base existente, una sola vez, los planes que vivían dentro de cada módulo pasan
+al registro: planes de mitigación de los riesgos, acciones correctivas de los hallazgos, planes de
+cumplimiento y de la autoevaluación de seguridad (sus textos se vacían porque quedan como planes) y
+las acciones de las pruebas de continuidad con observaciones.
+
 ## Variables de entorno
 
 | Variable | Descripción |
@@ -381,6 +421,7 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 | Continuidad | `bia_processes`, `bia_process_providers`, `continuity_plans`, `continuity_plan_processes`, `continuity_tests` |
 | Seguridad de la información | `info_assets`, `vulnerabilities`, `security_assessment_items`, `security_tests` |
 | Cumplimiento normativo | `compliance_norms`, `compliance_requirements` (y columnas `ran207`, `ran209`, `cyber` en proveedores, continuidad e incidentes) |
+| Planes de acción | `action_plans` |
 | Ajustes | `system_settings` |
 
 Vistas de apoyo a reportes: `v_loss_database`, `v_regulatory_deadlines`, `v_provider_rto_gaps`,

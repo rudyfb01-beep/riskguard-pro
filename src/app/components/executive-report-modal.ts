@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
+import { ActionPlanService } from '../services/action-plan.service';
 import { AiRiskService } from '../services/ai-risk.service';
 import { MoneyPipe } from '../utils/money.pipe';
 
@@ -172,8 +173,8 @@ import { MoneyPipe } from '../utils/money.pipe';
                         {{ r.residualExposureUSD | money }}
                       </td>
                       <td class="py-2 px-3 text-[11px]">
-                        <span class="font-medium text-slate-800">{{ r.mitigationPlan.title }}</span>
-                        <span class="block text-[10px] text-slate-500">Avance: {{ r.mitigationPlan.progressPct }}% · Límite: {{ r.mitigationPlan.dueDate }}</span>
+                        <span class="font-medium text-slate-800">{{ actionPlans.riskTreatment(r).title }}</span>
+                        <span class="block text-[10px] text-slate-500">Avance: {{ actionPlans.riskTreatment(r).progressPct }}% · Límite: {{ actionPlans.riskTreatment(r).dueDate }}</span>
                       </td>
                     </tr>
                   }
@@ -202,6 +203,32 @@ import { MoneyPipe } from '../utils/money.pipe';
                 </div>
               }
             </div>
+          </div>
+
+          <!-- Planes de acción -->
+          @let pk = actionPlans.kpis();
+          <div>
+            <h2 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">4. Planes de Acción</h2>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs mb-2">
+              <div class="border border-slate-200 rounded-lg p-2"><span class="block text-[10px] text-slate-500">Abiertos</span><span class="font-mono font-bold text-slate-900">{{ pk.open }}</span></div>
+              <div class="border border-slate-200 rounded-lg p-2"><span class="block text-[10px] text-slate-500">Vencidos</span><span class="font-mono font-bold" [class]="pk.overdue ? 'text-rose-700' : 'text-slate-900'">{{ pk.overdue }}</span></div>
+              <div class="border border-slate-200 rounded-lg p-2"><span class="block text-[10px] text-slate-500">Por verificar</span><span class="font-mono font-bold text-slate-900">{{ pk.toVerify }}</span></div>
+              <div class="border border-slate-200 rounded-lg p-2"><span class="block text-[10px] text-slate-500">Reprogramados</span><span class="font-mono font-bold text-slate-900">{{ pk.rescheduled }}</span></div>
+              <div class="border border-slate-200 rounded-lg p-2"><span class="block text-[10px] text-slate-500">Cerrados a tiempo (año)</span><span class="font-mono font-bold text-slate-900">{{ pk.onTimePct === null ? '—' : pk.onTimePct + ' %' }}</span></div>
+            </div>
+            @if (overduePlans().length) {
+              <table class="w-full text-left text-[11px] border border-slate-200 rounded-lg overflow-hidden">
+                <thead class="bg-slate-50 text-[10px] text-slate-500 uppercase"><tr><th class="py-1.5 px-2">Plan vencido</th><th class="py-1.5 px-2">Origen</th><th class="py-1.5 px-2">Responsable</th><th class="py-1.5 px-2">Plazo</th><th class="py-1.5 px-2 text-right">Avance</th></tr></thead>
+                <tbody class="divide-y divide-slate-100">
+                  @for (p of overduePlans(); track p.id) {
+                    <tr><td class="py-1.5 px-2"><span class="font-mono text-slate-500 mr-1">{{ p.code }}</span>{{ p.title }}</td><td class="py-1.5 px-2 text-slate-600">{{ p.sourceType }}</td>
+                      <td class="py-1.5 px-2">{{ p.owner }}</td><td class="py-1.5 px-2 font-mono text-rose-700">{{ p.dueDate }}</td><td class="py-1.5 px-2 text-right font-mono">{{ p.progressPct }} %</td></tr>
+                  }
+                </tbody>
+              </table>
+            } @else {
+              <p class="text-[11px] text-slate-500">No hay planes de acción vencidos.</p>
+            }
           </div>
 
           <!-- Audit & Inalterable Ledger Verification Seal -->
@@ -254,6 +281,8 @@ import { MoneyPipe } from '../utils/money.pipe';
 })
 export class ExecutiveReportModal {
   readonly riskService = inject(RiskDataService);
+  readonly actionPlans = inject(ActionPlanService);
+  readonly overduePlans = computed(() => this.actionPlans.sorted().filter(p => this.actionPlans.isOverdue(p)).slice(0, 15));
   readonly aiService = inject(AiRiskService);
 
   readonly closeModal = output<void>();

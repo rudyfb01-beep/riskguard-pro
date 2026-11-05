@@ -2,8 +2,10 @@ import express from 'express';
 import { getPool } from './db';
 import { ensureDatabase } from './bootstrap-db';
 import {
-  appendLedger, convertCurrency, countReferences, deleteEntity, EntityName, isEntity, loadAll, saveEntity, saveSetting, SETTING_KEYS, SettingKey,
+  appendLedger, convertCurrency, countReferences, deleteEntity, EntityName, getActionPlan, isEntity, loadAll, saveEntity, saveSetting, SETTING_KEYS, SettingKey,
 } from './repository';
+import { ActionPlan } from '../app/models/action-plan.model';
+import { checkPlanChange } from '../app/utils/action-plans';
 import {
   AuthError, clearSessionCookie, clientIp, currentUser, destroySession, getSessionUser, hasAny, readSessionCookie,
   requestLoginCode, requireAuth, requireCsrfHeader, setSessionCookie, verifyLoginCode,
@@ -45,6 +47,8 @@ const WRITE_PERMISSIONS: Record<EntityName, (keyof UserPermissions)[]> = {
   norms: ['canManageCompliance', 'canManageRegulatoryReports'],
   compliance: ['canManageCompliance', 'canManageRegulatoryReports'],
   'security-tests': ['canManageInfoSecurity'],
+  // Guardar: se valida con checkPlanChange (responsable, módulo de origen o administrador). Eliminar: administrador.
+  'action-plans': ['canManageActionPlans'],
 };
 
 const SETTING_PERMISSIONS: Record<SettingKey, (keyof UserPermissions)[]> = {
@@ -213,7 +217,14 @@ dataApi.put('/data/:entity/:id', async (req, res) => {
     res.status(400).json({ error: 'El cuerpo debe ser el objeto completo con el mismo id de la URL.' });
     return;
   }
-  if (!authorize(res, WRITE_PERMISSIONS[entity], entity)) return;
+  if (entity === 'action-plans') {
+    const user = currentUser(res)!;
+    const err = checkPlanChange(await getActionPlan(id), body as ActionPlan, user);
+    if (err) {
+      res.status(403).json({ error: err });
+      return;
+    }
+  } else if (!authorize(res, WRITE_PERMISSIONS[entity], entity)) return;
   try {
     if (entity === 'users') {
       const u = body as UserProfile;

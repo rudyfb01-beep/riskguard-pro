@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { PermissionDeniedError, RiskDataService } from '../services/risk-data.service';
 import { AuditFinding, PeriodicAudit } from '../models/risk.model';
+import { ActionPlanService } from '../services/action-plan.service';
+import { LinkedPlans, PlanChips } from './linked-plans';
 
 const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100';
 
@@ -15,7 +17,7 @@ const FINDING_STATUSES: AuditFinding['status'][] = ['Abierto', 'En Subsanación'
 @Component({
   selector: 'app-audits-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, LinkedPlans, PlanChips],
   template: `
     <div class="space-y-4">
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
@@ -94,6 +96,7 @@ const FINDING_STATUSES: AuditFinding['status'][] = ['Abierto', 'En Subsanación'
                   <div class="font-medium text-slate-800">{{ f.description }}</div>
                   <div class="text-[11px] text-slate-600"><strong>Acción:</strong> {{ f.correctiveAction }} · <strong>Resp.:</strong> {{ f.responsible }} · {{ f.process }}</div>
                 </button>
+                @if (f.type !== 'Conforme') { <div class="-mt-1 pl-2.5"><app-plan-chips sourceType="Auditoría" [sourceId]="audit.id + '::' + f.id" /></div> }
               } @empty {
                 <p class="text-[11px] text-slate-400">Sin hallazgos registrados.</p>
               }
@@ -180,6 +183,18 @@ const FINDING_STATUSES: AuditFinding['status'][] = ['Abierto', 'En Subsanación'
               <select [class]="inputCls" (change)="setFinding('status', $any($event.target).value)">@for (s of findingStatuses; track s) { <option [value]="s" [selected]="s === f.status">{{ s }}</option> }</select></label>
             <datalist id="audit-people-f">@for (u of rs.userProfiles(); track u.id) { <option [value]="u.name"></option> }</datalist>
           </fieldset>
+          @if (f.type !== 'Conforme') {
+            <div class="px-6 pb-4">
+              @if (findingIsNew()) {
+                <p class="text-[11px] text-slate-500">Al guardar se crea un plan de acción con la acción correctiva, el responsable y el plazo, para seguir su avance y verificar el cierre.</p>
+              } @else {
+                <app-linked-plans sourceType="Auditoría" [sourceId]="findingAuditId() + '::' + f.id" [sourceLabel]="(findingAudit()?.code ?? '') + ' · ' + f.type + ': ' + f.description"
+                  [process]="f.process" [defaultTitle]="f.correctiveAction" [defaultOwner]="f.responsible" [defaultDueDate]="f.deadline"
+                  [defaultPriority]="f.type === 'No Conformidad Mayor' ? 'Alta' : f.type === 'No Conformidad Menor' ? 'Media' : 'Baja'"
+                  emptyText="El hallazgo no tiene plan de acción." />
+              }
+            </div>
+          }
           <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center gap-3">
             @if (!findingIsNew() && canManage()) {
               <button type="button" (click)="removeFinding()" class="px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer flex items-center gap-1"><mat-icon class="text-sm">delete</mat-icon>Eliminar</button>
@@ -197,6 +212,7 @@ const FINDING_STATUSES: AuditFinding['status'][] = ['Abierto', 'En Subsanación'
 })
 export class AuditsPanel {
   readonly rs = inject(RiskDataService);
+  readonly actionPlans = inject(ActionPlanService);
   readonly notify = output<string>();
 
   readonly inputCls = INPUT;
@@ -355,8 +371,20 @@ export class AuditsPanel {
       this.formError.set('Completa descripción, acción correctiva, responsable, plazo y proceso.');
       return;
     }
-    void this.run(() => this.rs.saveAuditFinding(auditId, { ...f, description: f.description.trim(), correctiveAction: f.correctiveAction.trim(), responsible: f.responsible.trim() }),
-      'Hallazgo guardado.', () => this.findingDraft.set(null));
+    const isNew = this.findingIsNew();
+    const clean = { ...f, description: f.description.trim(), correctiveAction: f.correctiveAction.trim(), responsible: f.responsible.trim() };
+    const audit = this.findingAudit();
+    void this.run(async () => {
+      await this.rs.saveAuditFinding(auditId, clean);
+      // Un hallazgo nuevo con acción correctiva nace con su plan de acción.
+      if (isNew && clean.type !== 'Conforme' && clean.status !== 'Cerrado') {
+        await this.actionPlans.create({
+          title: clean.correctiveAction, description: clean.description, sourceType: 'Auditoría', sourceId: `${auditId}::${clean.id}`,
+          sourceLabel: `${audit?.code ?? ''} · ${clean.type}: ${clean.description}`, process: clean.process, owner: clean.responsible,
+          dueDate: clean.deadline, priority: clean.type === 'No Conformidad Mayor' ? 'Alta' : clean.type === 'No Conformidad Menor' ? 'Media' : 'Baja',
+        });
+      }
+    }, isNew && clean.type !== 'Conforme' && clean.status !== 'Cerrado' ? 'Hallazgo guardado con su plan de acción.' : 'Hallazgo guardado.', () => this.findingDraft.set(null));
   }
 
   removeFinding() {

@@ -11,10 +11,11 @@ import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine
 import { MoneyPipe } from '../utils/money.pipe';
 import { CyberIncidentInfo, EMPTY_CYBER } from '../models/compliance.model';
 
+import { LinkedPlans } from './linked-plans';
 @Component({
   selector: 'app-flaw-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, MatIconModule, MoneyPipe],
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule, MoneyPipe, LinkedPlans],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden my-6">
@@ -451,6 +452,14 @@ import { CyberIncidentInfo, EMPTY_CYBER } from '../models/compliance.model';
             </div>
 
           </form>
+
+          @if (incidentToEdit(); as inc) {
+            <div class="mt-4">
+              <app-linked-plans sourceType="Incidente" [sourceId]="inc.id" [sourceLabel]="inc.title" [process]="inc.process"
+                [defaultPriority]="inc.severity === 'Crítica' || inc.severity === 'Alta' ? 'Alta' : 'Media'"
+                emptyText="Sin planes de acción para corregir la causa del incidente." />
+            </div>
+          }
 
           <!-- AI Analysis Result Card -->
           @if (aiResult(); as ai) {

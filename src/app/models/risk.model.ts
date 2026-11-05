@@ -365,8 +365,16 @@ export interface AuditLogEntry {
     | 'MANTENEDOR_NORMA'
     | 'VERSIÓN_NORMA'
     | 'MANTENEDOR_REQUISITO'
-    | 'IMPORTACIÓN_REQUISITOS';
-  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor' | 'Cumplimiento';
+    | 'IMPORTACIÓN_REQUISITOS'
+    | 'ALTA_PLAN_ACCION'
+    | 'AVANCE_PLAN_ACCION'
+    | 'REPROGRAMACIÓN_PLAN_ACCION'
+    | 'ENVÍO_VERIFICACIÓN_PLAN_ACCION'
+    | 'CIERRE_PLAN_ACCION'
+    | 'RECHAZO_PLAN_ACCION'
+    | 'CANCELACIÓN_PLAN_ACCION'
+    | 'MODIFICACIÓN_PLAN_ACCION';
+  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor' | 'Cumplimiento' | 'Plan de Acción';
   entityCode: string;
   details: string;
   ipAddress: string;
@@ -439,6 +447,8 @@ export interface UserPermissions {
   canManageCatalogs?: boolean;
   /** Mantener la biblioteca normativa y evaluar el cumplimiento de sus requisitos. */
   canManageCompliance?: boolean;
+  /** Administrar planes de acción: asignar, reprogramar, cancelar y verificar su cierre. */
+  canManageActionPlans?: boolean;
 }
 
 export interface OrganizationalRole {

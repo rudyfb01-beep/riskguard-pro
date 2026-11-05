@@ -293,6 +293,17 @@
               </button>
 
               <button
+                (click)="setTab('planes-accion')"
+                [class]="activeTab() === 'planes-accion'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-emerald-700">assignment_turned_in</mat-icon>
+                <span>Planes de Acción</span>
+              </button>
+
+              <button
                 (click)="setTab('cumplimiento-ran')"
                 [class]="activeTab() === 'cumplimiento-ran'
                   ? 'bg-slate-900 text-white font-semibold'
@@ -1133,6 +1144,11 @@
     <!-- TAB: PROVEEDORES Y EXTERNALIZACIÓN -->
     @if (activeTab() === 'proveedores') {
       <app-providers-panel (notify)="showToast($event)" />
+    }
+
+    <!-- TAB: PLANES DE ACCIÓN -->
+    @if (activeTab() === 'planes-accion') {
+      <app-action-plans-panel (notify)="showToast($event)" (openModule)="openModule($event)" />
     }
 
     <!-- TAB: CUMPLIMIENTO NORMATIVO -->

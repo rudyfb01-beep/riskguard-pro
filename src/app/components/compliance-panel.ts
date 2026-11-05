@@ -10,6 +10,8 @@ import { Control } from '../models/risk.model';
 import { downloadCsv } from '../utils/csv';
 import { ParseResult, evaluatedVersion, parseRequirementRows } from '../utils/compliance';
 import { ComplianceNormModal } from './compliance-norm-modal';
+import { ActionPlanService } from '../services/action-plan.service';
+import { LinkedPlans, PlanChips } from './linked-plans';
 
 const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100';
 const BTN = 'px-2.5 py-1.5 text-[11px] font-semibold rounded-lg border flex items-center gap-1 cursor-pointer';
@@ -34,7 +36,7 @@ interface RequirementForm {
 @Component({
   selector: 'app-compliance-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, ComplianceNormModal],
+  imports: [CommonModule, MatIconModule, ComplianceNormModal, LinkedPlans, PlanChips],
   template: `
     <div class="space-y-4">
       <!-- Encabezado -->
@@ -268,6 +270,7 @@ interface RequirementForm {
           <option value="vencidas">Revisión vencida</option>
           <option value="version">Por revisar (cambio de versión)</option>
           <option value="sin-controles">Sin controles ni verificación</option>
+          <option value="sin-plan">Brechas sin plan de acción</option>
           @for (st of statuses; track st) { <option [value]="st">{{ st }}</option> }
         </select>
         <span class="text-[11px] text-slate-500 ml-auto">{{ filtered().length }} de {{ comp.requirements().length }}</span>
@@ -334,10 +337,11 @@ interface RequirementForm {
                           </span>
                         </div>
                       }
+                      @if (editing()?.id !== i.id) { <div class="mt-1.5"><app-plan-chips sourceType="Cumplimiento" [sourceId]="i.id" /></div> }
                       @if (editing()?.id !== i.id && (i.evidence || i.actionPlan)) {
                         <div class="mt-1.5 text-[11px] text-slate-600 space-y-0.5">
                           @if (i.evidence) { <div><strong>Evidencia:</strong> {{ i.evidence }}</div> }
-                          @if (i.actionPlan) { <div><strong>Plan de acción:</strong> {{ i.actionPlan }}@if (i.dueDate) { <span class="font-mono" [class.text-rose-700]="isPastDue(i)"> (hasta {{ i.dueDate }})</span> }@if (i.owner) { · {{ i.owner }} }</div> }
+                          @if (i.actionPlan) { <div><strong>Plan de acción (texto anterior):</strong> {{ i.actionPlan }}@if (i.dueDate) { <span class="font-mono" [class.text-rose-700]="isPastDue(i)"> (hasta {{ i.dueDate }})</span> }@if (i.owner) { · {{ i.owner }} }</div> }
                         </div>
                       }
                     </div>
@@ -359,8 +363,9 @@ interface RequirementForm {
                           <select [class]="inputCls" (change)="set('status', $any($event.target).value)">@for (st of statuses; track st) { <option [value]="st" [selected]="st === e.status">{{ st }}</option> }</select></label>
                         <label class="block"><span class="block text-[10px] text-slate-600 mb-0.5">Responsable</span><input [class]="inputCls" [value]="e.owner" (input)="set('owner', $any($event.target).value)" /></label>
                         <label class="block md:col-span-2"><span class="block text-[10px] text-slate-600 mb-0.5">Evidencia (documento, acta, sesión del Consejo, enlace)</span><input [class]="inputCls" [value]="e.evidence" (input)="set('evidence', $any($event.target).value)" /></label>
-                        <label class="block md:col-span-3"><span class="block text-[10px] text-slate-600 mb-0.5">Plan de acción</span><input [class]="inputCls" [value]="e.actionPlan" (input)="set('actionPlan', $any($event.target).value)" /></label>
-                        <label class="block"><span class="block text-[10px] text-slate-600 mb-0.5">Plazo</span><input type="date" [class]="inputCls" [value]="e.dueDate ?? ''" (input)="set('dueDate', $any($event.target).value || undefined)" /></label>
+                        @if (e.actionPlan) {
+                          <label class="block md:col-span-4"><span class="block text-[10px] text-slate-600 mb-0.5">Plan de acción (texto anterior; conviértalo en un plan con seguimiento)</span><input [class]="inputCls" [value]="e.actionPlan" (input)="set('actionPlan', $any($event.target).value)" /></label>
+                        }
 
                         <div class="md:col-span-4">
                           <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
@@ -381,6 +386,12 @@ interface RequirementForm {
                             }
                           </div>
                           @if (editCoverage(); as ec) { <p class="text-[10px] text-indigo-800 mt-1">{{ ec.text }}@if (ec.suggested) { Sugerido: {{ ec.suggested }}. }</p> }
+                        </div>
+
+                        <div class="md:col-span-4">
+                          <app-linked-plans sourceType="Cumplimiento" [sourceId]="e.id" [sourceLabel]="comp.normLabel(e.chapter) + ' ' + e.numeral + ' ' + e.title"
+                            [defaultTitle]="e.actionPlan" [defaultOwner]="e.owner" [defaultDueDate]="e.dueDate ?? ''" [defaultPriority]="e.status === 'No cumple' ? 'Alta' : 'Media'"
+                            [emptyText]="e.status === 'No cumple' || e.status === 'Cumple parcialmente' ? 'La brecha aún no tiene plan de acción.' : 'Sin planes de acción.'" />
                         </div>
 
                         <div class="md:col-span-4 flex justify-end gap-2">
@@ -438,6 +449,7 @@ interface RequirementForm {
 export class CompliancePanel {
   readonly rs = inject(RiskDataService);
   readonly comp = inject(ComplianceService);
+  readonly actionPlans = inject(ActionPlanService);
   readonly notify = output<string>();
   readonly openModule = output<string>();
 
@@ -479,6 +491,7 @@ export class CompliancePanel {
         case 'vencidas': return this.comp.isReviewOverdue(r);
         case 'version': return this.comp.needsVersionReview(r);
         case 'sin-controles': return r.status !== 'No aplica' && !(r.controlIds?.length) && !r.autoCheck;
+        case 'sin-plan': return (r.status === 'No cumple' || r.status === 'Cumple parcialmente') && !r.actionPlan && !this.actionPlans.openForSource('Cumplimiento', r.id).length;
         case 'sugerencia': { const sug = this.comp.suggestedStatus(r); return !!sug && sug !== r.status; }
         default: return r.status === st;
       }
@@ -750,6 +763,16 @@ export class CompliancePanel {
     }
   }
 
+  private plansText(r: ComplianceRequirement) {
+    const linked = this.actionPlans.forSource('Cumplimiento', r.id).filter(p => p.status !== 'Cancelado');
+    return [r.actionPlan, ...linked.map(p => `${p.code} ${p.title} (${p.status}, ${p.owner})`)].filter(Boolean).join(' | ');
+  }
+
+  private plansDue(r: ComplianceRequirement) {
+    const open = this.actionPlans.openForSource('Cumplimiento', r.id);
+    return open.length ? open.map(p => p.dueDate).sort().at(-1) : undefined;
+  }
+
   exportCsv() {
     if (!this.rs.requirePermission(['canExportReports'], 'exportar reportes')) return;
     const controls = new Map(this.rs.controls().map(c => [c.id, c]));
@@ -757,7 +780,7 @@ export class CompliancePanel {
       ['Matriz de cumplimiento normativo', `Generado ${new Date().toISOString().slice(0, 16)}`, this.rs.currentProfile().name],
       [],
       ['Norma', 'Versión vigente', 'Aplicabilidad', 'Numeral', 'Requisito', 'Detalle', 'Módulo', 'Frecuencia', 'Controles vinculados',
-        'Evidencia automática', 'Estado sugerido', 'Estado', 'Evidencia', 'Responsable', 'Plan de acción', 'Plazo', 'Última revisión',
+        'Evidencia automática', 'Estado sugerido', 'Estado', 'Evidencia', 'Responsable', 'Planes de acción', 'Plazo', 'Última revisión',
         'Revisado por', 'Evaluado con versión', 'Próxima revisión'],
       ...this.comp.byNorm().flatMap(c => c.items.map(r => {
         const a = this.comp.autoCheck(r.autoCheck);
@@ -765,7 +788,7 @@ export class CompliancePanel {
         const evidence = [a?.text, cov?.text].filter(Boolean).join(' ');
         return [c.norm.code, c.norm.version, c.norm.applicability, r.numeral, r.title, r.requirement, r.module ? this.moduleLabel(r.module) : '', r.frequency,
           (r.controlIds ?? []).map(id => controls.get(id)?.code ?? id).join(', '), evidence, this.comp.suggestedStatus(r) ?? '', r.status,
-          r.evidence, r.owner, r.actionPlan, r.dueDate ?? '', r.lastReviewDate ?? '', r.reviewedBy ?? '',
+          r.evidence, r.owner, this.plansText(r), this.plansDue(r) ?? r.dueDate ?? '', r.lastReviewDate ?? '', r.reviewedBy ?? '',
           r.lastReviewDate ? (this.evaluatedWith(r)) : '', this.comp.nextReview(r) ?? ''];
       })),
     ];
