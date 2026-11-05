@@ -1,3 +1,4 @@
+import { sameJson } from './json';
 import {
   CUSTOM_ITEM_TYPES, SurveyAnswer, SurveyCampaign, SurveyItem, SurveyItemType, SurveyResponse,
 } from '../models/survey.model';
@@ -190,7 +191,7 @@ interface Actor { name: string; permissions: Partial<UserPermissions> }
 export const canManageSurveys = (u: Actor) => !!u.permissions?.canManageSurveys;
 export const isRespondent = (u: Actor, r: Pick<SurveyResponse, 'respondent'>) => !!u.name?.trim() && !!r.respondent?.trim() && personKey(u.name) === personKey(r.respondent);
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+const same = sameJson;
 const RESPONDENT_FIELDS: (keyof SurveyResponse)[] = ['answers', 'status', 'startedAt', 'submittedAt'];
 
 /**

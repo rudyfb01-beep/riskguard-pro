@@ -45,6 +45,13 @@ export class SurveyService {
   readonly campaigns = signal<SurveyCampaign[]>([]);
   readonly responses = signal<SurveyResponse[]>([]);
 
+  /** Pedido de abrir una encuesta (desde un aviso). */
+  readonly openRequest = signal<{ id: string; at: number } | null>(null);
+
+  open(id: string) {
+    this.openRequest.set({ id, at: Date.now() });
+  }
+
   constructor() {
     // Modo demostración: una campaña RCSA en curso con respuestas en distintos estados.
     // Con base de datos, el servidor reemplaza estas listas al cargar.

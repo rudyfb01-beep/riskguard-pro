@@ -15,6 +15,7 @@ import {
   getSqlitePath,
 } from './server/db';
 import { dataApi, getDbReady } from './server/api';
+import { startNotifier } from './server/notifier';
 import { currentUser, hasAny, requireAuth, requireCsrfHeader } from './server/auth';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
@@ -309,6 +310,8 @@ if (isMainModule(import.meta.url) || process.env['pm_id']) {
     } else {
       console.log('[Base de datos] DB_CLIENT=none: la aplicación funciona en modo demostración (sin guardar).');
     }
+    // Avisos por plazos y envío de correos (cada NOTIFY_INTERVAL_MINUTES).
+    startNotifier(() => getDbReady());
     if (getPool() && !process.env['SMTP_HOST']) {
       console.warn(process.env['AUTH_DEV_LOG_CODES'] === 'true'
         ? '[Auth] ATENCIÓN: SMTP no configurado; los códigos de acceso se escriben en este log. Usar solo para evaluación.'

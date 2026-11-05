@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
+import { ApprovalBox } from './approval-box';
+import { ApprovalService } from '../services/approval.service';
 import { RiskDataService } from '../services/risk-data.service';
 import { ResilienceService } from '../services/resilience.service';
 import { BiaRan209, MIN_SCENARIOS, PlanRan209, TestRan209 } from '../models/compliance.model';
@@ -25,7 +27,7 @@ import { ActionPlanService } from '../services/action-plan.service';
 @Component({
   selector: 'app-continuity-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [LinkedPlans, PlanChips, CommonModule, MatIconModule],
+  imports: [LinkedPlans, PlanChips, CommonModule, MatIconModule, ApprovalBox],
   template: `
     <div class="space-y-4">
       <!-- Header -->
@@ -183,9 +185,13 @@ import { ActionPlanService } from '../services/action-plan.service';
                   <span class="px-2 py-0.5 rounded text-[10px] font-semibold shrink-0"
                     [class]="pl.status === 'Vigente' ? 'bg-emerald-100 text-emerald-800' : pl.status === 'En actualización' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'">{{ pl.status }}</span>
                 </div>
+                @if (approvals.pendingFor('plan-continuidad', pl.id); as ap) {
+                  <button type="button" (click)="approvals.open(ap.id)" class="self-start px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold cursor-pointer hover:bg-amber-200 flex items-center gap-1">
+                    <mat-icon class="text-[12px] w-3 h-3">approval</mat-icon>En aprobación · {{ ap.steps[ap.currentStep].roleTitle }}</button>
+                }
                 <div class="text-[11px] text-slate-600 space-y-0.5">
                   <div>Responsable: <strong class="text-slate-800">{{ pl.owner }}</strong></div>
-                  <div>Aprobado por: {{ pl.approvedBy }} ({{ pl.approvalDate }})</div>
+                  <div>Aprobado por: {{ pl.approvedBy || '—' }}{{ pl.approvalDate ? ' (' + pl.approvalDate + ')' : '' }}</div>
                   <div [class]="isPast(pl.nextReviewDate) ? 'text-rose-700 font-bold' : ''">Próxima revisión: {{ pl.nextReviewDate }}@if (isPast(pl.nextReviewDate)) { · vencida }</div>
                 </div>
                 <div class="text-[11px]">
@@ -377,17 +383,23 @@ import { ActionPlanService } from '../services/action-plan.service';
                 </select></label>
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Responsable</span><input [class]="inputCls" [value]="d.owner" (input)="setPlan('owner', $any($event.target).value)" /></label>
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Versión</span><input [class]="inputCls" [value]="d.version" (input)="setPlan('version', $any($event.target).value)" /></label>
-              <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Aprobado por</span>
-                <select [class]="inputCls" (change)="setPlan('approvedBy', $any($event.target).value)">
-                  @for (a of approvers; track a) { <option [value]="a" [selected]="a === d.approvedBy">{{ a }}</option> }
-                </select></label>
+              <div class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Aprobación vigente</span>
+                <div class="text-xs px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 min-h-[30px]">{{ d.approvedBy ? d.approvedBy + (d.approvalDate ? ' · ' + d.approvalDate : '') : 'Sin aprobar' }}</div>
+                <span class="text-[10px] text-slate-500">Se registra al aprobarse la solicitud.</span></div>
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Estado</span>
                 <select [class]="inputCls" (change)="setPlan('status', $any($event.target).value)">
-                  @for (s of planStatuses; track s) { <option [value]="s" [selected]="s === d.status">{{ s }}</option> }
+                  @for (s of planStatuses; track s) {
+                    <option [value]="s" [selected]="s === d.status" [disabled]="s === 'Vigente' && !planWasVigente(d)">{{ s }}{{ s === 'Vigente' && !planWasVigente(d) ? ' (requiere aprobación)' : '' }}</option>
+                  }
                 </select></label>
-              <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Fecha de aprobación</span><input type="date" [class]="inputCls" [value]="d.approvalDate" (input)="setPlan('approvalDate', $any($event.target).value)" /></label>
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Próxima revisión</span><input type="date" [class]="inputCls" [value]="d.nextReviewDate" (input)="setPlan('nextReviewDate', $any($event.target).value)" /></label>
             </div>
+            @if (planSaved(d)) {
+              <app-approval-box kind="plan-continuidad" [targetId]="d.id" [targetLabel]="d.code + ' ' + d.name"
+                title="Aprobación del plan" requestLabel="Solicitar aprobación del plan"
+                hint="Guarde los cambios y envíe el plan a aprobación: al aprobarse queda Vigente con la versión, quien aprobó y la fecha."
+                [defaults]="{ version: d.version, nextReviewDate: nextYear() }" (notify)="notify.emit($event); planDraft.set(null)" />
+            }
             @let pr = d.ran209 ?? emptyPlan;
             <div class="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/30 space-y-1.5">
               <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5"><mat-icon class="text-sm text-emerald-700">policy</mat-icon> Escenarios que cubre (RAN 20-9 I.8)</span>
@@ -529,7 +541,7 @@ export class ContinuityPanel {
   ];
   readonly planTypes: ContinuityPlanType[] = ['Plan de Continuidad (BCP)', 'Recuperación ante Desastres (DRP)', 'Gestión de Crisis', 'Comunicaciones de Crisis'];
   readonly planStatuses: ContinuityPlan['status'][] = ['Vigente', 'En actualización', 'Borrador'];
-  readonly approvers = ['Consejo de Administración', 'Comité de Riesgos', 'Gerente General'];
+  readonly approvals = inject(ApprovalService);
   readonly testTypes: ContinuityTestType[] = ['Ejercicio de escritorio', 'Simulacro', 'Prueba técnica DRP', 'Prueba integral con proveedores'];
   readonly testResults: ContinuityTest['result'][] = ['Exitosa', 'Con observaciones', 'Fallida'];
 
@@ -646,14 +658,16 @@ export class ContinuityPanel {
   // ---- Planes ----
   newPlan() {
     this.formError.set('');
-    const today = new Date().toISOString().slice(0, 10);
     const next = new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10);
     this.planDraft.set({
       id: this.res.newId('pln'), code: `BCP-${String(this.res.plans().length + 1).padStart(2, '0')}`, name: '',
       type: 'Plan de Continuidad (BCP)', processIds: [], owner: this.rs.currentProfile().name, version: '1.0',
-      approvedBy: 'Gerente General', approvalDate: today, nextReviewDate: next, status: 'Borrador',
+      approvedBy: '', approvalDate: '', nextReviewDate: next, status: 'Borrador',
     });
   }
+  planSaved(d: ContinuityPlan) { return this.res.plans().some(p => p.id === d.id); }
+  planWasVigente(d: ContinuityPlan) { return this.res.plans().find(p => p.id === d.id)?.status === 'Vigente'; }
+  nextYear() { return new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10); }
   editPlan(p: ContinuityPlan) { this.formError.set(''); this.planDraft.set({ ...p, processIds: [...p.processIds] }); }
   setPlan<K extends keyof ContinuityPlan>(key: K, value: ContinuityPlan[K]) { this.planDraft.update(d => (d ? { ...d, [key]: value } : d)); }
   togglePlanProcess(id: string, on: boolean) {
@@ -663,7 +677,8 @@ export class ContinuityPanel {
     const d = this.planDraft();
     if (!d) return;
     if (!d.name.trim() || !d.code.trim()) { this.formError.set('Indique código y nombre del plan.'); return; }
-    if (d.nextReviewDate < d.approvalDate) { this.formError.set('La próxima revisión debe ser posterior a la aprobación.'); return; }
+    if (d.approvalDate && d.nextReviewDate < d.approvalDate) { this.formError.set('La próxima revisión debe ser posterior a la aprobación.'); return; }
+    if (d.status === 'Vigente' && !this.planWasVigente(d)) { this.formError.set('El plan queda Vigente al aprobarse: use "Enviar a aprobación".'); return; }
     await this.res.savePlan({ ...d, name: d.name.trim(), code: d.code.trim() });
     this.notify.emit(`Plan ${d.code} guardado.`);
     this.planDraft.set(null);

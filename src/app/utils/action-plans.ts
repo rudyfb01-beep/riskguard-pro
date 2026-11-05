@@ -1,3 +1,4 @@
+import { sameJson } from './json';
 import {
   ActionPlan, ActionPlanPriority, ActionPlanSource, ActionPlanStatus, ActionPlanTask,
 } from '../models/action-plan.model';
@@ -75,7 +76,7 @@ const MANAGER_FIELDS: (keyof ActionPlan)[] = [
   'originalDueDate', 'reschedules', 'cancelReason', 'createdBy', 'createdAt', 'closedAt', 'rejections',
 ];
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+const same = sameJson;
 
 /**
  * null si el cambio está permitido; si no, el motivo. `prev` es null al crear.

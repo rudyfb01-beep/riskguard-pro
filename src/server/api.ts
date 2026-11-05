@@ -2,8 +2,17 @@ import express from 'express';
 import { getPool } from './db';
 import { ensureDatabase } from './bootstrap-db';
 import {
-  appendLedger, convertCurrency, countReferences, deleteEntity, EntityName, getActionPlan, getSurveyResponse, isEntity, loadAll, saveEntity, saveSetting, SETTING_KEYS, SettingKey,
+  appendLedger, convertCurrency, countReferences, deleteEntity, EntityName, entityExists, getActionPlan, getApproval, getNotificationPreferences, getSetting,
+  getSurveyResponse, isEntity, listNotifications, loadAll, markNotificationsRead, notificationOutbox, saveApprovalWithEffect, saveEntity,
+  saveNotificationPreference, saveSetting, SETTING_KEYS, SettingKey,
 } from './repository';
+import { ApprovalRequest } from '../app/models/approval.model';
+import { applyApprovalEffect, checkApprovalChange, normalizeMatrix, targetPrecondition } from '../app/utils/approvals';
+import { appetiteStatus, normalizeRiskAppetite } from '../app/models/catalog.model';
+import { DEFAULT_NOTIFICATION_PREFERENCE, EmailMode, NOTIFICATION_CATEGORIES, NotificationCategory } from '../app/models/notification.model';
+import { deliverPending, normalizeNotificationSettings, notifyChange, runDigest, runNotifierCycle } from './notifier';
+import { isMailConfigured, sendMail } from './mailer';
+import { notificationEmail } from '../app/utils/notifications';
 import { ActionPlan } from '../app/models/action-plan.model';
 import { checkPlanChange } from '../app/utils/action-plans';
 import { SurveyResponse } from '../app/models/survey.model';
@@ -54,7 +63,12 @@ const WRITE_PERMISSIONS: Record<EntityName, (keyof UserPermissions)[]> = {
   'survey-campaigns': ['canManageSurveys'],
   // Guardar: quien administra autoevaluaciones o la persona asignada (checkResponseChange). Eliminar: administrador.
   'survey-responses': ['canManageSurveys'],
+  // Guardar: se valida con checkApprovalChange (solicitante, aprobador del nivel vigente). Eliminar: administrador de cargos.
+  approvals: ['canManageRoles'],
 };
+
+/** Entidades cuyos cambios generan avisos (se lee el estado previo antes de guardar). */
+const NOTIFY_ENTITIES = new Set<EntityName>(['action-plans', 'survey-responses', 'flaws', 'alerts']);
 
 const SETTING_PERMISSIONS: Record<SettingKey, (keyof UserPermissions)[]> = {
   current_industry: ['canConfigureKRIs'],
@@ -66,6 +80,8 @@ const SETTING_PERMISSIONS: Record<SettingKey, (keyof UserPermissions)[]> = {
   risk_appetite: ['canManageCatalogs'],
   accounting_accounts: ['canManageCatalogs'],
   provider_catalogs: ['canManageCatalogs'],
+  approval_matrix: ['canManageCatalogs'],
+  notification_settings: ['canManageCatalogs'],
 };
 
 /** Mensajes comprensibles para errores frecuentes de PostgreSQL y SQLite. */
@@ -169,7 +185,7 @@ dataApi.post('/auth/logout', async (req, res) => {
 // -----------------------------------------------------------------------------
 
 /** Sin DATABASE_URL la app funciona en modo demostración: no hay API de datos. */
-dataApi.use(['/data', '/ledger', '/settings', '/admin'], async (req, res, next) => {
+dataApi.use(['/data', '/ledger', '/settings', '/admin', '/notifications'], async (req, res, next) => {
   if (!getPool()) {
     if (req.method === 'GET' && req.baseUrl.endsWith('/data') && req.path === '/') {
       res.json({ mode: 'demo' });
@@ -222,21 +238,31 @@ dataApi.put('/data/:entity/:id', async (req, res) => {
     res.status(400).json({ error: 'El cuerpo debe ser el objeto completo con el mismo id de la URL.' });
     return;
   }
+  if (entity === 'approvals') {
+    await saveApproval(res, body as ApprovalRequest);
+    return;
+  }
+  // Estado previo: para validar reglas y para generar avisos.
+  let prev: unknown = null;
+  let campaign: Awaited<ReturnType<typeof getSurveyResponse>> = null;
   if (entity === 'action-plans') {
     const user = currentUser(res)!;
-    const err = checkPlanChange(await getActionPlan(id), body as ActionPlan, user);
+    prev = await getActionPlan(id);
+    const err = checkPlanChange(prev as ActionPlan | null, body as ActionPlan, user);
     if (err) {
       res.status(403).json({ error: err });
       return;
     }
   } else if (entity === 'survey-responses') {
-    const saved = await getSurveyResponse(id);
-    const err = checkResponseChange(saved?.response ?? null, body as SurveyResponse, currentUser(res)!, saved?.campaign);
+    campaign = await getSurveyResponse(id);
+    prev = campaign?.response ?? null;
+    const err = checkResponseChange(campaign?.response ?? null, body as SurveyResponse, currentUser(res)!, campaign?.campaign);
     if (err) {
       res.status(403).json({ error: err });
       return;
     }
   } else if (!authorize(res, WRITE_PERMISSIONS[entity], entity)) return;
+  else if (NOTIFY_ENTITIES.has(entity)) prev = (await entityExists(entity, id)) ? {} : null;
   try {
     if (entity === 'users') {
       const u = body as UserProfile;
@@ -251,8 +277,172 @@ dataApi.put('/data/:entity/:id', async (req, res) => {
     }
     await saveEntity(entity, body as { id: string });
     res.json({ ok: true });
+    if (NOTIFY_ENTITIES.has(entity)) {
+      // Para incidentes y alertas solo importa si son nuevos (prev = {} indica que ya existían).
+      const before = entity === 'flaws' || entity === 'alerts' ? (prev ? body : null) : prev;
+      let camp = campaign?.campaign ?? null;
+      if (entity === 'survey-responses' && !camp) camp = (await getSurveyResponse(id))?.campaign ?? null;
+      void notifyChange(entity, before, body, currentUser(res)!.name, { campaign: camp });
+    }
   } catch (err) {
     res.status(422).json({ error: friendlyDbError(err) });
+  }
+});
+
+/** Registro de origen de una solicitud (y estado frente al apetito, si es un riesgo). */
+async function approvalTarget(r: ApprovalRequest) {
+  const all = await loadAll();
+  const lists: Record<ApprovalRequest['targetEntity'], { id: string }[]> = {
+    risks: all.risks, vulnerabilities: all.vulnerabilities, plans: all.plans, audits: all.audits, 'action-plans': all.actionPlans,
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const target = (lists[r.targetEntity] ?? []).find(x => x.id === r.targetId) as any;
+  let appetite: string | undefined;
+  if (r.targetEntity === 'risks' && target) {
+    const limits = normalizeRiskAppetite(all.settings['risk_appetite']).limits;
+    appetite = appetiteStatus(target.residualScore, limits.find(l => l.category === target.category));
+  }
+  return { all, target, appetite };
+}
+
+/**
+ * Guarda una solicitud de aprobación: valida quién puede crear, decidir o anular y, cuando se
+ * aprueba el último nivel, aplica el cambio al registro de origen en la misma transacción
+ * (quien aprueba no necesita permiso de edición en ese módulo).
+ */
+async function saveApproval(res: express.Response, next: ApprovalRequest) {
+  const user = currentUser(res)!;
+  try {
+    const prev = await getApproval(next.id);
+    const { all, target, appetite } = await approvalTarget(next);
+    if (!target) {
+      res.status(422).json({ error: 'El registro de la solicitud no existe.' });
+      return;
+    }
+    const err = checkApprovalChange(prev, next, user, {
+      matrix: normalizeMatrix(all.settings['approval_matrix']),
+      targetOwner: next.kind === 'reprogramacion-plan' ? target.owner : undefined,
+      isAdmin: !!user.permissions?.canManageRoles,
+    });
+    if (err) {
+      res.status(403).json({ error: err });
+      return;
+    }
+    if (!prev) {
+      const pre = targetPrecondition(next.kind, target, next.payload ?? {}, appetite);
+      if (pre) {
+        res.status(422).json({ error: pre });
+        return;
+      }
+      const dup = all.approvals.find(a => a.status === 'Pendiente' && a.kind === next.kind && a.targetId === next.targetId && a.id !== next.id);
+      if (dup) {
+        res.status(409).json({ error: `Ya hay una solicitud pendiente para este registro (${dup.code}).` });
+        return;
+      }
+    }
+    const approvedNow = prev?.status === 'Pendiente' && next.status === 'Aprobada';
+    const updated = approvedNow ? applyApprovalEffect(next, target) : null;
+    if (approvedNow && !updated) {
+      res.status(422).json({ error: 'El registro de origen ya no admite este cambio (revise su estado actual).' });
+      return;
+    }
+    await saveApprovalWithEffect(next, updated ? { entity: next.targetEntity, obj: updated } : null);
+    res.json({ ok: true, applied: updated ? { entity: next.targetEntity, record: updated } : null });
+    void notifyChange('approvals', prev, next, user.name);
+    if (updated && next.targetEntity === 'action-plans') void notifyChange('action-plans', target, updated, user.name);
+  } catch (e) {
+    res.status(422).json({ error: friendlyDbError(e) });
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Notificaciones
+// -----------------------------------------------------------------------------
+
+dataApi.get('/notifications', async (req, res) => {
+  try {
+    const user = currentUser(res)!;
+    res.json(await listNotifications(user.email, Number(req.query['limit'] ?? 100)));
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+dataApi.post('/notifications/read', async (req, res) => {
+  try {
+    const user = currentUser(res)!;
+    const ids = req.body?.all === true ? 'all' : Array.isArray(req.body?.ids) ? (req.body.ids as unknown[]).filter((x): x is string => typeof x === 'string') : [];
+    await markNotificationsRead(user.email, ids);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(422).json({ error: (err as Error).message });
+  }
+});
+
+dataApi.get('/notifications/preferences', async (_req, res) => {
+  try {
+    const user = currentUser(res)!;
+    const prefs = await getNotificationPreferences();
+    res.json({ preference: prefs.get(user.email.toLowerCase()) ?? DEFAULT_NOTIFICATION_PREFERENCE, mailConfigured: isMailConfigured() });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+dataApi.put('/notifications/preferences', async (req, res) => {
+  const mode = req.body?.emailMode as EmailMode;
+  if (!['inmediato', 'resumen', 'ninguno'].includes(mode)) {
+    res.status(400).json({ error: 'Modo de correo no válido.' });
+    return;
+  }
+  const muted = (Array.isArray(req.body?.muted) ? req.body.muted : []).filter((c: unknown): c is NotificationCategory => NOTIFICATION_CATEGORIES.includes(c as NotificationCategory));
+  try {
+    await saveNotificationPreference(currentUser(res)!.email, { emailMode: mode, muted });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(422).json({ error: (err as Error).message });
+  }
+});
+
+/** Envía un correo de prueba a la persona de la sesión (verifica la configuración SMTP). */
+dataApi.post('/notifications/test', async (_req, res) => {
+  const user = currentUser(res)!;
+  if (!isMailConfigured()) {
+    res.status(409).json({ error: 'El servidor no tiene SMTP configurado (SMTP_HOST). Los avisos quedan solo en la bandeja.' });
+    return;
+  }
+  try {
+    const appName = process.env['APP_NAME'] || 'RiskGuard Pro';
+    await sendMail(user.email, notificationEmail({
+      id: 'test', recipient: user.email, recipientName: user.name, category: 'Aprobaciones', severity: 'info', title: 'Correo de prueba',
+      body: 'Si lees esto, los avisos por correo de RiskGuard Pro están funcionando.', tab: 'mantenedores', createdAt: new Date().toISOString(), dedupeKey: 'test',
+    }, appName, (process.env['APP_URL'] || '').trim()));
+    res.json({ ok: true, message: `Correo de prueba enviado a ${user.email}.` });
+  } catch (err) {
+    res.status(502).json({ error: `El servidor de correo rechazó el envío: ${(err as Error).message}` });
+  }
+});
+
+/** Registro de envíos (administradores de mantenedores). */
+dataApi.get('/notifications/outbox', async (_req, res) => {
+  if (!authorize(res, ['canManageCatalogs', 'canManageRoles'], 'los avisos')) return;
+  try {
+    res.json({ items: await notificationOutbox(200), mailConfigured: isMailConfigured(), settings: normalizeNotificationSettings(await getSetting('notification_settings')) });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/** Ejecuta ahora la revisión de plazos y el envío (sin esperar el ciclo periódico). */
+dataApi.post('/notifications/run', async (req, res) => {
+  if (!authorize(res, ['canManageCatalogs', 'canManageRoles'], 'los avisos')) return;
+  try {
+    const { created } = await runNotifierCycle();
+    const digests = req.body?.digest === true ? await runDigest(new Date(), true) : 0;
+    await deliverPending();
+    res.json({ ok: true, created, digests });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 

@@ -55,6 +55,10 @@ services:
       AUTH_SECRET: ${AUTH_SECRET:-}
       COOKIE_SECURE: ${COOKIE_SECURE:-}
       TRUST_PROXY: ${TRUST_PROXY:-}
+      # Avisos: enlaces de los correos, hora del resumen diario y frecuencia de revisión de plazos.
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      TZ: ${TZ:-America/Santiago}
+      NOTIFY_INTERVAL_MINUTES: ${NOTIFY_INTERVAL_MINUTES:-15}
     ports:
       - "3000:3000"
     depends_on:

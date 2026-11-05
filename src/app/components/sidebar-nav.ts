@@ -9,6 +9,7 @@ import { ActiveTab } from '../app';
 import { ComplianceService } from '../services/compliance.service';
 import { ActionPlanService } from '../services/action-plan.service';
 import { SurveyService } from '../services/survey.service';
+import { ApprovalService } from '../services/approval.service';
 
 export interface NavGroup {
   title: string;
@@ -261,6 +262,7 @@ export class SidebarNav {
   readonly compliance = inject(ComplianceService);
   readonly actionPlans = inject(ActionPlanService);
   readonly surveys = inject(SurveyService);
+  readonly approvals = inject(ApprovalService);
 
   readonly activeTab = input.required<ActiveTab>();
   readonly isCollapsed = input<boolean>(false);
@@ -286,6 +288,7 @@ export class SidebarNav {
     const plansOverdue = this.actionPlans.kpis().overdue;
     const sk = this.surveys.kpis();
     const surveysBadge = sk.minePending + (this.surveys.canManage() ? sk.toReview : 0);
+    const approvalsMine = this.approvals.pendingForMe().length;
     const regulatoryOpen = this.riskService.regulatoryIncidents().filter(f => f.regulatoryReport?.status === 'Abierto').length;
 
     return [
@@ -293,6 +296,11 @@ export class SidebarNav {
         title: 'Estratégico & Ejecutivo',
         items: [
           { id: 'tablero', label: 'Tablero Ejecutivo', icon: 'dashboard' },
+          {
+            id: 'aprobaciones', label: 'Aprobaciones', icon: 'approval',
+            badge: approvalsMine > 0 ? approvalsMine : undefined,
+            badgeClass: 'bg-amber-500 text-slate-950 font-bold'
+          },
           { id: 'tableros-departamento', label: 'Tableros por Proceso', icon: 'corporate_fare' },
           { id: 'graficos-analitica', label: 'Gráficos & Analítica', icon: 'analytics' },
         ]

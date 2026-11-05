@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
+import { ApprovalService } from '../services/approval.service';
 import { RiskDataService } from '../services/risk-data.service';
 import { ActionPlanService } from '../services/action-plan.service';
 import { SurveyService } from '../services/survey.service';
@@ -252,6 +253,31 @@ import { MoneyPipe } from '../utils/money.pipe';
             }
           </div>
 
+          <!-- Aprobaciones -->
+          <div>
+            <h2 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">6. Aprobaciones y aceptaciones de riesgo</h2>
+            @let pendingApprovals = approvals.pending();
+            @let accepted = acceptedRisks();
+            <p class="text-[11px] text-slate-700 mb-2">
+              {{ pendingApprovals.length }} solicitud(es) pendiente(s) · {{ accepted.length }} riesgo(s) aceptado(s) sobre el apetito.
+            </p>
+            @if (pendingApprovals.length || accepted.length) {
+              <table class="w-full text-left text-[11px] border border-slate-200 rounded-lg overflow-hidden">
+                <thead class="bg-slate-50 text-[10px] text-slate-500 uppercase"><tr><th class="py-1.5 px-2">Registro</th><th class="py-1.5 px-2">Estado</th><th class="py-1.5 px-2">Responsable de decidir / aprobó</th><th class="py-1.5 px-2 text-right">Fecha</th></tr></thead>
+                <tbody class="divide-y divide-slate-100">
+                  @for (a of pendingApprovals.slice(0, 6); track a.id) {
+                    <tr><td class="py-1.5 px-2"><span class="font-mono text-slate-500 mr-1">{{ a.code }}</span>{{ approvals.summary(a) }}</td><td class="py-1.5 px-2 text-amber-700">Pendiente</td>
+                      <td class="py-1.5 px-2">{{ a.steps[a.currentStep].roleTitle }}</td><td class="py-1.5 px-2 text-right font-mono">{{ a.requestedAt.slice(0, 10) }}</td></tr>
+                  }
+                  @for (r of accepted.slice(0, 6); track r.id) {
+                    <tr><td class="py-1.5 px-2"><span class="font-mono text-slate-500 mr-1">{{ r.code }}</span>{{ r.title }}</td><td class="py-1.5 px-2 text-emerald-700">Aceptado hasta {{ r.acceptance!.reviewDate }}</td>
+                      <td class="py-1.5 px-2">{{ r.acceptance!.approvedBy }}</td><td class="py-1.5 px-2 text-right font-mono">{{ r.acceptance!.approvedDate }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            }
+          </div>
+
           <!-- Audit & Inalterable Ledger Verification Seal -->
           <div class="border-t border-slate-200 pt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs text-slate-500">
             <div>
@@ -304,6 +330,8 @@ export class ExecutiveReportModal {
   readonly riskService = inject(RiskDataService);
   readonly actionPlans = inject(ActionPlanService);
   readonly surveys = inject(SurveyService);
+  readonly approvals = inject(ApprovalService);
+  readonly acceptedRisks = computed(() => this.riskService.risks().filter(r => !!r.acceptance));
   readonly overduePlans = computed(() => this.actionPlans.sorted().filter(p => this.actionPlans.isOverdue(p)).slice(0, 15));
   readonly aiService = inject(AiRiskService);
 

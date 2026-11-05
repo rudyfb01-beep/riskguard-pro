@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS risks (
     last_review_date TEXT NOT NULL,
     created_timestamp TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    acceptance JSONTEXT,
     CHECK (((inherent_impact >= 1) AND (inherent_impact <= 4))),
     CHECK (((inherent_level) IN ('Bajo', 'Medio', 'Alto', 'Crítico'))),
     CHECK (((inherent_likelihood >= 1) AND (inherent_likelihood <= 4))),
@@ -715,6 +716,59 @@ CREATE TABLE IF NOT EXISTS security_tests (
     PRIMARY KEY (id)
 );
 
+CREATE TABLE IF NOT EXISTS approval_requests (
+    id TEXT NOT NULL,
+    code TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    target_entity TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    target_label TEXT NOT NULL,
+    justification TEXT NOT NULL,
+    payload JSONTEXT NOT NULL DEFAULT '{}',
+    requested_by TEXT NOT NULL,
+    requested_at TEXT NOT NULL,
+    steps JSONTEXT NOT NULL DEFAULT '[]',
+    current_step INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'Pendiente',
+    closed_at TEXT,
+    cancel_reason TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    CHECK (((kind) IN ('aceptacion-riesgo', 'aceptacion-vulnerabilidad', 'plan-continuidad', 'informe-auditoria', 'reprogramacion-plan'))),
+    CHECK (((status) IN ('Pendiente', 'Aprobada', 'Rechazada', 'Anulada'))),
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT NOT NULL,
+    recipient TEXT NOT NULL,
+    recipient_name TEXT NOT NULL DEFAULT '',
+    category TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'info',
+    title TEXT NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    tab TEXT,
+    entity_type TEXT,
+    entity_id TEXT,
+    created_at TEXT NOT NULL,
+    read_at TEXT,
+    email_status TEXT NOT NULL DEFAULT 'pendiente',
+    email_error TEXT,
+    email_sent_at TEXT,
+    dedupe_key TEXT NOT NULL,
+    CHECK (((email_status) IN ('pendiente', 'enviado', 'resumen', 'omitido', 'error'))),
+    CHECK (((severity) IN ('info', 'aviso', 'urgente'))),
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS notification_preferences (
+    email TEXT NOT NULL,
+    email_mode TEXT NOT NULL DEFAULT 'inmediato',
+    muted JSONTEXT NOT NULL DEFAULT '[]',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    CHECK (((email_mode) IN ('inmediato', 'resumen', 'ninguno'))),
+    PRIMARY KEY (email)
+);
+
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_org_roles_department ON organizational_roles (department);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_email ON user_profiles (email);
@@ -772,6 +826,12 @@ CREATE INDEX IF NOT EXISTS idx_action_plans_status ON action_plans (status, due_
 CREATE UNIQUE INDEX IF NOT EXISTS idx_survey_campaigns_code ON survey_campaigns (code);
 CREATE INDEX IF NOT EXISTS idx_survey_responses_campaign ON survey_responses (campaign_id);
 CREATE INDEX IF NOT EXISTS idx_survey_responses_respondent ON survey_responses (lower((respondent)));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_approval_requests_code ON approval_requests (code);
+CREATE INDEX IF NOT EXISTS idx_approval_requests_target ON approval_requests (target_entity, target_id);
+CREATE INDEX IF NOT EXISTS idx_approval_requests_status ON approval_requests (status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_dedupe ON notifications (dedupe_key);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications (recipient, created_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_email ON notifications (email_status);
 
 -- =============================================================================
 -- Disparadores (mismas reglas que las funciones de PostgreSQL)

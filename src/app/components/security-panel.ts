@@ -7,6 +7,7 @@ import { SecurityService } from '../services/security.service';
 import { downloadCsv } from '../utils/csv';
 import { ActionPlanService } from '../services/action-plan.service';
 import { LinkedPlans, PlanChips } from './linked-plans';
+import { ApprovalBox } from './approval-box';
 import {
   ASSESSMENT_DOMAINS,
   ASSET_TYPES,
@@ -30,7 +31,7 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion' | 'pruebas' | 'i
 @Component({
   selector: 'app-security-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, LinkedPlans, PlanChips],
+  imports: [CommonModule, MatIconModule, LinkedPlans, PlanChips, ApprovalBox],
   template: `
     <div class="space-y-4">
       <!-- Header -->
@@ -508,23 +509,26 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion' | 'pruebas' | 'i
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Plazo de remediación</span><input type="date" [class]="inputCls" [value]="d.dueDate" (input)="setVuln('dueDate', $any($event.target).value)" /></label>
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Estado</span>
                 <select [class]="inputCls" (change)="setVuln('status', $any($event.target).value)">
-                  @for (s of statuses; track s) { <option [value]="s" [selected]="s === d.status">{{ s }}</option> }
+                  @for (s of statuses; track s) {
+                    <option [value]="s" [selected]="s === d.status" [disabled]="s === 'Riesgo aceptado' && !wasAccepted(d)">{{ s }}{{ s === 'Riesgo aceptado' && !wasAccepted(d) ? ' (requiere aprobación)' : '' }}</option>
+                  }
                 </select></label>
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Responsable</span><input [class]="inputCls" [value]="d.owner" (input)="setVuln('owner', $any($event.target).value)" /></label>
               <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Remediación</span><textarea rows="2" [class]="inputCls" [value]="d.remediation" (input)="setVuln('remediation', $any($event.target).value)"></textarea></label>
             </div>
-            @if (d.status === 'Riesgo aceptado') {
-              <div class="p-3.5 rounded-xl border border-amber-300 bg-amber-50 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <span class="sm:col-span-3 text-xs font-bold text-amber-900">Aceptación formal del riesgo</span>
-                <label class="block sm:col-span-3"><span class="block text-[11px] font-medium text-slate-600 mb-1">Justificación y controles compensatorios *</span><textarea rows="2" [class]="inputCls" [value]="d.acceptance?.justification ?? ''" (input)="setAcceptance('justification', $any($event.target).value)"></textarea></label>
-                <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Aprobado por *</span>
-                  <select [class]="inputCls" (change)="setAcceptance('approvedBy', $any($event.target).value)">
-                    <option value="">— Seleccionar —</option>
-                    @for (u of rs.userProfiles(); track u.id) { <option [value]="u.name" [selected]="u.name === d.acceptance?.approvedBy">{{ u.name }} ({{ u.role }})</option> }
-                  </select></label>
-                <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Fecha de aprobación</span><input type="date" [class]="inputCls" [value]="d.acceptance?.approvedDate ?? ''" (input)="setAcceptance('approvedDate', $any($event.target).value)" /></label>
-                <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Revisar el *</span><input type="date" [class]="inputCls" [value]="d.acceptance?.reviewDate ?? ''" (input)="setAcceptance('reviewDate', $any($event.target).value)" /></label>
+            @if (d.status === 'Riesgo aceptado' && d.acceptance && wasAccepted(d)) {
+              <div class="p-3.5 rounded-xl border border-amber-300 bg-amber-50 text-xs space-y-1">
+                <span class="font-bold text-amber-900">Aceptación formal del riesgo</span>
+                <p class="text-slate-800">{{ d.acceptance.justification }}</p>
+                <p class="text-slate-600">Aprobada por <strong>{{ d.acceptance.approvedBy }}</strong> el {{ d.acceptance.approvedDate }} · revisar el {{ d.acceptance.reviewDate }}.
+                  Para extenderla, envíe una nueva solicitud de aprobación.</p>
               </div>
+            }
+            @if (isSaved(d) && d.status !== 'Cerrada' && d.status !== 'Mitigada') {
+              <app-approval-box kind="aceptacion-vulnerabilidad" [targetId]="d.id" [targetLabel]="d.code + ' ' + d.title"
+                title="Aceptación del riesgo (no remediar)" requestLabel="Solicitar aceptación"
+                hint="Si la vulnerabilidad no se remediará en plazo, solicite la aceptación formal: al aprobarse pasa a Riesgo aceptado."
+                (notify)="notify.emit($event); vulnDraft.set(null)" />
             }
           </fieldset>
           <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
@@ -852,21 +856,23 @@ export class SecurityPanel {
   setDetected(date: string) {
     this.vulnDraft.update(d => (d ? { ...d, detectedDate: date, dueDate: this.dueEdited ? d.dueDate : this.sec.dueDateFor(d.severity, date) } : d));
   }
-  setAcceptance(key: 'justification' | 'approvedBy' | 'approvedDate' | 'reviewDate', value: string) {
-    this.vulnDraft.update(d => {
-      if (!d) return d;
-      const base = d.acceptance ?? { justification: '', approvedBy: '', approvedDate: this.sec.today(), reviewDate: '' };
-      return { ...d, acceptance: { ...base, [key]: value } };
-    });
+  /** La vulnerabilidad guardada ya está aceptada (la aceptación solo se obtiene por aprobación). */
+  wasAccepted(d: Vulnerability) {
+    return this.sec.vulnerabilities().find(v => v.id === d.id)?.status === 'Riesgo aceptado';
   }
+
+  isSaved(d: Vulnerability) {
+    return this.sec.vulnerabilities().some(v => v.id === d.id);
+  }
+
   async saveVuln() {
     const d = this.vulnDraft();
     if (!d) return;
     if (!d.title.trim() || !d.assetId) { this.formError.set('Indique título y activo afectado.'); return; }
     if (d.dueDate < d.detectedDate) { this.formError.set('El plazo no puede ser anterior a la detección.'); return; }
-    if (d.status === 'Riesgo aceptado') {
-      const a = d.acceptance;
-      if (!a?.justification.trim() || !a.approvedBy || !a.reviewDate) { this.formError.set('Para aceptar el riesgo indique justificación, quién aprueba y fecha de revisión.'); return; }
+    if (d.status === 'Riesgo aceptado' && !this.wasAccepted(d)) {
+      this.formError.set('La aceptación del riesgo se solicita con "Solicitar aceptación" y la aprueba otro cargo.');
+      return;
     }
     await this.sec.saveVulnerability({ ...d, title: d.title.trim() });
     this.notify.emit(`Vulnerabilidad ${d.code} guardada.`);

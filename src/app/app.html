@@ -125,6 +125,17 @@
               </button>
 
               <button
+                (click)="setTab('aprobaciones')"
+                [class]="activeTab() === 'aprobaciones'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-amber-600">approval</mat-icon>
+                <span>Aprobaciones</span>
+              </button>
+
+              <button
                 (click)="setTab('tableros-departamento')"
                 [class]="activeTab() === 'tableros-departamento'
                   ? 'bg-slate-900 text-white font-semibold'
@@ -425,6 +436,8 @@
               <mat-icon class="text-sm text-rose-600">picture_as_pdf</mat-icon>
               <span class="hidden xl:inline whitespace-nowrap">Informes PDF</span>
             </button>
+
+            <app-notification-bell />
 
             <button
               type="button"
@@ -876,6 +889,9 @@
                           [title]="'Apetito ' + risk.category + ': hasta ' + riskService.catalog.appetiteLimit(risk.category)?.appetiteMaxScore + ' pts; tolerancia hasta ' + riskService.catalog.appetiteLimit(risk.category)?.toleranceMaxScore + ' pts'">
                           {{ appetite }}
                         </span>
+                        @if (risk.acceptance) {
+                          <span class="block text-[10px] font-semibold text-emerald-700" [title]="'Aceptado por ' + risk.acceptance.approvedBy + ' hasta ' + risk.acceptance.reviewDate">Aceptado hasta {{ risk.acceptance.reviewDate }}</span>
+                        }
                       }
                     </td>
 
@@ -1144,6 +1160,10 @@
     }
 
     <!-- TAB: AUTOEVALUACIONES -->
+    @if (activeTab() === 'aprobaciones') {
+      <app-approvals-panel (notify)="showToast($event)" (goTo)="openModule($event)" />
+    }
+
     @if (activeTab() === 'autoevaluaciones') {
       <app-surveys-panel (notify)="showToast($event)" />
     }

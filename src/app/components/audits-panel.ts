@@ -5,6 +5,8 @@ import { PermissionDeniedError, RiskDataService } from '../services/risk-data.se
 import { AuditFinding, PeriodicAudit } from '../models/risk.model';
 import { ActionPlanService } from '../services/action-plan.service';
 import { LinkedPlans, PlanChips } from './linked-plans';
+import { ApprovalBox } from './approval-box';
+import { ApprovalService } from '../services/approval.service';
 
 const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100';
 
@@ -17,7 +19,7 @@ const FINDING_STATUSES: AuditFinding['status'][] = ['Abierto', 'En Subsanación'
 @Component({
   selector: 'app-audits-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, LinkedPlans, PlanChips],
+  imports: [CommonModule, MatIconModule, LinkedPlans, PlanChips, ApprovalBox],
   template: `
     <div class="space-y-4">
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
@@ -102,6 +104,13 @@ const FINDING_STATUSES: AuditFinding['status'][] = ['Abierto', 'En Subsanación'
               }
             </div>
 
+            @if (audit.status === 'Finalizada' || approvals.forTarget('audits', audit.id).length) {
+              <app-approval-box kind="informe-auditoria" [targetId]="audit.id" [targetLabel]="audit.code + ' ' + audit.title"
+                title="Aprobación del informe" requestLabel="Enviar informe a aprobación"
+                [hint]="audit.status === 'Finalizada' ? 'La auditoría está finalizada: envíe el informe a aprobación para cerrarla como Aprobada.' : ''"
+                (notify)="notify.emit($event)" />
+            }
+
             <div class="flex justify-end">
               <button type="button" (click)="editAudit(audit)" class="px-2.5 py-1 text-[11px] font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">{{ canManage() ? 'Editar auditoría' : 'Ver detalle' }}</button>
             </div>
@@ -132,7 +141,8 @@ const FINDING_STATUSES: AuditFinding['status'][] = ['Abierto', 'En Subsanación'
             <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Fecha de ejecución *</span><input type="date" [class]="inputCls" [value]="d.executionDate" (input)="setAudit('executionDate', $any($event.target).value)" /></label>
             <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Auditor líder *</span><input [class]="inputCls" list="audit-people" [value]="d.leadAuditor" (input)="setAudit('leadAuditor', $any($event.target).value)" /></label>
             <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Estado</span>
-              <select [class]="inputCls" (change)="setAudit('status', $any($event.target).value)">@for (s of statuses; track s) { <option [value]="s" [selected]="s === d.status">{{ s }}</option> }</select></label>
+              <select [class]="inputCls" (change)="setAudit('status', $any($event.target).value)">@for (s of statuses; track s) {
+                <option [value]="s" [selected]="s === d.status" [disabled]="s === 'Aprobada' && !wasApproved(d)">{{ s }}{{ s === 'Aprobada' && !wasApproved(d) ? ' (requiere aprobación)' : '' }}</option> }</select></label>
             <div class="sm:col-span-3">
               <span class="block text-[11px] font-medium text-slate-600 mb-1">Alcance: procesos auditados</span>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 p-2 rounded-lg border border-slate-200 max-h-48 overflow-y-auto">
@@ -214,6 +224,7 @@ export class AuditsPanel {
   readonly rs = inject(RiskDataService);
   readonly actionPlans = inject(ActionPlanService);
   readonly notify = output<string>();
+  readonly approvals = inject(ApprovalService);
 
   readonly inputCls = INPUT;
   readonly types = AUDIT_TYPES;
@@ -317,9 +328,18 @@ export class AuditsPanel {
     this.auditDraft.update(d => (d ? { ...d, scope: on ? [...d.scope, p] : d.scope.filter(s => s !== p) } : d));
   }
 
+  /** La auditoría guardada ya está aprobada (el estado Aprobada solo se obtiene por aprobación). */
+  wasApproved(d: PeriodicAudit) {
+    return this.rs.audits().find(a => a.id === d.id)?.status === 'Aprobada';
+  }
+
   saveAudit() {
     const d = this.auditDraft();
     if (!d) return;
+    if (d.status === 'Aprobada' && !this.wasApproved(d)) {
+      this.formError.set('Deje la auditoría Finalizada y envíe el informe a aprobación.');
+      return;
+    }
     if (!d.title.trim() || !d.period.trim() || !d.leadAuditor.trim() || !d.executionDate) {
       this.formError.set('Completa título, período, auditor líder y fecha.');
       return;

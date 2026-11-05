@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, output, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
+import { ApprovalBox } from './approval-box';
+import { ApprovalService } from '../services/approval.service';
 import { ActionPlanService, SOURCE_TABS } from '../services/action-plan.service';
 import { RiskDataService } from '../services/risk-data.service';
 import {
@@ -25,7 +27,7 @@ interface TimelineItem { at: string; by: string; kind: string; text: string; ton
 @Component({
   selector: 'app-action-plans-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, ApprovalBox],
   template: `
     <div class="space-y-4">
       <!-- Encabezado -->
@@ -245,6 +247,12 @@ interface TimelineItem { at: string; by: string; kind: string; text: string; ton
                   @if (!plans.canUpdate(p) && !plans.canManage()) {
                     <p class="text-[10px] text-slate-500">Solo el responsable ({{ p.owner }}) o quien administra planes puede registrar avances.</p>
                   }
+                  @if (p.status !== 'Por verificar' && ((plans.isOwner(p) && !plans.canManage()) || approvals.forTarget('action-plans', p.id).length)) {
+                    <app-approval-box kind="reprogramacion-plan" [targetId]="p.id" [targetLabel]="p.code + ' ' + p.title" [owner]="p.owner"
+                      title="Reprogramación" requestLabel="Solicitar más plazo" [defaults]="{ currentDueDate: p.dueDate }"
+                      [hint]="plans.isOwner(p) && !plans.canManage() ? 'Si no alcanza el plazo, pida la reprogramación: la aprueba quien administra planes.' : ''"
+                      (notify)="notify.emit($event)" />
+                  }
 
                   @switch (panel()) {
                     @case ('avance') {
@@ -382,6 +390,7 @@ interface TimelineItem { at: string; by: string; kind: string; text: string; ton
 })
 export class ActionPlansPanel {
   readonly plans = inject(ActionPlanService);
+  readonly approvals = inject(ApprovalService);
   readonly rs = inject(RiskDataService);
   readonly notify = output<string>();
   readonly openModule = output<string>();

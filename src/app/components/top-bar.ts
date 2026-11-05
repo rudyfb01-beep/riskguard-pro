@@ -1,13 +1,14 @@
 import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
+import { NotificationBell } from './notification-bell';
 import { RiskDataService } from '../services/risk-data.service';
 import { PersistenceService } from '../services/persistence.service';
 
 @Component({
   selector: 'app-top-bar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, NotificationBell],
   template: `
     <header class="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-40 shadow-sm no-print">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -57,6 +58,8 @@ import { PersistenceService } from '../services/persistence.service';
               <mat-icon class="text-sm text-emerald-400">picture_as_pdf</mat-icon>
               <span class="hidden xl:inline">Informes Ejecutivos</span>
             </button>
+
+            <app-notification-bell [dark]="true" />
 
             <button
               type="button"

@@ -104,3 +104,10 @@ describe('planes desde lo registrado', () => {
     expect(r.migratedCompliance).toEqual(['c1']);
   });
 });
+
+describe('reglas con datos guardados en PostgreSQL', () => {
+  it('el orden de las claves de JSONB no cuenta como cambio', async () => {
+    const { stableJson } = await import('./json');
+    expect(stableJson({ b: 1, a: [{ y: 2, x: undefined, z: 'k' }] })).toBe(stableJson({ a: [{ z: 'k', y: 2 }], b: 1 }));
+  });
+});

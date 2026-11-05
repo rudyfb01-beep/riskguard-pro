@@ -1015,3 +1015,59 @@ CREATE TABLE IF NOT EXISTS security_tests (
     reported_to_board_date DATE,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Aprobaciones: solicitudes con niveles de aprobación (matriz en system_settings.approval_matrix)
+ALTER TABLE risks ADD COLUMN IF NOT EXISTS acceptance JSONB;
+
+CREATE TABLE IF NOT EXISTS approval_requests (
+    id VARCHAR(80) PRIMARY KEY,
+    code VARCHAR(40) NOT NULL,
+    kind VARCHAR(40) NOT NULL CHECK (kind IN ('aceptacion-riesgo', 'aceptacion-vulnerabilidad', 'plan-continuidad', 'informe-auditoria', 'reprogramacion-plan')),
+    target_entity VARCHAR(40) NOT NULL,
+    target_id VARCHAR(80) NOT NULL,
+    target_label VARCHAR(300) NOT NULL,
+    justification TEXT NOT NULL,
+    payload JSONB NOT NULL DEFAULT '{}',
+    requested_by VARCHAR(255) NOT NULL,
+    requested_at VARCHAR(40) NOT NULL,
+    steps JSONB NOT NULL DEFAULT '[]',
+    current_step INTEGER NOT NULL DEFAULT 0,
+    status VARCHAR(20) NOT NULL DEFAULT 'Pendiente' CHECK (status IN ('Pendiente', 'Aprobada', 'Rechazada', 'Anulada')),
+    closed_at VARCHAR(40),
+    cancel_reason TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_approval_requests_code ON approval_requests (code);
+CREATE INDEX IF NOT EXISTS idx_approval_requests_target ON approval_requests (target_entity, target_id);
+CREATE INDEX IF NOT EXISTS idx_approval_requests_status ON approval_requests (status);
+
+-- Notificaciones: bandeja de cada persona y cola de correo
+CREATE TABLE IF NOT EXISTS notifications (
+    id VARCHAR(80) PRIMARY KEY,
+    recipient VARCHAR(255) NOT NULL,
+    recipient_name VARCHAR(255) NOT NULL DEFAULT '',
+    category VARCHAR(40) NOT NULL,
+    severity VARCHAR(10) NOT NULL DEFAULT 'info' CHECK (severity IN ('info', 'aviso', 'urgente')),
+    title VARCHAR(300) NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    tab VARCHAR(60),
+    entity_type VARCHAR(40),
+    entity_id VARCHAR(120),
+    created_at VARCHAR(40) NOT NULL,
+    read_at VARCHAR(40),
+    email_status VARCHAR(12) NOT NULL DEFAULT 'pendiente' CHECK (email_status IN ('pendiente', 'enviado', 'resumen', 'omitido', 'error')),
+    email_error TEXT,
+    email_sent_at VARCHAR(40),
+    dedupe_key VARCHAR(400) NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_dedupe ON notifications (dedupe_key);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications (recipient, created_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_email ON notifications (email_status);
+
+-- Preferencias de aviso por persona (correo inmediato, resumen diario o sin correo)
+CREATE TABLE IF NOT EXISTS notification_preferences (
+    email VARCHAR(255) PRIMARY KEY,
+    email_mode VARCHAR(12) NOT NULL DEFAULT 'inmediato' CHECK (email_mode IN ('inmediato', 'resumen', 'ninguno')),
+    muted JSONB NOT NULL DEFAULT '[]',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
