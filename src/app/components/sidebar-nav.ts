@@ -277,7 +277,8 @@ export class SidebarNav {
     const providerHigh = this.resilience.providerKpis().highAlerts;
     const continuityHigh = this.resilience.continuityKpis().highAlerts;
     const securityHigh = this.security.kpis().highAlerts;
-    const complianceGaps = this.compliance.summary().gaps + this.compliance.summary().overdue;
+    const cs = this.compliance.summary();
+    const complianceGaps = cs.gaps + cs.overdue + cs.versionReview;
     const regulatoryOpen = this.riskService.regulatoryIncidents().filter(f => f.regulatoryReport?.status === 'Abierto').length;
 
     return [
@@ -350,7 +351,7 @@ export class SidebarNav {
           { id: 'reportes-pdf', label: 'Centro de Reportes & PDF', icon: 'picture_as_pdf', badge: 'PDF', badgeClass: 'bg-rose-950 text-rose-300 border border-rose-800/40' },
           { id: 'apr-operacional', label: 'APR Riesgo Operacional', icon: 'account_balance', badge: 'CAC-20', badgeClass: 'bg-emerald-950 text-emerald-300 border border-emerald-800/40' },
           {
-            id: 'cumplimiento-ran', label: 'Cumplimiento RAN', icon: 'policy',
+            id: 'cumplimiento-ran', label: 'Cumplimiento Normativo', icon: 'policy',
             badge: complianceGaps > 0 ? complianceGaps : undefined,
             badgeClass: 'bg-amber-900/60 text-amber-200 border border-amber-700/50'
           },

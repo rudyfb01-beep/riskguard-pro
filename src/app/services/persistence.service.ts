@@ -86,6 +86,7 @@ export class PersistenceService {
     this.col('info-assets', 'infoAssets', this.sec.assets),
     this.col('vulnerabilities', 'vulnerabilities', this.sec.vulnerabilities),
     this.col('security-assessment', 'securityAssessment', this.sec.assessment),
+    this.col('norms', 'norms', this.comp.norms),
     this.col('compliance', 'compliance', this.comp.requirements),
     this.col('security-tests', 'securityTests', this.sec.securityTests),
   ];

@@ -361,8 +361,12 @@ export interface AuditLogEntry {
     | 'CONFIGURACIÓN_PARÁMETROS'
     | 'MODIFICACIÓN_AUDITORÍA'
     | 'EVALUACIÓN_CUMPLIMIENTO'
-    | 'ANTECEDENTES_RAN';
-  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor';
+    | 'ANTECEDENTES_RAN'
+    | 'MANTENEDOR_NORMA'
+    | 'VERSIÓN_NORMA'
+    | 'MANTENEDOR_REQUISITO'
+    | 'IMPORTACIÓN_REQUISITOS';
+  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor' | 'Cumplimiento';
   entityCode: string;
   details: string;
   ipAddress: string;
@@ -433,6 +437,8 @@ export interface UserPermissions {
   canManageInfoSecurity?: boolean;
   /** Mantener áreas, procesos y parámetros generales. */
   canManageCatalogs?: boolean;
+  /** Mantener la biblioteca normativa y evaluar el cumplimiento de sus requisitos. */
+  canManageCompliance?: boolean;
 }
 
 export interface OrganizationalRole {

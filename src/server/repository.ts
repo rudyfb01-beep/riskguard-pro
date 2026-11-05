@@ -18,7 +18,7 @@ import {
 import { BiaProcess, ContinuityPlan, ContinuityTest, ServiceProvider } from '../app/models/resilience.model';
 import { InformationAsset, SecurityAssessmentItem, Vulnerability } from '../app/models/security.model';
 import { BusinessProcess, OrgArea } from '../app/models/catalog.model';
-import { ComplianceRequirement, SecurityTest } from '../app/models/compliance.model';
+import { ComplianceNorm, ComplianceRequirement, SecurityTest } from '../app/models/compliance.model';
 
 /**
  * Repositorio (PostgreSQL o SQLite): convierte los objetos que usa la aplicación en filas
@@ -32,7 +32,7 @@ type Row = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 export const ENTITY_ORDER = [
   'areas', 'processes', 'roles', 'users', 'controls', 'risks', 'providers', 'regulatory-milestones',
   'flaws', 'alerts', 'audits', 'kris', 'bia', 'plans', 'continuity-tests',
-  'info-assets', 'vulnerabilities', 'security-assessment', 'compliance', 'security-tests',
+  'info-assets', 'vulnerabilities', 'security-assessment', 'norms', 'compliance', 'security-tests',
 ] as const;
 export type EntityName = typeof ENTITY_ORDER[number];
 
@@ -59,6 +59,7 @@ export interface BootstrapData {
   infoAssets: InformationAsset[];
   vulnerabilities: Vulnerability[];
   securityAssessment: SecurityAssessmentItem[];
+  norms: ComplianceNorm[];
   compliance: ComplianceRequirement[];
   securityTests: SecurityTest[];
   ledger: AuditLogEntry[];
@@ -125,7 +126,7 @@ export async function loadAll(): Promise<BootstrapData> {
   const [
     roles, users, controls, tests, risks, riskControls, providers, milestones, flaws, regReports, regSubs, regUpdates,
     alerts, audits, findings, kris, bia, biaProviders, plans, planProcesses, ctests, ledger, settings,
-    infoAssets, vulns, secItems, areas, processes, compliance, secTests,
+    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms,
   ] = await Promise.all([
     q('SELECT * FROM organizational_roles ORDER BY created_at, id'),
     q('SELECT * FROM user_profiles ORDER BY created_at, id'),
@@ -157,6 +158,7 @@ export async function loadAll(): Promise<BootstrapData> {
     q('SELECT * FROM business_processes ORDER BY code'),
     q('SELECT * FROM compliance_requirements ORDER BY chapter, id'),
     q('SELECT * FROM security_tests ORDER BY test_date DESC'),
+    q('SELECT * FROM compliance_norms ORDER BY sort_order, code'),
   ]);
 
   const testsBy = groupBy(tests, 'control_id');
@@ -198,6 +200,13 @@ export async function loadAll(): Promise<BootstrapData> {
       id: x.id, chapter: x.chapter, numeral: x.numeral, title: x.title, requirement: x.requirement, module: opt(x.module),
       autoCheck: opt(x.auto_check), frequency: x.frequency, status: x.status, evidence: x.evidence ?? '', owner: x.owner ?? '',
       actionPlan: x.action_plan ?? '', dueDate: opt(x.due_date), lastReviewDate: opt(x.last_review_date), reviewedBy: opt(x.reviewed_by),
+      controlIds: Array.isArray(x.control_ids) ? x.control_ids : [], normVersion: opt(x.norm_version),
+    })),
+    norms: norms.map((x): ComplianceNorm => ({
+      id: x.id, code: x.code, title: x.title, kind: x.kind, issuer: x.issuer ?? '', source: x.source ?? '', url: opt(x.url),
+      version: x.version, effectiveDate: opt(x.effective_date), status: x.status, applicability: x.applicability,
+      applicabilityNote: x.applicability_note ?? '', owner: x.owner ?? '', notes: x.notes ?? '',
+      versions: Array.isArray(x.versions) ? x.versions : [], order: Number(x.sort_order ?? 100), referential: x.referential === true,
     })),
     securityTests: secTests.map((x): SecurityTest => ({
       id: x.id, date: x.test_date, type: x.type, scope: x.scope, executedBy: x.executed_by ?? '', result: x.result,
@@ -616,7 +625,16 @@ const savers: Record<EntityName, (c: DbClient, o: any) => Promise<void>> = {
       id: o.id, chapter: o.chapter, numeral: o.numeral, title: o.title, requirement: o.requirement, module: o.module ?? null,
       auto_check: o.autoCheck ?? null, frequency: o.frequency, status: o.status, evidence: o.evidence || null, owner: o.owner || null,
       action_plan: o.actionPlan || null, due_date: dateOrNull(o.dueDate), last_review_date: dateOrNull(o.lastReviewDate),
-      reviewed_by: o.reviewedBy ?? null,
+      reviewed_by: o.reviewedBy ?? null, control_ids: json(o.controlIds ?? []), norm_version: o.normVersion ?? null,
+    });
+  },
+
+  async norms(c, o: ComplianceNorm) {
+    await upsertRow(c, 'compliance_norms', 'id', {
+      id: o.id, code: o.code, title: o.title, kind: o.kind, issuer: o.issuer || null, source: o.source || null, url: o.url || null,
+      version: o.version, effective_date: dateOrNull(o.effectiveDate), status: o.status, applicability: o.applicability,
+      applicability_note: o.applicabilityNote || null, owner: o.owner || null, notes: o.notes || null, versions: json(o.versions ?? []),
+      sort_order: Number.isFinite(o.order) ? o.order : 100, referential: o.referential === true,
     });
   },
 
@@ -691,6 +709,7 @@ const TABLE_BY_ENTITY: Record<EntityName, { table: string; pk: string }> = {
   'info-assets': { table: 'info_assets', pk: 'id' },
   vulnerabilities: { table: 'vulnerabilities', pk: 'id' },
   'security-assessment': { table: 'security_assessment_items', pk: 'id' },
+  norms: { table: 'compliance_norms', pk: 'id' },
   compliance: { table: 'compliance_requirements', pk: 'id' },
   'security-tests': { table: 'security_tests', pk: 'id' },
 };
@@ -706,7 +725,11 @@ export async function saveEntity<T extends { id: string }>(entity: EntityName, o
 
 export async function deleteEntity(entity: EntityName, id: string): Promise<void> {
   const { table, pk } = TABLE_BY_ENTITY[entity];
-  await withTransaction(c => c.query(`DELETE FROM ${table} WHERE ${pk} = $1`, [id]));
+  await withTransaction(async c => {
+    // Una norma se elimina junto con sus requisitos (no hay clave foránea: "chapter" es texto).
+    if (entity === 'norms') await c.query('DELETE FROM compliance_requirements WHERE chapter = $1', [id]);
+    return c.query(`DELETE FROM ${table} WHERE ${pk} = $1`, [id]);
+  });
 }
 
 export async function saveSetting(key: SettingKey, value: unknown, client?: DbClient): Promise<void> {
