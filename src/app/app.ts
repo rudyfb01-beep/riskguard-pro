@@ -29,6 +29,7 @@ import { AprPanel } from './components/apr-panel';
 import { CatalogsPanel } from './components/catalogs-panel';
 import { CompliancePanel } from './components/compliance-panel';
 import { ActionPlansPanel } from './components/action-plans-panel';
+import { LinkedPlans } from './components/linked-plans';
 import { ActionPlanService } from './services/action-plan.service';
 import { AuditsPanel } from './components/audits-panel';
 import { MoneyPipe } from './utils/money.pipe';
@@ -85,6 +86,7 @@ export type ActiveTab =
     CatalogsPanel,
     CompliancePanel,
     ActionPlansPanel,
+    LinkedPlans,
     AuditsPanel,
     MoneyPipe,
     LoginScreen,

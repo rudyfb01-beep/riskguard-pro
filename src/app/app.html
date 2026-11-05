@@ -876,15 +876,15 @@
                     <!-- Mitigation Progress -->
                     <td class="py-3 px-4">
                       <div class="flex items-center justify-between text-[11px] mb-1">
-                        <span class="truncate max-w-[140px] text-slate-700" [title]="risk.mitigationPlan.title">
-                          {{ risk.mitigationPlan.title }}
+                        <span class="truncate max-w-[140px] text-slate-700" [title]="riskService.treatmentOf(risk).title">
+                          {{ riskService.treatmentOf(risk).title }}
                         </span>
-                        <span class="font-mono font-semibold text-slate-800">{{ risk.mitigationPlan.progressPct }}%</span>
+                        <span class="font-mono font-semibold text-slate-800">{{ riskService.treatmentOf(risk).progressPct }}%</span>
                       </div>
                       <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
                         <div
                           class="bg-emerald-600 h-1.5 rounded-full transition-all"
-                          [style.width.%]="risk.mitigationPlan.progressPct"
+                          [style.width.%]="riskService.treatmentOf(risk).progressPct"
                         ></div>
                       </div>
                     </td>
@@ -956,24 +956,10 @@
                             }
                           </div>
 
-                          <!-- Column 3: Mitigation Plan Actions -->
-                          <div class="space-y-2 bg-white p-3 rounded-lg border border-slate-200">
-                            <div class="flex items-center justify-between">
-                              <span class="font-bold text-slate-900 uppercase tracking-wider text-[11px]">
-                                Acciones del Plan de Mitigación
-                              </span>
-                              <span class="font-mono text-emerald-800 font-semibold">{{ risk.mitigationPlan.dueDate }}</span>
-                            </div>
-
-                            <div class="space-y-1">
-                              @for (act of risk.mitigationPlan.actions; track act) {
-                                <div class="flex items-start gap-1.5 text-slate-700 text-xs">
-                                  <mat-icon class="text-emerald-600 text-xs mt-0.5">check_circle</mat-icon>
-                                  <span>{{ act }}</span>
-                                </div>
-                              }
-                            </div>
-                          </div>
+                          <!-- Column 3: Planes de acción del tratamiento -->
+                          <app-linked-plans sourceType="Riesgo" [sourceId]="risk.id" [sourceLabel]="risk.code + ' ' + risk.title" [process]="risk.process"
+                            [defaultOwner]="risk.responsible" [defaultPriority]="risk.residualLevel === 'Crítico' || risk.residualLevel === 'Alto' ? 'Alta' : risk.residualLevel === 'Medio' ? 'Media' : 'Baja'"
+                            emptyText="El riesgo no tiene planes de acción." />
 
                         </div>
                       </td>
