@@ -5,6 +5,8 @@ import { PermissionDeniedError, RiskDataService } from '../services/risk-data.se
 import { ResilienceService } from '../services/resilience.service';
 import { SecurityService } from '../services/security.service';
 import { downloadCsv } from '../utils/csv';
+import { ActionPlanService } from '../services/action-plan.service';
+import { LinkedPlans, PlanChips } from './linked-plans';
 import {
   ASSESSMENT_DOMAINS,
   ASSET_TYPES,
@@ -28,7 +30,7 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion' | 'pruebas' | 'i
 @Component({
   selector: 'app-security-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, LinkedPlans, PlanChips],
   template: `
     <div class="space-y-4">
       <!-- Header -->
@@ -262,9 +264,10 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion' | 'pruebas' | 'i
                           @if (i.evidence || i.actionPlan) {
                             <div class="mt-1.5 text-[11px] text-slate-600 space-y-0.5">
                               @if (i.evidence) { <div><strong>Evidencia:</strong> {{ i.evidence }}</div> }
-                              @if (i.actionPlan) { <div><strong>Plan de acción:</strong> {{ i.actionPlan }}@if (i.dueDate) { <span class="font-mono"> (hasta {{ i.dueDate }})</span> }@if (i.owner) { · {{ i.owner }} }</div> }
+                              @if (i.actionPlan) { <div><strong>Plan de acción (texto anterior):</strong> {{ i.actionPlan }}@if (i.dueDate) { <span class="font-mono"> (hasta {{ i.dueDate }})</span> }@if (i.owner) { · {{ i.owner }} }</div> }
                             </div>
                           }
+                          <div class="mt-1"><app-plan-chips sourceType="Autoevaluación de seguridad" [sourceId]="i.id" /></div>
                           @if (i.assessedBy) { <div class="text-[10px] text-slate-400 mt-1">Evaluado por {{ i.assessedBy }} el {{ i.assessedDate }}</div> }
                         }
                       </div>
@@ -285,10 +288,15 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion' | 'pruebas' | 'i
                               @for (s of assessStatuses; track s) { <option [value]="s" [selected]="s === e.status">{{ s }}</option> }
                             </select></label>
                           <label class="block"><span class="block text-[10px] font-medium text-slate-600 mb-0.5">Responsable</span><input [class]="inputCls" [value]="e.owner" (input)="setItem('owner', $any($event.target).value)" /></label>
-                          <label class="block"><span class="block text-[10px] font-medium text-slate-600 mb-0.5">Fecha compromiso</span><input type="date" [class]="inputCls" [value]="e.dueDate ?? ''" (input)="setItem('dueDate', $any($event.target).value || undefined)" /></label>
-                          <div></div>
                           <label class="block md:col-span-2"><span class="block text-[10px] font-medium text-slate-600 mb-0.5">Evidencia</span><textarea rows="2" [class]="inputCls" [value]="e.evidence" (input)="setItem('evidence', $any($event.target).value)"></textarea></label>
-                          <label class="block md:col-span-2"><span class="block text-[10px] font-medium text-slate-600 mb-0.5">Plan de acción @if (e.status === 'No cumple' || e.status === 'Cumple parcialmente') { <span class="text-rose-700">*</span> }</span><textarea rows="2" [class]="inputCls" [value]="e.actionPlan" (input)="setItem('actionPlan', $any($event.target).value)"></textarea></label>
+                          @if (e.actionPlan) {
+                            <label class="block md:col-span-4"><span class="block text-[10px] font-medium text-slate-600 mb-0.5">Plan de acción (texto anterior; conviértalo en un plan con seguimiento)</span><textarea rows="2" [class]="inputCls" [value]="e.actionPlan" (input)="setItem('actionPlan', $any($event.target).value)"></textarea></label>
+                          }
+                          <div class="md:col-span-4">
+                            <app-linked-plans sourceType="Autoevaluación de seguridad" [sourceId]="e.id" [sourceLabel]="e.code + ' ' + e.requirement"
+                              [defaultTitle]="e.actionPlan" [defaultOwner]="e.owner" [defaultDueDate]="e.dueDate ?? ''" [defaultPriority]="e.status === 'No cumple' ? 'Alta' : 'Media'"
+                              emptyText="Sin planes de acción. Las brechas (No cumple o Cumple parcialmente) requieren uno." />
+                          </div>
                           <div class="md:col-span-4 flex items-center justify-between gap-2">
                             <span class="text-[11px] text-rose-700">{{ formError() }}</span>
                             <div class="flex gap-2">
@@ -593,6 +601,7 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion' | 'pruebas' | 'i
 })
 export class SecurityPanel {
   readonly sec = inject(SecurityService);
+  readonly actionPlans = inject(ActionPlanService);
   readonly res = inject(ResilienceService);
   readonly rs = inject(RiskDataService);
   readonly notify = output<string>();
@@ -879,8 +888,8 @@ export class SecurityPanel {
   async saveItem() {
     const e = this.editingItem();
     if (!e) return;
-    if ((e.status === 'No cumple' || e.status === 'Cumple parcialmente') && !e.actionPlan.trim()) {
-      this.formError.set('Las brechas requieren un plan de acción.');
+    if ((e.status === 'No cumple' || e.status === 'Cumple parcialmente') && !e.actionPlan.trim() && !this.actionPlans.openForSource('Autoevaluación de seguridad', e.id).length) {
+      this.formError.set('Las brechas requieren un plan de acción: créelo en "Planes de acción" antes de guardar.');
       return;
     }
     await this.sec.saveAssessmentItem(e);

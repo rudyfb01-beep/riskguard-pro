@@ -34,6 +34,8 @@ export class SecurityService {
 
   readonly assets = signal<InformationAsset[]>(structuredClone(DEMO_ASSETS));
   readonly vulnerabilities = signal<Vulnerability[]>(structuredClone(DEMO_VULNERABILITIES));
+  /** Ítems de la autoevaluación con planes de acción abiertos (lo mantiene ActionPlanService). */
+  readonly itemsWithOpenPlans = signal<ReadonlySet<string>>(new Set());
   readonly assessment = signal<SecurityAssessmentItem[]>(
     BASE_ASSESSMENT_ITEMS.map(i => ({ ...i, ...(DEMO_ASSESSMENT[i.code] ?? {}) }))
   );
@@ -318,7 +320,7 @@ export class SecurityService {
       if ((crit === 'Crítico' || crit === 'Alto') && !a.custodian.trim()) out.push({ refId: a.id, type: 'Activo crítico sin custodio', severity: 'Media', detail: `${a.code} "${a.name}" no tiene custodio técnico asignado.` });
     }
     for (const i of this.assessment()) {
-      if ((i.status === 'No cumple' || i.status === 'Cumple parcialmente') && !i.actionPlan.trim()) {
+      if ((i.status === 'No cumple' || i.status === 'Cumple parcialmente') && !i.actionPlan.trim() && !this.itemsWithOpenPlans().has(i.id)) {
         out.push({ refId: i.id, type: 'Brecha sin plan de acción', severity: i.status === 'No cumple' ? 'Alta' : 'Media', detail: `${i.code} "${i.requirement}" está en "${i.status}" sin plan de acción.` });
       }
     }

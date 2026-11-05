@@ -15,10 +15,11 @@ import { MoneyPipe } from '../utils/money.pipe';
 const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100';
 
 /** Registro de proveedores y servicios externalizados. */
+import { LinkedPlans, PlanChips } from './linked-plans';
 @Component({
   selector: 'app-providers-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, MoneyPipe],
+  imports: [CommonModule, MatIconModule, MoneyPipe, LinkedPlans, PlanChips],
   template: `
     <div class="space-y-4">
       <!-- Header -->
@@ -160,6 +161,7 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 tex
                   @if (alerts.length) {
                     <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold" [class]="alerts.some(isHigh) ? 'bg-rose-600 text-white' : 'bg-amber-100 text-amber-800'">{{ alerts.length }}</span>
                   } @else { <span class="text-slate-300">—</span> }
+                  <div class="mt-1"><app-plan-chips sourceType="Proveedor" [sourceId]="p.id" [onlyOpen]="true" /></div>
                 </td>
                 <td class="py-2.5 px-3 text-right">
                   <button type="button" (click)="openEdit(p)" class="px-2.5 py-1 text-[11px] font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">
@@ -263,6 +265,13 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 tex
                   <textarea rows="2" [class]="inputCls" placeholder="Estrategia de salida, proveedor alternativo, plazos y devolución de datos..." [value]="d.exitPlanNotes || ''" (input)="set('exitPlanNotes', $any($event.target).value)"></textarea>
                 }
               </div>
+
+              @if (!isNew()) {
+                <app-linked-plans sourceType="Proveedor" [sourceId]="d.id" [sourceLabel]="d.code + ' ' + d.name + ' (' + d.serviceDescription + ')'"
+                  [defaultOwner]="d.internalOwner" [defaultPriority]="d.criticality === 'Crítico' ? 'Alta' : 'Media'"
+                  [defaultTitle]="d.hasExitPlan ? '' : 'Documentar y probar el plan de salida del servicio'"
+                  emptyText="Sin planes de acción (por ejemplo, para brechas de contrato, de la evaluación o del plan de salida)." />
+              }
 
               <!-- Antecedentes RAN 20-7 -->
               @let ran = d.ran207 ?? emptyRan;

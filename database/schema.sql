@@ -928,6 +928,39 @@ ALTER TABLE compliance_requirements ADD COLUMN IF NOT EXISTS control_ids JSONB N
 ALTER TABLE compliance_requirements ADD COLUMN IF NOT EXISTS norm_version VARCHAR(60);
 CREATE INDEX IF NOT EXISTS idx_compliance_chapter ON compliance_requirements (chapter);
 
+-- Planes de acción: registro único de los planes que nacen de cualquier módulo
+CREATE TABLE IF NOT EXISTS action_plans (
+    id VARCHAR(80) PRIMARY KEY,
+    code VARCHAR(40) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    source_type VARCHAR(40) NOT NULL CHECK (source_type IN ('Riesgo', 'Control', 'Auditoría', 'Cumplimiento', 'Autoevaluación de seguridad', 'Continuidad', 'Proveedor', 'Incidente', 'Otro')),
+    source_id VARCHAR(160),
+    source_label VARCHAR(255) NOT NULL DEFAULT '',
+    process VARCHAR(255),
+    owner VARCHAR(255) NOT NULL,
+    priority VARCHAR(10) NOT NULL DEFAULT 'Media' CHECK (priority IN ('Alta', 'Media', 'Baja')),
+    start_date DATE,
+    due_date DATE NOT NULL,
+    original_due_date DATE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'Pendiente' CHECK (status IN ('Pendiente', 'En curso', 'Por verificar', 'Cerrado', 'Cancelado')),
+    progress_pct INTEGER NOT NULL DEFAULT 0 CHECK (progress_pct >= 0 AND progress_pct <= 100),
+    tasks JSONB NOT NULL DEFAULT '[]',
+    updates JSONB NOT NULL DEFAULT '[]',
+    reschedules JSONB NOT NULL DEFAULT '[]',
+    closure JSONB,
+    rejections JSONB NOT NULL DEFAULT '[]',
+    cancel_reason TEXT,
+    created_by VARCHAR(255) NOT NULL,
+    created_at_iso VARCHAR(40) NOT NULL,
+    closed_at DATE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_action_plans_code ON action_plans (code);
+CREATE INDEX IF NOT EXISTS idx_action_plans_source ON action_plans (source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_action_plans_owner ON action_plans (lower(owner));
+CREATE INDEX IF NOT EXISTS idx_action_plans_status ON action_plans (status, due_date);
+
 -- Pruebas de seguridad (RAN 20-10 4.1 y 4.2)
 CREATE TABLE IF NOT EXISTS security_tests (
     id VARCHAR(64) PRIMARY KEY,

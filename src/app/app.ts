@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { PermissionDeniedError, RiskDataService } from './services/risk-data.service';
@@ -28,6 +28,9 @@ import { SecurityPanel } from './components/security-panel';
 import { AprPanel } from './components/apr-panel';
 import { CatalogsPanel } from './components/catalogs-panel';
 import { CompliancePanel } from './components/compliance-panel';
+import { ActionPlansPanel } from './components/action-plans-panel';
+import { LinkedPlans } from './components/linked-plans';
+import { ActionPlanService } from './services/action-plan.service';
 import { AuditsPanel } from './components/audits-panel';
 import { MoneyPipe } from './utils/money.pipe';
 import { Control, KriDefinition, OperationalFlaw, Risk } from './models/risk.model';
@@ -47,6 +50,7 @@ export type ActiveTab =
   | 'apr-operacional'
   | 'mantenedores'
   | 'cumplimiento-ran'
+  | 'planes-accion'
   | 'alertas-kri'
   | 'auditorias'
   | 'bitacora'
@@ -81,6 +85,8 @@ export type ActiveTab =
     AprPanel,
     CatalogsPanel,
     CompliancePanel,
+    ActionPlansPanel,
+    LinkedPlans,
     AuditsPanel,
     MoneyPipe,
     LoginScreen,
@@ -109,7 +115,20 @@ export class App {
       const n = this.riskService.permissionNotice();
       if (n) this.showToast(n.message);
     });
+
+    // Un plan abierto desde cualquier módulo (incluidos los formularios modales) lleva a Planes de Acción.
+    effect(() => {
+      if (!this.actionPlans.openRequest()) return;
+      untracked(() => {
+        this.isRiskModalOpen.set(false);
+        this.isControlModalOpen.set(false);
+        this.isFlawModalOpen.set(false);
+        this.setTab('planes-accion');
+      });
+    });
   }
+
+  private readonly actionPlans = inject(ActionPlanService);
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -183,6 +202,8 @@ export class App {
         return { title: 'Centro de Reportes & PDF', section: 'Gobernanza & Cumplimiento', icon: 'picture_as_pdf' };
       case 'cumplimiento-ran':
         return { title: 'Cumplimiento Normativo', section: 'Gobernanza & Cumplimiento', icon: 'policy' };
+      case 'planes-accion':
+        return { title: 'Planes de Acción', section: 'Incidentes & Seguimiento', icon: 'assignment_turned_in' };
       case 'mantenedores':
         return { title: 'Mantenedores', section: 'Configuración', icon: 'tune' };
     }

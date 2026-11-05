@@ -21,6 +21,7 @@ function grant(...keys: (keyof UserPermissions)[]): UserPermissions {
     canManageInfoSecurity: false,
     canManageCatalogs: false,
     canManageCompliance: false,
+    canManageActionPlans: false,
   };
   for (const k of keys) base[k] = true;
   return base;
@@ -29,7 +30,7 @@ function grant(...keys: (keyof UserPermissions)[]): UserPermissions {
 const ALL_PERMISSIONS: (keyof UserPermissions)[] = [
   'canEditRisks', 'canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canConvertFlaws',
   'canAcknowledgeAlerts', 'canConfigureKRIs', 'canManageRoles', 'canExportReports', 'canManageRegulatoryReports',
-  'canManageProviders', 'canManageContinuity', 'canManageInfoSecurity', 'canManageCatalogs', 'canManageCompliance',
+  'canManageProviders', 'canManageContinuity', 'canManageInfoSecurity', 'canManageCatalogs', 'canManageCompliance', 'canManageActionPlans',
 ];
 
 /**
@@ -53,7 +54,7 @@ export const DEFAULT_ORGANIZATIONAL_ROLES: OrganizationalRole[] = [
     description: 'Responsable ante el Consejo de la implementación del marco de riesgos; toma conocimiento y autoriza los reportes de incidentes al regulador.',
     badge: 'Alta Administración',
     isSystemRole: true,
-    permissions: grant('canEditRisks', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canExportReports', 'canManageRegulatoryReports', 'canManageProviders', 'canManageContinuity', 'canManageInfoSecurity'),
+    permissions: grant('canEditRisks', 'canReportFlaws', 'canConvertFlaws', 'canAcknowledgeAlerts', 'canExportReports', 'canManageRegulatoryReports', 'canManageProviders', 'canManageContinuity', 'canManageInfoSecurity', 'canManageActionPlans'),
   },
   {
     id: 'role-auditoria-interna',
@@ -62,7 +63,7 @@ export const DEFAULT_ORGANIZATIONAL_ROLES: OrganizationalRole[] = [
     description: 'Evalúa de forma independiente la efectividad de controles y del marco de gestión; reporta al Comité de Auditoría y al Consejo.',
     badge: 'Tercera Línea',
     isSystemRole: true,
-    permissions: grant('canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canAcknowledgeAlerts', 'canExportReports'),
+    permissions: grant('canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canAcknowledgeAlerts', 'canExportReports', 'canManageActionPlans'),
   },
   {
     id: 'role-ops',
@@ -89,7 +90,7 @@ export const DEFAULT_ORGANIZATIONAL_ROLES: OrganizationalRole[] = [
     description: 'Supervisa el cumplimiento normativo, la prevención de lavado de activos (Ley 19.913 / UAF) y los reportes regulatorios.',
     badge: 'Cumplimiento',
     isSystemRole: false,
-    permissions: grant('canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canAcknowledgeAlerts', 'canConfigureKRIs', 'canExportReports', 'canManageRegulatoryReports', 'canManageCompliance'),
+    permissions: grant('canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canAcknowledgeAlerts', 'canConfigureKRIs', 'canExportReports', 'canManageRegulatoryReports', 'canManageCompliance', 'canManageActionPlans'),
   },
   {
     id: 'role-comite-riesgos',

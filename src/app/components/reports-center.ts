@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
+import { ActionPlanService } from '../services/action-plan.service';
 import { AiRiskService } from '../services/ai-risk.service';
 import { MoneyPipe } from '../utils/money.pipe';
 
@@ -334,8 +335,8 @@ export type ReportType =
                       {{ r.residualExposureUSD | money }}
                     </td>
                     <td class="py-2 px-3 text-[11px]">
-                      <span class="font-medium text-slate-800">{{ r.mitigationPlan.title }}</span>
-                      <span class="block text-[10px] text-slate-500">Avance: {{ r.mitigationPlan.progressPct }}% · Límite: {{ r.mitigationPlan.dueDate }}</span>
+                      <span class="font-medium text-slate-800">{{ actionPlans.riskTreatment(r).title }}</span>
+                      <span class="block text-[10px] text-slate-500">Avance: {{ actionPlans.riskTreatment(r).progressPct }}% · Límite: {{ actionPlans.riskTreatment(r).dueDate }}</span>
                     </td>
                   </tr>
                 }
@@ -499,6 +500,7 @@ export type ReportType =
 })
 export class ReportsCenter {
   readonly riskService = inject(RiskDataService);
+  readonly actionPlans = inject(ActionPlanService);
   readonly aiService = inject(AiRiskService);
 
   readonly selectedTemplate = signal<ReportType>('dictamen-directorio');

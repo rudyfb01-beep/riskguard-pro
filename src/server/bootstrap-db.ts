@@ -1,5 +1,6 @@
 import { getPool, applySchema } from './db';
-import { appendLedger, importLedgerBlock, saveEntity, saveSetting, withTransaction } from './repository';
+import { appendLedger, importLedgerBlock, loadAll, saveEntity, saveSetting, withTransaction } from './repository';
+import { plansFromExisting } from '../app/utils/action-plans';
 import { COOPERATIVE_PROCESSES, DEFAULT_AREAS, DEFAULT_ORGANIZATIONAL_ROLES, DEFAULT_REGULATORY_MILESTONES } from '../app/data/base-seed';
 import {
   DEMO_ACCOUNTING_ACCOUNTS, DEMO_ALERTS, DEMO_AUDITS, DEMO_CONTROLS, DEMO_FLAWS, DEMO_KRIS, DEMO_LEDGER, DEMO_PROCESSES, DEMO_RISKS, DEMO_USERS,
@@ -20,6 +21,7 @@ const PERMISSION_MIGRATIONS: { perm: keyof UserPermissions; roles: string[] }[] 
   { perm: 'canManageInfoSecurity', roles: ['role-riesgo-op', 'role-gerencia-general', 'role-ciso'] },
   { perm: 'canManageCatalogs', roles: ['role-riesgo-op'] },
   { perm: 'canManageCompliance', roles: ['role-riesgo-op', 'role-cumplimiento'] },
+  { perm: 'canManageActionPlans', roles: ['role-riesgo-op', 'role-gerencia-general', 'role-auditoria-interna', 'role-cumplimiento'] },
 ];
 
 /**
@@ -69,6 +71,33 @@ async function migrateComplianceNorms(c: DbClient) {
     if (!exists) await saveEntity('compliance', req, c);
   }
   await c.query(`INSERT INTO system_settings (key, value) VALUES ('migration_compliance_norms_v1', 'true') ON CONFLICT (key) DO NOTHING`);
+}
+
+/**
+ * Planes de acción (una sola vez): los planes que hoy viven dentro de cada módulo (mitigación de
+ * riesgos, acciones correctivas de hallazgos, planes de cumplimiento y de la autoevaluación de
+ * seguridad, acciones de pruebas de continuidad) pasan al registro único. Los textos de plan de
+ * cumplimiento y de la autoevaluación se vacían porque quedan como planes.
+ */
+async function migrateActionPlans() {
+  await withTransaction(async c => {
+    await c.query('SELECT pg_advisory_xact_lock(727004)');
+    if ((await c.query(`SELECT 1 FROM system_settings WHERE key = 'migration_action_plans_v1'`)).rowCount) return;
+    if ((await c.query('SELECT 1 FROM action_plans LIMIT 1')).rowCount === 0) {
+      const d = await loadAll();
+      const norms = new Map(d.norms.map(n => [n.id, n.code]));
+      const { plans, migratedCompliance, migratedAssessment } = plansFromExisting({
+        risks: d.risks, audits: d.audits, compliance: d.compliance, normLabel: id => norms.get(id) ?? id,
+        assessment: d.securityAssessment, continuityTests: d.continuityTests,
+        at: new Date().toISOString(), by: 'RiskGuard (migración)',
+      });
+      for (const p of plans) await saveEntity('action-plans', p, c);
+      for (const id of migratedCompliance) await c.query('UPDATE compliance_requirements SET action_plan = NULL, due_date = NULL WHERE id = $1', [id]);
+      for (const id of migratedAssessment) await c.query('UPDATE security_assessment_items SET action_plan = NULL, due_date = NULL WHERE id = $1', [id]);
+      if (plans.length) console.log(`[Base de datos] ${plans.length} planes de acción incorporados desde los módulos.`);
+    }
+    await c.query(`INSERT INTO system_settings (key, value) VALUES ('migration_action_plans_v1', 'true') ON CONFLICT (key) DO NOTHING`);
+  });
 }
 
 /**
@@ -230,6 +259,8 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
     await migrateComplianceNorms(c);
     await migrateAuditScores(c);
   });
+
+  await migrateActionPlans();
 
   // El correo del administrador inicial se puede fijar o corregir con ADMIN_EMAIL.
   const adminEmail = process.env['ADMIN_EMAIL']?.trim();

@@ -5,10 +5,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { Control, ControlAutomation, ControlEvidenceAttachment, ControlFrequency, ControlTestExecution, ControlType } from '../models/risk.model';
 
+import { LinkedPlans } from './linked-plans';
 @Component({
   selector: 'app-control-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, MatIconModule],
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule, LinkedPlans],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden my-4">
@@ -355,6 +356,14 @@ import { Control, ControlAutomation, ControlEvidenceAttachment, ControlFrequency
             </div>
 
           </div>
+
+          @if (existingControl(); as ec) {
+            <div class="border-t border-slate-200 pt-4">
+              <app-linked-plans sourceType="Control" [sourceId]="ec.id" [sourceLabel]="ec.code + ' ' + ec.name" [process]="ec.process" [defaultOwner]="ec.owner"
+                [defaultPriority]="ec.status === 'Deficiente' ? 'Alta' : 'Media'"
+                [emptyText]="ec.status === 'Efectivo' ? 'Sin planes de acción.' : 'El control está ' + ec.status.toLowerCase() + ' y no tiene plan de acción para mejorarlo.'" />
+            </div>
+          }
 
         </form>
 

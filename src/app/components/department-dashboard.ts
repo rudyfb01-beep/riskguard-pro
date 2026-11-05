@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, output, signal } 
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
+import { ActionPlanService } from '../services/action-plan.service';
 import { Risk } from '../models/risk.model';
 import { MoneyPipe } from '../utils/money.pipe';
 
@@ -342,13 +343,13 @@ import { MoneyPipe } from '../utils/money.pipe';
                       <!-- Mitigation Plan Bar -->
                       <div class="bg-slate-100/70 p-2 rounded-lg text-[11px] flex items-center justify-between gap-3">
                         <div class="truncate text-slate-700">
-                          <strong class="text-slate-900">Plan:</strong> {{ r.mitigationPlan.title }}
+                          <strong class="text-slate-900">Plan:</strong> {{ actionPlans.riskTreatment(r).title }}
                         </div>
                         <div class="flex items-center gap-2 shrink-0 font-mono">
                           <div class="w-16 bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                            <div class="bg-emerald-600 h-full rounded-full" [style.width.%]="r.mitigationPlan.progressPct"></div>
+                            <div class="bg-emerald-600 h-full rounded-full" [style.width.%]="actionPlans.riskTreatment(r).progressPct"></div>
                           </div>
-                          <span class="text-slate-600">{{ r.mitigationPlan.progressPct }}%</span>
+                          <span class="text-slate-600">{{ actionPlans.riskTreatment(r).progressPct }}%</span>
                         </div>
                       </div>
                     </button>
@@ -530,6 +531,7 @@ import { MoneyPipe } from '../utils/money.pipe';
 })
 export class DepartmentDashboard {
   readonly riskService = inject(RiskDataService);
+  readonly actionPlans = inject(ActionPlanService);
 
   readonly viewMode = signal<'focused' | 'comparative'>('focused');
   readonly selectedProcess = signal<string>('Operaciones de Pago');

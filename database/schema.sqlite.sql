@@ -624,6 +624,39 @@ CREATE TABLE IF NOT EXISTS compliance_requirements (
     PRIMARY KEY (id)
 );
 
+CREATE TABLE IF NOT EXISTS action_plans (
+    id TEXT NOT NULL,
+    code TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    source_type TEXT NOT NULL,
+    source_id TEXT,
+    source_label TEXT NOT NULL DEFAULT '',
+    process TEXT,
+    owner TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'Media',
+    start_date DATE,
+    due_date DATE NOT NULL,
+    original_due_date DATE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Pendiente',
+    progress_pct INTEGER NOT NULL DEFAULT 0,
+    tasks JSONTEXT NOT NULL DEFAULT '[]',
+    updates JSONTEXT NOT NULL DEFAULT '[]',
+    reschedules JSONTEXT NOT NULL DEFAULT '[]',
+    closure JSONTEXT,
+    rejections JSONTEXT NOT NULL DEFAULT '[]',
+    cancel_reason TEXT,
+    created_by TEXT NOT NULL,
+    created_at_iso TEXT NOT NULL,
+    closed_at DATE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    CHECK (((priority) IN ('Alta', 'Media', 'Baja'))),
+    CHECK (((progress_pct >= 0) AND (progress_pct <= 100))),
+    CHECK (((source_type) IN ('Riesgo', 'Control', 'Auditoría', 'Cumplimiento', 'Autoevaluación de seguridad', 'Continuidad', 'Proveedor', 'Incidente', 'Otro'))),
+    CHECK (((status) IN ('Pendiente', 'En curso', 'Por verificar', 'Cerrado', 'Cancelado'))),
+    PRIMARY KEY (id)
+);
+
 CREATE TABLE IF NOT EXISTS security_tests (
     id TEXT NOT NULL,
     test_date DATE NOT NULL,
@@ -688,6 +721,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_business_processes_name ON business_process
 CREATE INDEX IF NOT EXISTS idx_business_processes_area ON business_processes (area_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_compliance_norms_code ON compliance_norms (lower((code)));
 CREATE INDEX IF NOT EXISTS idx_compliance_chapter ON compliance_requirements (chapter);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_action_plans_code ON action_plans (code);
+CREATE INDEX IF NOT EXISTS idx_action_plans_source ON action_plans (source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_action_plans_owner ON action_plans (lower((owner)));
+CREATE INDEX IF NOT EXISTS idx_action_plans_status ON action_plans (status, due_date);
 
 -- =============================================================================
 -- Disparadores (mismas reglas que las funciones de PostgreSQL)

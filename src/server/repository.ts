@@ -19,6 +19,7 @@ import { BiaProcess, ContinuityPlan, ContinuityTest, ServiceProvider } from '../
 import { InformationAsset, SecurityAssessmentItem, Vulnerability } from '../app/models/security.model';
 import { BusinessProcess, OrgArea } from '../app/models/catalog.model';
 import { ComplianceNorm, ComplianceRequirement, SecurityTest } from '../app/models/compliance.model';
+import { ActionPlan } from '../app/models/action-plan.model';
 
 /**
  * Repositorio (PostgreSQL o SQLite): convierte los objetos que usa la aplicación en filas
@@ -32,7 +33,7 @@ type Row = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 export const ENTITY_ORDER = [
   'areas', 'processes', 'roles', 'users', 'controls', 'risks', 'providers', 'regulatory-milestones',
   'flaws', 'alerts', 'audits', 'kris', 'bia', 'plans', 'continuity-tests',
-  'info-assets', 'vulnerabilities', 'security-assessment', 'norms', 'compliance', 'security-tests',
+  'info-assets', 'vulnerabilities', 'security-assessment', 'norms', 'compliance', 'security-tests', 'action-plans',
 ] as const;
 export type EntityName = typeof ENTITY_ORDER[number];
 
@@ -62,6 +63,7 @@ export interface BootstrapData {
   norms: ComplianceNorm[];
   compliance: ComplianceRequirement[];
   securityTests: SecurityTest[];
+  actionPlans: ActionPlan[];
   ledger: AuditLogEntry[];
   settings: Partial<Record<SettingKey, unknown>>;
 }
@@ -126,7 +128,7 @@ export async function loadAll(): Promise<BootstrapData> {
   const [
     roles, users, controls, tests, risks, riskControls, providers, milestones, flaws, regReports, regSubs, regUpdates,
     alerts, audits, findings, kris, bia, biaProviders, plans, planProcesses, ctests, ledger, settings,
-    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms,
+    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans,
   ] = await Promise.all([
     q('SELECT * FROM organizational_roles ORDER BY created_at, id'),
     q('SELECT * FROM user_profiles ORDER BY created_at, id'),
@@ -159,6 +161,7 @@ export async function loadAll(): Promise<BootstrapData> {
     q('SELECT * FROM compliance_requirements ORDER BY chapter, id'),
     q('SELECT * FROM security_tests ORDER BY test_date DESC'),
     q('SELECT * FROM compliance_norms ORDER BY sort_order, code'),
+    q('SELECT * FROM action_plans ORDER BY code'),
   ]);
 
   const testsBy = groupBy(tests, 'control_id');
@@ -202,6 +205,7 @@ export async function loadAll(): Promise<BootstrapData> {
       actionPlan: x.action_plan ?? '', dueDate: opt(x.due_date), lastReviewDate: opt(x.last_review_date), reviewedBy: opt(x.reviewed_by),
       controlIds: Array.isArray(x.control_ids) ? x.control_ids : [], normVersion: opt(x.norm_version),
     })),
+    actionPlans: actionPlans.map(actionPlanFromRow),
     norms: norms.map((x): ComplianceNorm => ({
       id: x.id, code: x.code, title: x.title, kind: x.kind, issuer: x.issuer ?? '', source: x.source ?? '', url: opt(x.url),
       version: x.version, effectiveDate: opt(x.effective_date), status: x.status, applicability: x.applicability,
@@ -372,6 +376,23 @@ function vulnFromRow(r: Row): Vulnerability {
     status: r.status, owner: r.owner ?? '', remediation: r.remediation ?? '', closedDate: opt(r.closed_date),
     acceptance: opt(r.acceptance),
   };
+}
+
+function actionPlanFromRow(r: Row): ActionPlan {
+  const arr = (v: unknown) => (Array.isArray(v) ? v : []);
+  return {
+    id: r.id, code: r.code, title: r.title, description: r.description ?? '', sourceType: r.source_type, sourceId: opt(r.source_id),
+    sourceLabel: r.source_label ?? '', process: opt(r.process), owner: r.owner, priority: r.priority, startDate: opt(r.start_date),
+    dueDate: r.due_date, originalDueDate: r.original_due_date, status: r.status, progressPct: Number(r.progress_pct ?? 0),
+    tasks: arr(r.tasks), updates: arr(r.updates), reschedules: arr(r.reschedules), closure: r.closure ?? undefined, rejections: arr(r.rejections),
+    cancelReason: opt(r.cancel_reason), createdBy: r.created_by, createdAt: r.created_at_iso, closedAt: opt(r.closed_at),
+  };
+}
+
+/** Plan de acción guardado (para validar los cambios del responsable). */
+export async function getActionPlan(id: string): Promise<ActionPlan | null> {
+  const r = await getPool()!.query('SELECT * FROM action_plans WHERE id = $1', [id]);
+  return r.rows[0] ? actionPlanFromRow(r.rows[0]) : null;
 }
 
 function assessmentFromRow(r: Row): SecurityAssessmentItem {
@@ -629,6 +650,17 @@ const savers: Record<EntityName, (c: DbClient, o: any) => Promise<void>> = {
     });
   },
 
+  async 'action-plans'(c, o: ActionPlan) {
+    await upsertRow(c, 'action_plans', 'id', {
+      id: o.id, code: o.code, title: o.title, description: o.description || null, source_type: o.sourceType, source_id: o.sourceId ?? null,
+      source_label: o.sourceLabel ?? '', process: o.process || null, owner: o.owner, priority: o.priority, start_date: dateOrNull(o.startDate),
+      due_date: o.dueDate, original_due_date: o.originalDueDate || o.dueDate, status: o.status, progress_pct: Math.round(o.progressPct ?? 0),
+      tasks: json(o.tasks ?? []), updates: json(o.updates ?? []), reschedules: json(o.reschedules ?? []), closure: o.closure ? json(o.closure) : null,
+      rejections: json(o.rejections ?? []), cancel_reason: o.cancelReason || null, created_by: o.createdBy, created_at_iso: o.createdAt,
+      closed_at: dateOrNull(o.closedAt),
+    });
+  },
+
   async norms(c, o: ComplianceNorm) {
     await upsertRow(c, 'compliance_norms', 'id', {
       id: o.id, code: o.code, title: o.title, kind: o.kind, issuer: o.issuer || null, source: o.source || null, url: o.url || null,
@@ -710,6 +742,7 @@ const TABLE_BY_ENTITY: Record<EntityName, { table: string; pk: string }> = {
   vulnerabilities: { table: 'vulnerabilities', pk: 'id' },
   'security-assessment': { table: 'security_assessment_items', pk: 'id' },
   norms: { table: 'compliance_norms', pk: 'id' },
+  'action-plans': { table: 'action_plans', pk: 'id' },
   compliance: { table: 'compliance_requirements', pk: 'id' },
   'security-tests': { table: 'security_tests', pk: 'id' },
 };

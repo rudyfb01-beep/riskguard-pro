@@ -5,6 +5,7 @@ import {
   OperationalFlaw,
   PeriodicAudit,
   Risk,
+  MitigationPlan,
   RiskLevel,
   AnomalyAlert,
   AuditLogEntry,
@@ -2327,6 +2328,13 @@ export class RiskDataService {
     return { isValid: true, totalBlocks: list.length };
   }
 
+  /** Tratamiento del riesgo calculado de sus planes de acción (lo registra ActionPlanService). */
+  riskTreatmentFn: ((r: Risk) => MitigationPlan) | null = null;
+
+  treatmentOf(r: Risk): MitigationPlan {
+    return this.riskTreatmentFn?.(r) ?? r.mitigationPlan;
+  }
+
   // Export Data to CSV (Compatible with Microsoft Excel in Latin America and Global formats with UTF-8 BOM)
   exportToExcel(type: 'risks' | 'controls' | 'audit_trail' | 'loss_database' | 'complete') {
     this.ensure(['canExportReports'], 'exportar reportes');
@@ -2346,7 +2354,7 @@ export class RiskDataService {
           return c ? c.code : cId;
         }).join(', ');
 
-        csvContent += `"${r.code}";"${r.title.replace(/"/g, '""')}";"${r.process}";"${r.category}";${r.inherentLikelihood};${r.inherentImpact};${r.inherentScore};"${r.inherentLevel}";${r.financialExposureUSD};"${controlsStr}";${r.residualScore};"${r.residualLevel}";${r.residualExposureUSD};"${r.status}";"${r.mitigationPlan.title.replace(/"/g, '""')}";${r.mitigationPlan.progressPct}%\n`;
+        csvContent += `"${r.code}";"${r.title.replace(/"/g, '""')}";"${r.process}";"${r.category}";${r.inherentLikelihood};${r.inherentImpact};${r.inherentScore};"${r.inherentLevel}";${r.financialExposureUSD};"${controlsStr}";${r.residualScore};"${r.residualLevel}";${r.residualExposureUSD};"${r.status}";"${this.treatmentOf(r).title.replace(/"/g, '""')}";${this.treatmentOf(r).progressPct}%\n`;
       });
       csvContent += '\n';
     }

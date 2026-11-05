@@ -5,11 +5,13 @@ import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { BaselCategory, Risk } from '../models/risk.model';
 import { MoneyPipe } from '../utils/money.pipe';
+import { ActionPlanService } from '../services/action-plan.service';
+import { LinkedPlans } from './linked-plans';
 
 @Component({
   selector: 'app-risk-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, MatIconModule, MoneyPipe],
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule, MoneyPipe, LinkedPlans],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden my-6">
@@ -255,8 +257,14 @@ import { MoneyPipe } from '../utils/money.pipe';
           <!-- Mitigation Plan -->
           <div class="border-t border-slate-200 pt-4">
             <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">
-              4. Plan de Acción y Mitigación Proactivo
+              4. Planes de acción del tratamiento
             </h3>
+            @if (existingRisk(); as er) {
+              <app-linked-plans sourceType="Riesgo" [sourceId]="er.id" [sourceLabel]="er.code + ' ' + er.title" [process]="er.process"
+                [defaultOwner]="er.responsible" [defaultPriority]="er.residualLevel === 'Crítico' || er.residualLevel === 'Alto' ? 'Alta' : er.residualLevel === 'Medio' ? 'Media' : 'Baja'"
+                emptyText="El riesgo no tiene planes de acción. Cree uno para reducir su nivel residual." />
+            } @else {
+            <p class="text-[11px] text-slate-500 mb-2">Si indica un plan, se crea en Planes de Acción con el responsable del riesgo; después puede agregar tareas y registrar avances.</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div>
                 <label for="risk-mitigation-title" class="block text-xs font-semibold text-slate-700 mb-1">
@@ -282,6 +290,7 @@ import { MoneyPipe } from '../utils/money.pipe';
                 />
               </div>
             </div>
+            }
           </div>
 
         </form>
@@ -314,6 +323,7 @@ import { MoneyPipe } from '../utils/money.pipe';
 })
 export class RiskModal implements OnInit {
   readonly riskService = inject(RiskDataService);
+  readonly actionPlans = inject(ActionPlanService);
 
   readonly existingRisk = input<Risk | null>(null);
   readonly closeModal = output<void>();
@@ -345,8 +355,8 @@ export class RiskModal implements OnInit {
     responsible: new FormControl(this.riskService.currentProfile().name),
     inherentLikelihood: new FormControl(3, [Validators.required]),
     inherentImpact: new FormControl(3, [Validators.required]),
-    mitigationTitle: new FormControl('Plan de Reforzamiento Operacional y Monitoreo'),
-    mitigationDueDate: new FormControl('2026-11-30')
+    mitigationTitle: new FormControl(''),
+    mitigationDueDate: new FormControl(new Date(Date.now() + 90 * 86_400_000).toISOString().slice(0, 10))
   });
 
   ngOnInit() {
@@ -450,15 +460,26 @@ export class RiskModal implements OnInit {
         controlIds: this.selectedControls(),
         mitigationPlan: {
           id: `mit-${Date.now()}`,
-          title: val.mitigationTitle || 'Plan de Mitigación Operativa',
+          title: val.mitigationTitle?.trim() || '',
           owner: val.responsible || this.riskService.currentProfile().name,
-          dueDate: val.mitigationDueDate || '2026-12-31',
-          budgetUSD: 25000,
-          progressPct: 15,
-          status: 'En Progreso',
-          actions: ['Configurar alertas tempranas en proceso', 'Auditar controles existentes']
+          dueDate: val.mitigationDueDate || '',
+          budgetUSD: 0,
+          progressPct: 0,
+          status: 'No Iniciado',
+          actions: []
         }
       });
+      if (created && val.mitigationTitle?.trim() && val.mitigationDueDate) {
+        try {
+          await this.actionPlans.create({
+            title: val.mitigationTitle.trim(), sourceType: 'Riesgo', sourceId: created.id, sourceLabel: `${created.code} ${created.title}`,
+            process: created.process, owner: created.responsible || this.riskService.currentProfile().name, dueDate: val.mitigationDueDate,
+            priority: created.residualLevel === 'Crítico' || created.residualLevel === 'Alto' ? 'Alta' : created.residualLevel === 'Medio' ? 'Media' : 'Baja',
+          });
+        } catch {
+          // El riesgo quedó creado; el aviso de permisos ya se mostró.
+        }
+      }
       this.riskSaved.emit(created);
     }
 

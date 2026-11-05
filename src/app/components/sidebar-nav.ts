@@ -7,6 +7,7 @@ import { ResilienceService } from '../services/resilience.service';
 import { SecurityService } from '../services/security.service';
 import { ActiveTab } from '../app';
 import { ComplianceService } from '../services/compliance.service';
+import { ActionPlanService } from '../services/action-plan.service';
 
 export interface NavGroup {
   title: string;
@@ -257,6 +258,7 @@ export class SidebarNav {
   readonly resilience = inject(ResilienceService);
   readonly security = inject(SecurityService);
   readonly compliance = inject(ComplianceService);
+  readonly actionPlans = inject(ActionPlanService);
 
   readonly activeTab = input.required<ActiveTab>();
   readonly isCollapsed = input<boolean>(false);
@@ -279,6 +281,7 @@ export class SidebarNav {
     const securityHigh = this.security.kpis().highAlerts;
     const cs = this.compliance.summary();
     const complianceGaps = cs.gaps + cs.overdue + cs.versionReview;
+    const plansOverdue = this.actionPlans.kpis().overdue;
     const regulatoryOpen = this.riskService.regulatoryIncidents().filter(f => f.regulatoryReport?.status === 'Abierto').length;
 
     return [
@@ -307,6 +310,13 @@ export class SidebarNav {
             icon: 'gavel',
             badge: regulatoryOpen > 0 ? regulatoryOpen : undefined,
             badgeClass: 'bg-indigo-900/60 text-indigo-200 border border-indigo-700/50'
+          },
+          {
+            id: 'planes-accion',
+            label: 'Planes de Acción',
+            icon: 'assignment_turned_in',
+            badge: plansOverdue > 0 ? plansOverdue : undefined,
+            badgeClass: 'bg-rose-900/60 text-rose-200 border border-rose-700/50'
           },
           {
             id: 'alertas-kri',
