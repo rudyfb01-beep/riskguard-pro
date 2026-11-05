@@ -961,6 +961,48 @@ CREATE INDEX IF NOT EXISTS idx_action_plans_source ON action_plans (source_type,
 CREATE INDEX IF NOT EXISTS idx_action_plans_owner ON action_plans (lower(owner));
 CREATE INDEX IF NOT EXISTS idx_action_plans_status ON action_plans (status, due_date);
 
+-- Autoevaluaciones: campañas (RCSA, BIA, cumplimiento o propias) y la encuesta de cada responsable
+CREATE TABLE IF NOT EXISTS survey_campaigns (
+    id VARCHAR(80) PRIMARY KEY,
+    code VARCHAR(40) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    kind VARCHAR(20) NOT NULL CHECK (kind IN ('RCSA', 'BIA', 'Cumplimiento', 'Personalizada')),
+    description TEXT,
+    scope JSONB NOT NULL DEFAULT '[]',
+    norm_id VARCHAR(60),
+    respondent VARCHAR(255),
+    custom_items JSONB,
+    due_date DATE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'Borrador' CHECK (status IN ('Borrador', 'En curso', 'Cerrada')),
+    launched_at VARCHAR(40),
+    closed_at VARCHAR(40),
+    created_by VARCHAR(255) NOT NULL,
+    created_at_iso VARCHAR(40) NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_survey_campaigns_code ON survey_campaigns (code);
+
+CREATE TABLE IF NOT EXISTS survey_responses (
+    id VARCHAR(80) PRIMARY KEY,
+    campaign_id VARCHAR(80) NOT NULL REFERENCES survey_campaigns(id) ON DELETE CASCADE,
+    subject VARCHAR(255) NOT NULL,
+    respondent VARCHAR(255) NOT NULL,
+    items JSONB NOT NULL DEFAULT '[]',
+    answers JSONB NOT NULL DEFAULT '{}',
+    status VARCHAR(20) NOT NULL DEFAULT 'Pendiente' CHECK (status IN ('Pendiente', 'En progreso', 'Enviada', 'Devuelta', 'Revisada')),
+    due_date DATE NOT NULL,
+    started_at VARCHAR(40),
+    submitted_at VARCHAR(40),
+    returned_note TEXT,
+    reviewed_by VARCHAR(255),
+    reviewed_at VARCHAR(40),
+    review_note TEXT,
+    applied JSONB NOT NULL DEFAULT '[]',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_survey_responses_campaign ON survey_responses (campaign_id);
+CREATE INDEX IF NOT EXISTS idx_survey_responses_respondent ON survey_responses (lower(respondent));
+
 -- Pruebas de seguridad (RAN 20-10 4.1 y 4.2)
 CREATE TABLE IF NOT EXISTS security_tests (
     id VARCHAR(64) PRIMARY KEY,

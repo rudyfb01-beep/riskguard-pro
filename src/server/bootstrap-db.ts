@@ -22,6 +22,7 @@ const PERMISSION_MIGRATIONS: { perm: keyof UserPermissions; roles: string[] }[] 
   { perm: 'canManageCatalogs', roles: ['role-riesgo-op'] },
   { perm: 'canManageCompliance', roles: ['role-riesgo-op', 'role-cumplimiento'] },
   { perm: 'canManageActionPlans', roles: ['role-riesgo-op', 'role-gerencia-general', 'role-auditoria-interna', 'role-cumplimiento'] },
+  { perm: 'canManageSurveys', roles: ['role-riesgo-op', 'role-cumplimiento'] },
 ];
 
 /**

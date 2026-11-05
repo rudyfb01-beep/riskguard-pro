@@ -2297,7 +2297,8 @@ export class RiskDataService {
     );
 
     const newEntry: AuditLogEntry = {
-      id: `log-${Date.now()}`,
+      // Sufijo aleatorio: dos registros en el mismo milisegundo tenían el mismo id y el segundo no llegaba al servidor.
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       blockNumber: newBlockNumber,
       timestamp,
       userName: user.name,

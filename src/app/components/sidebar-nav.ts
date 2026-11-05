@@ -8,6 +8,7 @@ import { SecurityService } from '../services/security.service';
 import { ActiveTab } from '../app';
 import { ComplianceService } from '../services/compliance.service';
 import { ActionPlanService } from '../services/action-plan.service';
+import { SurveyService } from '../services/survey.service';
 
 export interface NavGroup {
   title: string;
@@ -259,6 +260,7 @@ export class SidebarNav {
   readonly security = inject(SecurityService);
   readonly compliance = inject(ComplianceService);
   readonly actionPlans = inject(ActionPlanService);
+  readonly surveys = inject(SurveyService);
 
   readonly activeTab = input.required<ActiveTab>();
   readonly isCollapsed = input<boolean>(false);
@@ -282,6 +284,8 @@ export class SidebarNav {
     const cs = this.compliance.summary();
     const complianceGaps = cs.gaps + cs.overdue + cs.versionReview;
     const plansOverdue = this.actionPlans.kpis().overdue;
+    const sk = this.surveys.kpis();
+    const surveysBadge = sk.minePending + (this.surveys.canManage() ? sk.toReview : 0);
     const regulatoryOpen = this.riskService.regulatoryIncidents().filter(f => f.regulatoryReport?.status === 'Abierto').length;
 
     return [
@@ -298,6 +302,11 @@ export class SidebarNav {
         items: [
           { id: 'matriz-riesgos', label: 'Matriz 4×4 & Inventario', icon: 'grid_view', badge: risksCount, badgeClass: 'bg-slate-800 text-slate-200' },
           { id: 'controles', label: 'Controles y Evidencias', icon: 'verified_user', badge: controlsCount, badgeClass: 'bg-slate-800 text-slate-200' },
+          {
+            id: 'autoevaluaciones', label: 'Autoevaluaciones', icon: 'fact_check',
+            badge: surveysBadge > 0 ? surveysBadge : undefined,
+            badgeClass: 'bg-sky-900/60 text-sky-200 border border-sky-700/50'
+          },
         ]
       },
       {

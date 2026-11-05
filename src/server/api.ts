@@ -2,10 +2,12 @@ import express from 'express';
 import { getPool } from './db';
 import { ensureDatabase } from './bootstrap-db';
 import {
-  appendLedger, convertCurrency, countReferences, deleteEntity, EntityName, getActionPlan, isEntity, loadAll, saveEntity, saveSetting, SETTING_KEYS, SettingKey,
+  appendLedger, convertCurrency, countReferences, deleteEntity, EntityName, getActionPlan, getSurveyResponse, isEntity, loadAll, saveEntity, saveSetting, SETTING_KEYS, SettingKey,
 } from './repository';
 import { ActionPlan } from '../app/models/action-plan.model';
 import { checkPlanChange } from '../app/utils/action-plans';
+import { SurveyResponse } from '../app/models/survey.model';
+import { checkResponseChange } from '../app/utils/surveys';
 import {
   AuthError, clearSessionCookie, clientIp, currentUser, destroySession, getSessionUser, hasAny, readSessionCookie,
   requestLoginCode, requireAuth, requireCsrfHeader, setSessionCookie, verifyLoginCode,
@@ -49,6 +51,9 @@ const WRITE_PERMISSIONS: Record<EntityName, (keyof UserPermissions)[]> = {
   'security-tests': ['canManageInfoSecurity'],
   // Guardar: se valida con checkPlanChange (responsable, módulo de origen o administrador). Eliminar: administrador.
   'action-plans': ['canManageActionPlans'],
+  'survey-campaigns': ['canManageSurveys'],
+  // Guardar: quien administra autoevaluaciones o la persona asignada (checkResponseChange). Eliminar: administrador.
+  'survey-responses': ['canManageSurveys'],
 };
 
 const SETTING_PERMISSIONS: Record<SettingKey, (keyof UserPermissions)[]> = {
@@ -220,6 +225,13 @@ dataApi.put('/data/:entity/:id', async (req, res) => {
   if (entity === 'action-plans') {
     const user = currentUser(res)!;
     const err = checkPlanChange(await getActionPlan(id), body as ActionPlan, user);
+    if (err) {
+      res.status(403).json({ error: err });
+      return;
+    }
+  } else if (entity === 'survey-responses') {
+    const saved = await getSurveyResponse(id);
+    const err = checkResponseChange(saved?.response ?? null, body as SurveyResponse, currentUser(res)!, saved?.campaign);
     if (err) {
       res.status(403).json({ error: err });
       return;
