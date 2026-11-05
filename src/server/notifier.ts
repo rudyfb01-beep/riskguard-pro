@@ -61,29 +61,28 @@ export async function runSchedule(today = localNow().day): Promise<number> {
   const drafts: NotificationDraft[] = scheduledNotifications({
     users: data.users, actionPlans: data.actionPlans, surveyCampaigns: data.surveyCampaigns, surveyResponses: data.surveyResponses,
     approvals: data.approvals, continuityPlans: data.plans, vulnerabilities: data.vulnerabilities, risks: data.risks, providers: data.providers,
+    documents: data.documents,
   }, settings, today);
   const created = await insertNotifications(drafts);
   return created.length;
 }
 
 let delivering: Promise<void> | null = null;
+/** Llegaron avisos mientras se enviaba: al terminar se vuelve a revisar. */
+let deliverAgain = false;
 
 /** Envía (o deja para el resumen) los correos pendientes según la preferencia de cada persona. */
 export function deliverPending(): Promise<void> {
-  if (delivering) return delivering;
+  if (delivering) {
+    deliverAgain = true;
+    return delivering;
+  }
   delivering = (async () => {
     try {
-      const pending = await notificationsByEmailStatus('pendiente');
-      if (!pending.length) return;
-      const settings = normalizeNotificationSettings(await getSetting('notification_settings'));
-      const prefs = await getNotificationPreferences();
-      for (const n of pending) {
-        const pref = prefs.get(n.recipient) ?? DEFAULT_NOTIFICATION_PREFERENCE;
-        if (!settings.emailEnabled) { await setEmailStatus([n.id], 'omitido', 'Correo de avisos desactivado'); continue; }
-        if (pref.emailMode === 'ninguno' || pref.muted.includes(n.category)) { await setEmailStatus([n.id], 'omitido', 'Preferencia de la persona'); continue; }
-        if (pref.emailMode === 'resumen') { await setEmailStatus([n.id], 'resumen'); continue; }
-        await sendOne(n);
-      }
+      do {
+        deliverAgain = false;
+        await deliverBatch();
+      } while (deliverAgain);
     } catch (err) {
       console.error('[Notificaciones] Error al enviar correos:', (err as Error).message);
     } finally {
@@ -91,6 +90,20 @@ export function deliverPending(): Promise<void> {
     }
   })();
   return delivering;
+}
+
+async function deliverBatch(): Promise<void> {
+  const pending = await notificationsByEmailStatus('pendiente');
+  if (!pending.length) return;
+  const settings = normalizeNotificationSettings(await getSetting('notification_settings'));
+  const prefs = await getNotificationPreferences();
+  for (const n of pending) {
+    const pref = prefs.get(n.recipient) ?? DEFAULT_NOTIFICATION_PREFERENCE;
+    if (!settings.emailEnabled) { await setEmailStatus([n.id], 'omitido', 'Correo de avisos desactivado'); continue; }
+    if (pref.emailMode === 'ninguno' || pref.muted.includes(n.category)) { await setEmailStatus([n.id], 'omitido', 'Preferencia de la persona'); continue; }
+    if (pref.emailMode === 'resumen') { await setEmailStatus([n.id], 'resumen'); continue; }
+    await sendOne(n);
+  }
 }
 
 async function sendOne(n: AppNotification) {

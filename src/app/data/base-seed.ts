@@ -23,6 +23,7 @@ function grant(...keys: (keyof UserPermissions)[]): UserPermissions {
     canManageCompliance: false,
     canManageActionPlans: false,
     canManageSurveys: false,
+    canManageDocuments: false,
   };
   for (const k of keys) base[k] = true;
   return base;
@@ -31,7 +32,7 @@ function grant(...keys: (keyof UserPermissions)[]): UserPermissions {
 const ALL_PERMISSIONS: (keyof UserPermissions)[] = [
   'canEditRisks', 'canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canConvertFlaws',
   'canAcknowledgeAlerts', 'canConfigureKRIs', 'canManageRoles', 'canExportReports', 'canManageRegulatoryReports',
-  'canManageProviders', 'canManageContinuity', 'canManageInfoSecurity', 'canManageCatalogs', 'canManageCompliance', 'canManageActionPlans', 'canManageSurveys',
+  'canManageProviders', 'canManageContinuity', 'canManageInfoSecurity', 'canManageCatalogs', 'canManageCompliance', 'canManageActionPlans', 'canManageSurveys', 'canManageDocuments',
 ];
 
 /**
@@ -91,7 +92,7 @@ export const DEFAULT_ORGANIZATIONAL_ROLES: OrganizationalRole[] = [
     description: 'Supervisa el cumplimiento normativo, la prevención de lavado de activos (Ley 19.913 / UAF) y los reportes regulatorios.',
     badge: 'Cumplimiento',
     isSystemRole: false,
-    permissions: grant('canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canAcknowledgeAlerts', 'canConfigureKRIs', 'canExportReports', 'canManageRegulatoryReports', 'canManageCompliance', 'canManageActionPlans', 'canManageSurveys'),
+    permissions: grant('canEvaluateControls', 'canExecuteAudits', 'canReportFlaws', 'canAcknowledgeAlerts', 'canConfigureKRIs', 'canExportReports', 'canManageRegulatoryReports', 'canManageCompliance', 'canManageActionPlans', 'canManageSurveys', 'canManageDocuments'),
   },
   {
     id: 'role-comite-riesgos',

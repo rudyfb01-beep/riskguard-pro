@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, output, signal } 
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { ApprovalService } from '../services/approval.service';
+import { DocumentService } from '../services/document.service';
 import { RiskDataService } from '../services/risk-data.service';
 import { ActionPlanService } from '../services/action-plan.service';
 import { SurveyService } from '../services/survey.service';
@@ -253,9 +254,30 @@ import { MoneyPipe } from '../utils/money.pipe';
             }
           </div>
 
+          <!-- Gestión documental -->
+          <div>
+            <h2 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">6. Gestión documental</h2>
+            @let dk = documents.kpis();
+            <p class="text-[11px] text-slate-700 mb-2">
+              {{ dk.vigentes }} documento(s) vigente(s) · {{ dk.vencidos }} con revisión vencida · {{ dk.enAprobacion }} en aprobación ·
+              lectura confirmada {{ dk.lectura === null ? '—' : dk.lectura + ' %' }}.
+            </p>
+            @if (docAttention().length) {
+              <table class="w-full text-left text-[11px] border border-slate-200 rounded-lg overflow-hidden">
+                <thead class="bg-slate-50 text-[10px] text-slate-500 uppercase"><tr><th class="py-1.5 px-2">Documento</th><th class="py-1.5 px-2">Estado</th><th class="py-1.5 px-2 text-right">Próxima revisión</th></tr></thead>
+                <tbody class="divide-y divide-slate-100">
+                  @for (d of docAttention(); track d.id) {
+                    <tr><td class="py-1.5 px-2"><span class="font-mono text-slate-500 mr-1">{{ d.code }}</span>{{ d.title }}</td><td class="py-1.5 px-2">{{ documents.status(d) }}</td>
+                      <td class="py-1.5 px-2 text-right font-mono">{{ d.nextReviewDate || '—' }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            }
+          </div>
+
           <!-- Aprobaciones -->
           <div>
-            <h2 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">6. Aprobaciones y aceptaciones de riesgo</h2>
+            <h2 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">7. Aprobaciones y aceptaciones de riesgo</h2>
             @let pendingApprovals = approvals.pending();
             @let accepted = acceptedRisks();
             <p class="text-[11px] text-slate-700 mb-2">
@@ -331,6 +353,8 @@ export class ExecutiveReportModal {
   readonly actionPlans = inject(ActionPlanService);
   readonly surveys = inject(SurveyService);
   readonly approvals = inject(ApprovalService);
+  readonly documents = inject(DocumentService);
+  readonly docAttention = computed(() => this.documents.sorted().filter(d => d.status === 'Activo' && ['Revisión vencida', 'En aprobación', 'Borrador'].includes(this.documents.status(d))).slice(0, 8));
   readonly acceptedRisks = computed(() => this.riskService.risks().filter(r => !!r.acceptance));
   readonly overduePlans = computed(() => this.actionPlans.sorted().filter(p => this.actionPlans.isOverdue(p)).slice(0, 15));
   readonly aiService = inject(AiRiskService);

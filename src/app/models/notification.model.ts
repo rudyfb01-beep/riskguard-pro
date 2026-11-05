@@ -13,10 +13,11 @@ export type NotificationCategory =
   | 'Continuidad'
   | 'Seguridad'
   | 'Riesgos'
-  | 'Proveedores';
+  | 'Proveedores'
+  | 'Documentos';
 
 export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
-  'Aprobaciones', 'Planes de acción', 'Autoevaluaciones', 'Incidentes', 'Alertas KRI', 'Continuidad', 'Seguridad', 'Riesgos', 'Proveedores',
+  'Aprobaciones', 'Planes de acción', 'Autoevaluaciones', 'Incidentes', 'Alertas KRI', 'Continuidad', 'Seguridad', 'Riesgos', 'Proveedores', 'Documentos',
 ];
 
 export type NotificationSeverity = 'info' | 'aviso' | 'urgente';

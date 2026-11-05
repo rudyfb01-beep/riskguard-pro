@@ -262,7 +262,7 @@ export class ApprovalsPanel {
   moduleName(k: ApprovalKind) {
     return ({
       'matriz-riesgos': 'Matriz de riesgos', 'seguridad-informacion': 'Seguridad de la información', continuidad: 'Continuidad',
-      auditorias: 'Auditorías', 'planes-accion': 'Planes de acción',
+      auditorias: 'Auditorías', 'planes-accion': 'Planes de acción', documentos: 'Gestión documental',
     } as Record<string, string>)[APPROVAL_KINDS[k].tab] ?? APPROVAL_KINDS[k].tab;
   }
 

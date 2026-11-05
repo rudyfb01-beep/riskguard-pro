@@ -18,7 +18,7 @@ const plan = (over: Partial<ActionPlan> = {}): ActionPlan => ({
 });
 
 const ctx = { actorName: 'Dra. Elena Vasconcelos', users, now: '2026-11-05T12:00:00Z' };
-const empty: ScheduleData = { users, actionPlans: [], surveyCampaigns: [], surveyResponses: [], approvals: [], continuityPlans: [], vulnerabilities: [], risks: [], providers: [] };
+const empty: ScheduleData = { users, actionPlans: [], surveyCampaigns: [], surveyResponses: [], approvals: [], continuityPlans: [], vulnerabilities: [], risks: [], providers: [], documents: [] };
 
 describe('avisos por cambios', () => {
   it('asignar un plan avisa al responsable (por nombre, sin tratamiento) y no a quien lo hizo', () => {

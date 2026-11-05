@@ -3,12 +3,14 @@ import { getPool } from './db';
 import { ensureDatabase } from './bootstrap-db';
 import {
   appendLedger, convertCurrency, countReferences, deleteEntity, EntityName, entityExists, getActionPlan, getApproval, getNotificationPreferences, getSetting,
-  getSurveyResponse, isEntity, listNotifications, loadAll, markNotificationsRead, notificationOutbox, saveApprovalWithEffect, saveEntity,
+  getSurveyResponse, getDocument, isEntity, listNotifications, loadAll, markNotificationsRead, notificationOutbox, saveApprovalWithEffect, saveEntity,
   saveNotificationPreference, saveSetting, SETTING_KEYS, SettingKey, getEvidence, getEvidenceContent, insertEvidence, markEvidenceDeleted,
 } from './repository';
 import { DEFAULT_EVIDENCE_MAX_MB, EVIDENCE_ENTITY_LABELS, EvidenceEntity, EvidenceFile } from '../app/models/evidence.model';
 import { canAttachEvidence, canRemoveEvidence, checkEvidenceFile, formatBytes, isPreviewable, safeFileName } from '../app/utils/evidence';
 import { createHash, randomUUID } from 'node:crypto';
+import { ControlledDocument } from '../app/models/document.model';
+import { checkDocumentChange } from '../app/utils/documents';
 import { ApprovalRequest } from '../app/models/approval.model';
 import { applyApprovalEffect, checkApprovalChange, normalizeMatrix, targetPrecondition } from '../app/utils/approvals';
 import { appetiteStatus, normalizeRiskAppetite } from '../app/models/catalog.model';
@@ -68,6 +70,8 @@ const WRITE_PERMISSIONS: Record<EntityName, (keyof UserPermissions)[]> = {
   'survey-responses': ['canManageSurveys'],
   // Guardar: se valida con checkApprovalChange (solicitante, aprobador del nivel vigente). Eliminar: administrador de cargos.
   approvals: ['canManageRoles'],
+  // Guardar: checkDocumentChange (quien administra documentos o la propia confirmación de lectura).
+  documents: ['canManageDocuments'],
 };
 
 /** Entidades cuyos cambios generan avisos (se lee el estado previo antes de guardar). */
@@ -256,6 +260,12 @@ dataApi.put('/data/:entity/:id', async (req, res) => {
       res.status(403).json({ error: err });
       return;
     }
+  } else if (entity === 'documents') {
+    const err = checkDocumentChange(await getDocument(id), body as ControlledDocument, currentUser(res)!);
+    if (err) {
+      res.status(403).json({ error: err });
+      return;
+    }
   } else if (entity === 'survey-responses') {
     campaign = await getSurveyResponse(id);
     prev = campaign?.response ?? null;
@@ -305,7 +315,7 @@ async function evidenceParent(entity: EvidenceEntity, id: string): Promise<any |
   const lists: Record<EvidenceEntity, { id: string }[]> = {
     controls: all.controls, risks: all.risks, 'action-plans': all.actionPlans, compliance: all.compliance, audits: all.audits, flaws: all.flaws,
     'continuity-tests': all.continuityTests, plans: all.plans, 'security-tests': all.securityTests, vulnerabilities: all.vulnerabilities,
-    'survey-responses': all.surveyResponses, approvals: all.approvals, providers: all.providers,
+    'survey-responses': all.surveyResponses, approvals: all.approvals, providers: all.providers, documents: all.documents,
   };
   return (lists[entity] ?? []).find(x => x.id === id) ?? null;
 }
@@ -449,6 +459,7 @@ async function approvalTarget(r: ApprovalRequest) {
   const all = await loadAll();
   const lists: Record<ApprovalRequest['targetEntity'], { id: string }[]> = {
     risks: all.risks, vulnerabilities: all.vulnerabilities, plans: all.plans, audits: all.audits, 'action-plans': all.actionPlans,
+    documents: all.documents,
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const target = (lists[r.targetEntity] ?? []).find(x => x.id === r.targetId) as any;
@@ -504,7 +515,7 @@ async function saveApproval(res: express.Response, next: ApprovalRequest) {
     await saveApprovalWithEffect(next, updated ? { entity: next.targetEntity, obj: updated } : null);
     res.json({ ok: true, applied: updated ? { entity: next.targetEntity, record: updated } : null });
     void notifyChange('approvals', prev, next, user.name);
-    if (updated && next.targetEntity === 'action-plans') void notifyChange('action-plans', target, updated, user.name);
+    if (updated && (next.targetEntity === 'action-plans' || next.targetEntity === 'documents')) void notifyChange(next.targetEntity, target, updated, user.name);
   } catch (e) {
     res.status(422).json({ error: friendlyDbError(e) });
   }

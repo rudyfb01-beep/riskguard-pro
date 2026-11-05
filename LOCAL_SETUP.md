@@ -455,6 +455,24 @@ Los módulos que piden respaldo permiten adjuntar archivos reales (clic o arrast
 - **Almacenamiento:** los archivos se guardan en la base de datos (tabla `evidence_files`), así que el respaldo de la base incluye las evidencias. Considere el tamaño al dimensionar la base.
 - **Archivos anteriores:** los adjuntos de la versión previa eran solo nombres, sin contenido; se muestran como "registros anteriores sin archivo".
 
+## Gestión documental
+
+En **Supervisión & Auditoría → Gestión Documental** se lleva el listado maestro de políticas, manuales, reglamentos, procedimientos, instructivos, planes y formularios:
+
+- **Documento:** código por tipo (POL-001, MAN-001, PRO-001…), responsable, clasificación (pública, interna, confidencial), frecuencia de revisión, a quién va dirigido (cargos, o todas las personas), requisitos normativos que respalda y procesos.
+- **Versiones:** se crea un borrador (versión mayor o cambio menor), se adjunta su archivo (PDF o Word; queda en las evidencias con su SHA-256) y se envía a aprobación con el tipo **"Aprobación de documento"**.
+  - Por defecto aprueba la Gerencia General. Las políticas, manuales y reglamentos suman al Consejo de Administración como nivel adicional (configurable en Mantenedores → Aprobaciones y avisos).
+  - Al aprobarse el último nivel, la versión pasa a **vigente**, la anterior queda **reemplazada**, se registran quién aprobó y la fecha, y se fija la próxima revisión.
+  - Nadie puede marcar una versión como vigente a mano: el servidor lo rechaza.
+- **Difusión:** cuando una versión queda vigente, cada persona del público objetivo recibe un aviso. Confirma su lectura con "He leído y comprendo", que queda en la bitácora. El panel muestra el avance y quiénes faltan, y se puede exportar. A los 7 días se envía un recordatorio a quienes no han leído.
+- **Revisión:** avisos 30 días antes de la próxima revisión y al vencer. El documento figura como "Revisión vencida" hasta que se apruebe una nueva versión.
+- **Cumplimiento:** cada requisito muestra los documentos que lo respaldan. Si no tiene una verificación automática ni controles vinculados, sugiere su estado según los documentos ("Cumple" si todos están vigentes).
+- **Obsoletos:** un documento se marca obsoleto con un motivo, y sus versiones se conservan.
+- **Exportaciones:** listado maestro y registro de lecturas en CSV. El informe ejecutivo incluye una sección de gestión documental.
+- **Permisos:**
+  - Crear documentos, versiones y solicitudes exige el permiso **"Administrar Gestión Documental"** (Jefe de Riesgo Operacional y Oficial de Cumplimiento por defecto).
+  - Cualquier persona puede confirmar su propia lectura de la versión vigente.
+
 ## Variables de entorno
 
 | Variable | Descripción |
@@ -506,7 +524,7 @@ enviar la cabecera `X-Requested-With: RiskGuard` (protección CSRF).
 Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-milestones`, `flaws`,
 `alerts`, `audits`, `kris`, `bia`, `plans`, `continuity-tests`, `info-assets`, `vulnerabilities`,
 `security-assessment`, `norms`, `compliance`, `security-tests`, `action-plans`, `survey-campaigns`,
-`survey-responses`, `approvals`.
+`survey-responses`, `documents`, `approvals`.
 
 ## Limitaciones conocidas
 
@@ -535,6 +553,7 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 | Autoevaluaciones | `survey_campaigns`, `survey_responses` |
 | Aprobaciones y avisos | `approval_requests`, `notifications`, `notification_preferences` (y la columna `acceptance` en `risks`) |
 | Evidencias | `evidence_files` (contenido y SHA-256) |
+| Gestión documental | `controlled_documents` (versiones y lecturas) |
 | Ajustes | `system_settings` |
 
 Vistas de apoyo a reportes: `v_loss_database`, `v_regulatory_deadlines`, `v_provider_rto_gaps`,

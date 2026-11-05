@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { RiskDataService } from './risk-data.service';
+import { DocumentService } from './document.service';
 import { apiFetch } from './api-fetch';
 import { DEFAULT_EVIDENCE_MAX_MB, EVIDENCE_ENTITY_LABELS, EvidenceEntity, EvidenceFile } from '../models/evidence.model';
 import { AuditLogEntry } from '../models/risk.model';
@@ -15,6 +16,25 @@ export interface EvidenceTarget {
   label: string;
 }
 
+/** PDF mínimo de una página con algunas líneas de texto (solo para la demostración). */
+function demoPdf(lines: string[]): Uint8Array {
+  const ascii = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '?').replace(/([()\\])/g, '\\$1');
+  const wrapped = lines.filter(Boolean).flatMap(l => ascii(l).match(/.{1,80}(\s|$)/g) ?? []);
+  const text = wrapped.map((l, i) => `BT /F1 ${i ? 10 : 14} Tf 50 ${780 - i * 18} Td (${l.trim()}) Tj ET`).join('\n');
+  const objs = [
+    '<</Type/Catalog/Pages 2 0 R>>', '<</Type/Pages/Kids[3 0 R]/Count 1>>',
+    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>',
+    `<</Length ${text.length}>>\nstream\n${text}\nendstream`, '<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>',
+  ];
+  let out = '%PDF-1.4\n';
+  const offsets: number[] = [];
+  objs.forEach((o, i) => { offsets.push(out.length); out += `${i + 1} 0 obj${o}endobj\n`; });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offsets.map(o => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}`;
+  out += `trailer<</Size ${objs.length + 1}/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF\n`;
+  return new TextEncoder().encode(out);
+}
+
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', bytes as unknown as ArrayBuffer);
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -28,6 +48,7 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
 @Injectable({ providedIn: 'root' })
 export class EvidenceService {
   private readonly rs = inject(RiskDataService);
+  private readonly docs = inject(DocumentService);
 
   readonly files = signal<EvidenceFile[]>([]);
   readonly maxBytes = signal(DEFAULT_EVIDENCE_MAX_MB * 1024 * 1024);
@@ -189,6 +210,19 @@ export class EvidenceService {
       };
       this.blobs.set(f.id, new Blob([bytes], { type: mime }));
       list.push(f);
+    }
+    // Archivos de las versiones de los documentos de ejemplo (PDF de una página).
+    for (const d of this.docs.documents()) {
+      for (const v of d.versions) {
+        if (!v.fileId) continue;
+        const bytes = demoPdf([`${d.code} ${d.title}`, `Version ${v.version} - ${v.status}`, v.changeSummary, d.description]);
+        const f: EvidenceFile = {
+          id: v.fileId, entityType: 'documents', entityId: d.id, context: v.id, fileName: v.fileName ?? `${d.code}_v${v.version}.pdf`, mimeType: 'application/pdf',
+          sizeBytes: bytes.length, sha256: await sha256Hex(bytes), uploadedBy: v.createdBy, uploadedAt: v.createdAt,
+        };
+        this.blobs.set(f.id, new Blob([bytes as BlobPart], { type: 'application/pdf' }));
+        list.push(f);
+      }
     }
     if (!this.serverMode()) this.files.set(list);
   }

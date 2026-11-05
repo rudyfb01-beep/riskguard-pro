@@ -160,6 +160,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                       <th class="py-3 px-3 text-center" title="Biblioteca normativa y evaluación del cumplimiento">Cumplim.</th>
                       <th class="py-3 px-3 text-center" title="Asignar, reprogramar y verificar el cierre de planes de acción">Planes</th>
                       <th class="py-3 px-3 text-center" title="Crear, asignar y revisar campañas de autoevaluación">Autoev.</th>
+                      <th class="py-3 px-3 text-center" title="Crear documentos, cargar versiones y enviarlas a aprobación">Docs.</th>
                       <th class="py-3 px-4 text-right">Acción</th>
                     </tr>
                   </thead>
@@ -380,6 +381,18 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                             title="Alternar permiso de autoevaluaciones"
                           >
                             <mat-icon class="text-sm">{{ role.permissions.canManageSurveys ? 'check' : 'remove' }}</mat-icon>
+                          </button>
+                        </td>
+
+                        <td class="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            [class.perm-locked]="!canManage()" (click)="togglePermission(role, 'canManageDocuments')"
+                            class="w-6 h-6 rounded flex items-center justify-center mx-auto transition-colors cursor-pointer"
+                            [class]="role.permissions.canManageDocuments ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                            title="Alternar permiso de gestión documental"
+                          >
+                            <mat-icon class="text-sm">{{ role.permissions.canManageDocuments ? 'check' : 'remove' }}</mat-icon>
                           </button>
                         </td>
 
@@ -802,6 +815,14 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                       <span class="text-[11px] text-slate-500">Campañas RCSA, BIA y de cumplimiento; revisión de respuestas</span>
                     </div>
                   </label>
+
+                  <label class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 cursor-pointer hover:border-slate-300">
+                    <input type="checkbox" formControlName="canManageDocuments" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+                    <div>
+                      <span class="font-bold text-slate-900 block">Administrar Gestión Documental</span>
+                      <span class="text-[11px] text-slate-500">Políticas y procedimientos: versiones, aprobación, vigencia y difusión</span>
+                    </div>
+                  </label>
                 </div>
               </div>
 
@@ -878,7 +899,8 @@ export class RolesManagementModal {
     canManageCatalogs: [false],
     canManageCompliance: [false],
     canManageActionPlans: [false],
-    canManageSurveys: [false]
+    canManageSurveys: [false],
+    canManageDocuments: [false]
   });
 
   readonly userForm = this.fb.group({
@@ -913,7 +935,8 @@ export class RolesManagementModal {
       { key: 'catalogs', label: 'Mantenedores', granted: !!p.canManageCatalogs },
       { key: 'compliance', label: 'Cumplimiento', granted: !!p.canManageCompliance },
       { key: 'plans', label: 'Planes', granted: !!p.canManageActionPlans },
-      { key: 'surveys', label: 'Autoevaluaciones', granted: !!p.canManageSurveys }
+      { key: 'surveys', label: 'Autoevaluaciones', granted: !!p.canManageSurveys },
+      { key: 'documents', label: 'Documentos', granted: !!p.canManageDocuments }
     ];
   }
 
@@ -994,7 +1017,8 @@ export class RolesManagementModal {
         canManageCatalogs: !!v.canManageCatalogs,
         canManageCompliance: !!v.canManageCompliance,
         canManageActionPlans: !!v.canManageActionPlans,
-        canManageSurveys: !!v.canManageSurveys
+        canManageSurveys: !!v.canManageSurveys,
+        canManageDocuments: !!v.canManageDocuments
       }
     });
 
@@ -1019,7 +1043,8 @@ export class RolesManagementModal {
       canManageCatalogs: false,
       canManageCompliance: false,
       canManageActionPlans: false,
-      canManageSurveys: false
+      canManageSurveys: false,
+      canManageDocuments: false
     });
 
     this.activeTab.set('roles');

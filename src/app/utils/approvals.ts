@@ -4,6 +4,8 @@ import {
 } from '../models/approval.model';
 import { UserPermissions } from '../models/risk.model';
 import { personKey } from './action-plans';
+import { approveVersion, isBoardDocument } from './documents';
+import type { DocumentType } from '../models/document.model';
 
 interface Actor { name: string; roleId?: string; permissions: Partial<UserPermissions> }
 interface RoleRef { id: string; title: string }
@@ -27,12 +29,16 @@ export function normalizeMatrix(raw: unknown): ApprovalMatrix {
   return {
     steps,
     outOfToleranceRoleId: typeof m.outOfToleranceRoleId === 'string' ? m.outOfToleranceRoleId : DEFAULT_APPROVAL_MATRIX.outOfToleranceRoleId,
+    boardRoleId: typeof m.boardRoleId === 'string' ? m.boardRoleId : DEFAULT_APPROVAL_MATRIX.boardRoleId,
   };
 }
 
 /** Cargos que deben aprobar, en orden (la aceptación fuera de tolerancia suma un nivel). */
-export function approvalRoleIds(kind: ApprovalKind, matrix: ApprovalMatrix, appetite?: string): string[] {
+export function approvalRoleIds(kind: ApprovalKind, matrix: ApprovalMatrix, appetite?: string, docType?: string): string[] {
   const ids = [...(matrix.steps[kind] ?? [])];
+  if (kind === 'documento' && docType && isBoardDocument(docType as DocumentType) && matrix.boardRoleId && !ids.includes(matrix.boardRoleId)) {
+    ids.push(matrix.boardRoleId);
+  }
   if (kind === 'aceptacion-riesgo' && appetite === 'Fuera de tolerancia' && matrix.outOfToleranceRoleId && !ids.includes(matrix.outOfToleranceRoleId)) {
     ids.push(matrix.outOfToleranceRoleId);
   }
@@ -53,6 +59,7 @@ export const REQUEST_PERMISSIONS: Record<ApprovalKind, (keyof UserPermissions)[]
   'plan-continuidad': ['canManageContinuity'],
   'informe-auditoria': ['canExecuteAudits'],
   'reprogramacion-plan': ['canManageActionPlans'],
+  documento: ['canManageDocuments'],
 };
 
 export function canRequest(u: Actor, kind: ApprovalKind, targetOwner?: string): boolean {
@@ -107,7 +114,7 @@ export function checkApprovalChange(prev: ApprovalRequest | null, next: Approval
     if (!isRequester(u, next)) return 'La solicitud debe quedar a tu nombre.';
     if (!next.justification?.trim()) return 'Indique la justificación.';
     if (next.status !== 'Pendiente' || next.currentStep !== 0) return 'Una solicitud nueva parte pendiente en el primer nivel.';
-    const expected = approvalRoleIds(next.kind, ctx.matrix, next.payload?.appetite);
+    const expected = approvalRoleIds(next.kind, ctx.matrix, next.payload?.appetite, next.payload?.docType);
     if (!expected.length) return 'No hay cargos aprobadores configurados para este tipo de solicitud.';
     if (!same(next.steps.map(s => s.roleId), expected)) return 'Los niveles de aprobación no coinciden con la matriz vigente.';
     if (next.steps.some(s => s.decision || s.decidedBy)) return 'Una solicitud nueva no puede traer decisiones.';
@@ -170,6 +177,8 @@ export function applyApprovalEffect(r: ApprovalRequest, target: any): any {
       };
     case 'informe-auditoria':
       return { ...target, status: 'Aprobada' };
+    case 'documento':
+      return approveVersion(target, r.payload.versionId ?? '', approvers, at, r.code, r.payload.effectiveDate);
     case 'reprogramacion-plan': {
       const to = r.payload.newDueDate;
       if (!to || to === target.dueDate) return null;
@@ -193,6 +202,7 @@ export function approvalSummary(req: ApprovalRequest): string {
     case 'plan-continuidad': return `Aprobar ${r.targetLabel}${r.payload.version ? ` versión ${r.payload.version}` : ''}${r.payload.nextReviewDate ? `, próxima revisión ${r.payload.nextReviewDate}` : ''}`;
     case 'informe-auditoria': return `Aprobar el informe de ${r.targetLabel}`;
     case 'reprogramacion-plan': return `Reprogramar ${r.targetLabel}: ${r.payload.currentDueDate ?? '—'} → ${r.payload.newDueDate ?? '—'}`;
+    case 'documento': return `Aprobar ${r.targetLabel} versión ${r.payload.version ?? '—'}${r.payload.effectiveDate ? `, vigente desde ${r.payload.effectiveDate}` : ''}`;
   }
 }
 
@@ -206,7 +216,7 @@ export function lastActivity(r: ApprovalRequest): string {
  * riesgo frente al apetito (solo para aceptaciones de riesgo).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function targetPrecondition(kind: ApprovalKind, target: any, payload: { newDueDate?: string; reviewDate?: string }, appetite?: string): string | null {
+export function targetPrecondition(kind: ApprovalKind, target: any, payload: { newDueDate?: string; reviewDate?: string; versionId?: string }, appetite?: string): string | null {
   if (!target) return 'El registro de origen no existe.';
   switch (kind) {
     case 'aceptacion-riesgo':
@@ -225,5 +235,12 @@ export function targetPrecondition(kind: ApprovalKind, target: any, payload: { n
       if (!['Pendiente', 'En curso'].includes(target.status)) return 'Solo se reprograma un plan abierto.';
       if (!payload.newDueDate || payload.newDueDate === target.dueDate) return 'Indique un plazo distinto al actual.';
       return null;
+    case 'documento': {
+      if (target.status === 'Obsoleto') return 'El documento está obsoleto.';
+      const v = (target.versions ?? []).find((x: { id: string }) => x.id === payload.versionId);
+      if (!v || v.status !== 'Borrador') return 'Envíe a aprobación el borrador vigente del documento.';
+      if (!v.fileId) return 'Adjunte el archivo de la versión antes de enviarla a aprobación.';
+      return null;
+    }
   }
 }

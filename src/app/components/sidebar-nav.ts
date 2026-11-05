@@ -10,6 +10,7 @@ import { ComplianceService } from '../services/compliance.service';
 import { ActionPlanService } from '../services/action-plan.service';
 import { SurveyService } from '../services/survey.service';
 import { ApprovalService } from '../services/approval.service';
+import { DocumentService } from '../services/document.service';
 
 export interface NavGroup {
   title: string;
@@ -263,6 +264,7 @@ export class SidebarNav {
   readonly actionPlans = inject(ActionPlanService);
   readonly surveys = inject(SurveyService);
   readonly approvals = inject(ApprovalService);
+  readonly documents = inject(DocumentService);
 
   readonly activeTab = input.required<ActiveTab>();
   readonly isCollapsed = input<boolean>(false);
@@ -289,6 +291,7 @@ export class SidebarNav {
     const sk = this.surveys.kpis();
     const surveysBadge = sk.minePending + (this.surveys.canManage() ? sk.toReview : 0);
     const approvalsMine = this.approvals.pendingForMe().length;
+    const docsBadge = this.documents.myPending().length;
     const regulatoryOpen = this.riskService.regulatoryIncidents().filter(f => f.regulatoryReport?.status === 'Abierto').length;
 
     return [
@@ -381,6 +384,11 @@ export class SidebarNav {
             id: 'cumplimiento-ran', label: 'Cumplimiento Normativo', icon: 'policy',
             badge: complianceGaps > 0 ? complianceGaps : undefined,
             badgeClass: 'bg-amber-900/60 text-amber-200 border border-amber-700/50'
+          },
+          {
+            id: 'documentos', label: 'Gestión Documental', icon: 'description',
+            badge: docsBadge > 0 ? docsBadge : undefined,
+            badgeClass: 'bg-sky-500 text-slate-950 font-bold'
           },
         ]
       },

@@ -1022,7 +1022,7 @@ ALTER TABLE risks ADD COLUMN IF NOT EXISTS acceptance JSONB;
 CREATE TABLE IF NOT EXISTS approval_requests (
     id VARCHAR(80) PRIMARY KEY,
     code VARCHAR(40) NOT NULL,
-    kind VARCHAR(40) NOT NULL CHECK (kind IN ('aceptacion-riesgo', 'aceptacion-vulnerabilidad', 'plan-continuidad', 'informe-auditoria', 'reprogramacion-plan')),
+    kind VARCHAR(40) NOT NULL,  -- validado por la aplicación (APPROVAL_KINDS)
     target_entity VARCHAR(40) NOT NULL,
     target_id VARCHAR(80) NOT NULL,
     target_label VARCHAR(300) NOT NULL,
@@ -1037,6 +1037,8 @@ CREATE TABLE IF NOT EXISTS approval_requests (
     cancel_reason TEXT,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+-- Los tipos de solicitud los valida la aplicación: se quita la restricción anterior (gestión documental agregó "documento").
+ALTER TABLE approval_requests DROP CONSTRAINT IF EXISTS approval_requests_kind_check;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_approval_requests_code ON approval_requests (code);
 CREATE INDEX IF NOT EXISTS idx_approval_requests_target ON approval_requests (target_entity, target_id);
 CREATE INDEX IF NOT EXISTS idx_approval_requests_status ON approval_requests (status);
@@ -1094,3 +1096,29 @@ CREATE TABLE IF NOT EXISTS evidence_files (
 );
 CREATE INDEX IF NOT EXISTS idx_evidence_files_entity ON evidence_files (entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_files_sha ON evidence_files (sha256);
+
+-- Gestión documental: políticas, manuales y procedimientos con versiones (cada versión
+-- lleva su archivo en evidence_files) y confirmaciones de lectura.
+CREATE TABLE IF NOT EXISTS controlled_documents (
+    id VARCHAR(80) PRIMARY KEY,
+    code VARCHAR(40) NOT NULL,
+    title VARCHAR(300) NOT NULL,
+    doc_type VARCHAR(30) NOT NULL CHECK (doc_type IN ('Política', 'Manual', 'Reglamento', 'Procedimiento', 'Instructivo', 'Plan', 'Formulario', 'Otro')),
+    description TEXT NOT NULL DEFAULT '',
+    owner VARCHAR(255) NOT NULL DEFAULT '',
+    classification VARCHAR(20) NOT NULL DEFAULT 'Interna' CHECK (classification IN ('Pública', 'Interna', 'Confidencial')),
+    review_months INTEGER NOT NULL DEFAULT 12 CHECK (review_months BETWEEN 1 AND 60),
+    audience_role_ids JSONB NOT NULL DEFAULT '[]',
+    requirement_ids JSONB NOT NULL DEFAULT '[]',
+    processes JSONB NOT NULL DEFAULT '[]',
+    versions JSONB NOT NULL DEFAULT '[]',
+    current_version_id VARCHAR(80),
+    next_review_date DATE,
+    acknowledgments JSONB NOT NULL DEFAULT '[]',
+    status VARCHAR(12) NOT NULL DEFAULT 'Activo' CHECK (status IN ('Activo', 'Obsoleto')),
+    obsolete_reason TEXT,
+    created_by VARCHAR(255) NOT NULL DEFAULT '',
+    created_at VARCHAR(40) NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_controlled_documents_code ON controlled_documents (code);

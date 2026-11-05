@@ -385,8 +385,10 @@ export interface AuditLogEntry {
     | 'ANULACIÓN_APROBACION'
     | 'CONFIGURACIÓN_APROBACIONES'
     | 'CARGA_EVIDENCIA'
-    | 'BAJA_EVIDENCIA';
-  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor' | 'Cumplimiento' | 'Plan de Acción' | 'Autoevaluación' | 'Aprobación' | 'Notificación' | 'Evidencia';
+    | 'BAJA_EVIDENCIA'
+    | 'GESTIÓN_DOCUMENTO'
+    | 'LECTURA_DOCUMENTO';
+  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor' | 'Cumplimiento' | 'Plan de Acción' | 'Autoevaluación' | 'Aprobación' | 'Notificación' | 'Evidencia' | 'Documento';
   entityCode: string;
   details: string;
   ipAddress: string;
@@ -463,6 +465,7 @@ export interface UserPermissions {
   canManageActionPlans?: boolean;
   /** Crear campañas de autoevaluación, asignarlas, revisarlas y aplicar sus respuestas. */
   canManageSurveys?: boolean;
+  canManageDocuments?: boolean;
 }
 
 export interface OrganizationalRole {

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EvidenceFiles } from './evidence-files';
 import { EvidenceService } from '../services/evidence.service';
+import { DocumentService } from '../services/document.service';
 import { PermissionDeniedError, RiskDataService } from '../services/risk-data.service';
 import { ComplianceService } from '../services/compliance.service';
 import {
@@ -300,6 +301,7 @@ interface RequirementForm {
               @for (i of items; track i.id) {
                 @let auto = comp.autoCheck(i.autoCheck);
                 @let cov = comp.coverage(i);
+                @let docCov = comp.documentCoverage(i);
                 <div class="px-4 py-3">
                   @if (reqForm()?.id === i.id) {
                     <ng-container *ngTemplateOutlet="reqFormTpl" />
@@ -326,6 +328,22 @@ interface RequirementForm {
                           @for (ctl of linkedControls(i); track ctl.id) {
                             <span class="text-[10px] px-1.5 py-0.5 rounded font-mono" [class]="controlClass(ctl)" [title]="ctl.name + ' · ' + ctl.status + ' (' + ctl.totalEffectiveness + ' %)'">{{ ctl.code }}</span>
                           }
+                        </div>
+                      }
+                      @if (linkedDocs(i).length) {
+                        <div class="flex flex-wrap items-center gap-1 mt-1.5">
+                          <span class="text-[10px] text-slate-500 mr-0.5">Documentos:</span>
+                          @for (d of linkedDocs(i); track d.id) {
+                            <button type="button" (click)="docs.open(d.id)" class="text-[10px] px-1.5 py-0.5 rounded font-mono cursor-pointer hover:underline"
+                              [class]="docs.status(d) === 'Vigente' ? 'bg-emerald-100 text-emerald-800' : docs.status(d) === 'Revisión vencida' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'"
+                              [title]="d.title + ' · ' + docs.status(d)">{{ d.code }}{{ docs.current(d) ? ' v' + docs.current(d)!.version : '' }}</button>
+                          }
+                        </div>
+                      }
+                      @if (!auto && !cov && docCov) {
+                        <div class="mt-1.5 text-[11px] text-indigo-900 bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1 inline-flex items-start gap-1">
+                          <mat-icon class="text-[14px] w-3.5 h-3.5 text-indigo-500 shrink-0">description</mat-icon>
+                          <span>{{ docCov.text }}@if (docCov.suggested !== i.status) { <strong> Sugerido: {{ docCov.suggested }}.</strong> }</span>
                         </div>
                       }
                       @if (auto || cov) {
@@ -459,6 +477,8 @@ export class CompliancePanel {
   readonly rs = inject(RiskDataService);
   readonly comp = inject(ComplianceService);
   readonly evidence = inject(EvidenceService);
+  readonly docs = inject(DocumentService);
+  linkedDocs(r: ComplianceRequirement) { return this.docs.forRequirement(r.id); }
   readonly actionPlans = inject(ActionPlanService);
   readonly notify = output<string>();
   readonly openModule = output<string>();

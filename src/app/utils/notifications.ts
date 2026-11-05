@@ -9,6 +9,8 @@ import { ContinuityPlan, ServiceProvider } from '../models/resilience.model';
 import { Vulnerability } from '../models/security.model';
 import { isOpenPlan, personKey } from './action-plans';
 import { approvalSummary, eligibleApprovers, lastActivity } from './approvals';
+import { ControlledDocument } from '../models/document.model';
+import { audienceOf, currentVersion, hasAcknowledged } from './documents';
 
 export interface NotifyUser {
   name: string;
@@ -104,6 +106,7 @@ export function changeNotifications(entity: string, prev: any, next: any, ctx: C
     case 'approvals': return approvalChanges(prev, next, ctx);
     case 'flaws': return flawChanges(prev, next, ctx);
     case 'alerts': return alertChanges(prev, next, ctx);
+    case 'documents': return documentChanges(prev, next, ctx);
     default: return [];
   }
 }
@@ -235,6 +238,16 @@ function flawChanges(prev: OperationalFlaw | null, f: OperationalFlaw, ctx: Chan
   }, `flaw-new:${f.id}`);
 }
 
+function documentChanges(prev: ControlledDocument | null, d: ControlledDocument, ctx: ChangeContext): NotificationDraft[] {
+  const v = currentVersion(d);
+  if (!v || (prev && prev.currentVersionId === d.currentVersionId)) return [];
+  const ref = { category: 'Documentos' as const, tab: 'documentos', entityType: 'documents', entityId: d.id };
+  return forUsers(audienceOf(d, activeUsers(ctx.users)), {
+    ...ref, severity: 'aviso', title: `Nueva versión vigente: ${d.code} ${d.title} v${v.version}`,
+    body: `Vigente desde ${v.effectiveDate ?? v.approvedAt}. ${v.changeSummary ? `Cambios: ${v.changeSummary}. ` : ''}Léala y confirme su lectura.`,
+  }, `doc-ack:${d.id}:${v.id}`);
+}
+
 function alertChanges(prev: AnomalyAlert | null, a: AnomalyAlert, ctx: ChangeContext): NotificationDraft[] {
   if (prev) return [];
   const prefs = ctx.kriPreferences;
@@ -272,9 +285,11 @@ export interface ScheduleData {
   vulnerabilities: Vulnerability[];
   risks: Risk[];
   providers: ServiceProvider[];
+  documents: ControlledDocument[];
 }
 
 export function scheduledNotifications(d: ScheduleData, s: NotificationSettings, today: string): NotificationDraft[] {
+  const data = d;
   const out: NotificationDraft[] = [];
   const users = d.users;
   const managers = usersWithPermission('canManageActionPlans', users);
@@ -373,6 +388,30 @@ export function scheduledNotifications(d: ScheduleData, s: NotificationSettings,
       category: 'Riesgos', severity: 'aviso', tab: 'matriz-riesgos', entityType: 'risks', entityId: r.id,
       title: `${r.code}: revisar la aceptación del riesgo`, body: `"${r.title}" fue aceptado hasta el ${r.acceptance.reviewDate} (${r.acceptance.approvedBy}).`,
     }, `risk-acceptance:${r.id}:${r.acceptance.reviewDate}`));
+  }
+
+  // Documentos: revisión próxima o vencida, y lecturas pendientes a los 7 días.
+  const docManagers = usersWithPermission('canManageDocuments', users);
+  for (const doc of data.documents ?? []) {
+    const d = doc;
+    const v = currentVersion(d);
+    if (d.status === 'Obsoleto' || !v) continue;
+    const ref = { category: 'Documentos' as const, tab: 'documentos', entityType: 'documents', entityId: d.id };
+    if (d.nextReviewDate) {
+      const days = daysBetween(today, d.nextReviewDate);
+      const to = [userByName(d.owner, users), ...docManagers];
+      if (days < 0) {
+        out.push(...forUsers(to, { ...ref, severity: 'urgente', title: `${d.code}: revisión vencida`, body: `"${d.title}" v${v.version} debía revisarse el ${d.nextReviewDate}.` }, `doc-review:${d.id}:${d.nextReviewDate}`));
+      } else if (days <= 30) {
+        out.push(...forUsers(to, { ...ref, severity: 'aviso', title: `${d.code}: revisión en ${days} días`, body: `"${d.title}" v${v.version} debe revisarse el ${d.nextReviewDate}.` }, `doc-review-soon:${d.id}:${d.nextReviewDate}`));
+      }
+    }
+    if (daysBetween(v.effectiveDate ?? v.approvedAt ?? today, today) >= 7) {
+      const pending = audienceOf(d, users.filter(u => u.active !== false)).filter(u => !hasAcknowledged(d, u.name));
+      out.push(...forUsers(pending, {
+        ...ref, severity: 'aviso', title: `Recordatorio: confirme la lectura de ${d.code} v${v.version}`, body: `"${d.title}" está vigente desde ${v.effectiveDate ?? v.approvedAt}.`,
+      }, `doc-ack-reminder:${d.id}:${v.id}`));
+    }
   }
 
   // Contratos de proveedores por vencer.

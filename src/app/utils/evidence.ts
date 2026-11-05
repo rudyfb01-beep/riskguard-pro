@@ -147,6 +147,7 @@ export function canAttachEvidence(entity: EvidenceEntity, u: Actor, parent: any)
       return !!a && a.status === 'Pendiente' && (isRequester(u, a) || canDecide(u, a));
     }
     case 'providers': return has(u, 'canManageProviders');
+    case 'documents': return has(u, 'canManageDocuments') && (parent as { status?: string } | null)?.status !== 'Obsoleto';
   }
 }
 

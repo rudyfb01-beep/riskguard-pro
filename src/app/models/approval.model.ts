@@ -12,10 +12,11 @@ export type ApprovalKind =
   | 'aceptacion-vulnerabilidad'
   | 'plan-continuidad'
   | 'informe-auditoria'
-  | 'reprogramacion-plan';
+  | 'reprogramacion-plan'
+  | 'documento';
 
 /** Entidad (nombre de la API) sobre la que actúa cada tipo de solicitud. */
-export type ApprovalTargetEntity = 'risks' | 'vulnerabilities' | 'plans' | 'audits' | 'action-plans';
+export type ApprovalTargetEntity = 'risks' | 'vulnerabilities' | 'plans' | 'audits' | 'action-plans' | 'documents';
 
 export interface ApprovalKindInfo {
   label: string;
@@ -48,6 +49,10 @@ export const APPROVAL_KINDS: Record<ApprovalKind, ApprovalKindInfo> = {
     label: 'Reprogramación de plan de acción', short: 'Reprogramación de plan', entity: 'action-plans', tab: 'planes-accion', icon: 'event_repeat',
     effect: 'El plan cambia al nuevo plazo y la reprogramación queda registrada.',
   },
+  documento: {
+    label: 'Aprobación de documento', short: 'Documento', entity: 'documents', tab: 'documentos', icon: 'description',
+    effect: 'La versión pasa a ser la vigente, la anterior queda reemplazada y se pide la confirmación de lectura.',
+  },
 };
 
 export const APPROVAL_KIND_LIST = Object.keys(APPROVAL_KINDS) as ApprovalKind[];
@@ -69,10 +74,13 @@ export interface ApprovalPayload {
   reviewDate?: string;       // aceptaciones: hasta cuándo rige (YYYY-MM-DD)
   appetite?: string;         // aceptación de riesgo: estado frente al apetito al solicitar
   residualScore?: number;
-  version?: string;          // plan de continuidad
   nextReviewDate?: string;   // plan de continuidad
   newDueDate?: string;       // reprogramación
   currentDueDate?: string;   // reprogramación
+  versionId?: string;        // documento
+  version?: string;          // documento (también plan de continuidad)
+  docType?: string;          // documento
+  effectiveDate?: string;    // documento: entrada en vigencia (YYYY-MM-DD)
 }
 
 export interface ApprovalRequest {
@@ -98,6 +106,8 @@ export interface ApprovalMatrix {
   steps: Record<ApprovalKind, string[]>;
   /** Nivel adicional cuando el riesgo queda fuera de la tolerancia (vacío: ninguno). */
   outOfToleranceRoleId: string;
+  /** Nivel adicional para políticas, manuales y reglamentos (los aprueba el Consejo; vacío: ninguno). */
+  boardRoleId: string;
 }
 
 export const DEFAULT_APPROVAL_MATRIX: ApprovalMatrix = {
@@ -107,8 +117,10 @@ export const DEFAULT_APPROVAL_MATRIX: ApprovalMatrix = {
     'plan-continuidad': ['role-gerencia-general'],
     'informe-auditoria': ['role-junta-vigilancia'],
     'reprogramacion-plan': ['role-riesgo-op'],
+    documento: ['role-gerencia-general'],
   },
   outOfToleranceRoleId: 'role-comite-riesgos',
+  boardRoleId: 'role-consejo',
 };
 
 /** Aceptación formal de un riesgo residual sobre el apetito. */
