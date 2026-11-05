@@ -7,6 +7,7 @@ import { CatalogService } from './catalog.service';
 import { ComplianceService } from './compliance.service';
 import { ActionPlanService } from './action-plan.service';
 import { SurveyService } from './survey.service';
+import { ApprovalService } from './approval.service';
 import { AuditLogEntry, UserProfile } from '../models/risk.model';
 
 export type DataMode = 'loading' | 'login' | 'database' | 'demo' | 'error';
@@ -55,6 +56,7 @@ export class PersistenceService {
   private readonly comp = inject(ComplianceService);
   private readonly plans = inject(ActionPlanService);
   private readonly surveys = inject(SurveyService);
+  private readonly approvals = inject(ApprovalService);
 
   readonly mode = signal<DataMode>('loading');
   readonly loadError = signal<string | null>(null);
@@ -96,6 +98,7 @@ export class PersistenceService {
     this.col('action-plans', 'actionPlans', this.plans.plans),
     this.col('survey-campaigns', 'surveyCampaigns', this.surveys.campaigns),
     this.col('survey-responses', 'surveyResponses', this.surveys.responses),
+    this.col('approvals', 'approvals', this.approvals.approvals),
   ];
 
   private readonly settings: Setting[] = [
@@ -108,9 +111,16 @@ export class PersistenceService {
     { key: 'risk_appetite', sig: this.cat.riskAppetiteRaw, last: '' },
     { key: 'accounting_accounts', sig: this.cat.accountingAccountsRaw, last: '' },
     { key: 'provider_catalogs', sig: this.cat.providerCatalogsRaw, last: '' },
+    { key: 'approval_matrix', sig: this.approvals.matrixRaw, last: '' },
+    { key: 'notification_settings', sig: this.cat.notificationSettingsRaw, last: '' },
   ];
 
   constructor() {
+    // Al aprobarse una solicitud el servidor ya guardó el registro de origen: no se reenvía.
+    this.approvals.markSaved = (entity, obj) => {
+      const c = this.collections.find(x => x.entity === entity);
+      if (c && this.enabled) c.snapshot.set(obj.id, obj);
+    };
     // Observa todas las colecciones; solo actúa una vez cargados los datos.
     effect(() => {
       const values = this.collections.map(c => c.sig());

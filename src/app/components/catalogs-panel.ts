@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
+import { WorkflowSettings } from './workflow-settings';
 import { RiskDataService } from '../services/risk-data.service';
 import { CatalogService } from '../services/catalog.service';
 import { CatalogAdminService, CatalogValidationError } from '../services/catalog-admin.service';
@@ -13,14 +14,14 @@ import {
 
 const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100';
 
-export type CatalogTab = 'procesos' | 'areas' | 'escala' | 'apetito' | 'cuentas' | 'proveedores' | 'parametros';
+export type CatalogTab = 'procesos' | 'areas' | 'escala' | 'apetito' | 'cuentas' | 'proveedores' | 'parametros' | 'aprobaciones';
 type SubTab = CatalogTab;
 
 /** Mantenedores: mapa de procesos, áreas y parámetros generales. */
 @Component({
   selector: 'app-catalogs-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, WorkflowSettings],
   template: `
     <div class="space-y-4">
       <!-- Header -->
@@ -322,6 +323,10 @@ type SubTab = CatalogTab;
       }
 
       <!-- PARÁMETROS -->
+      @if (tab() === 'aprobaciones') {
+        <app-workflow-settings (notify)="notify.emit($event)" />
+      }
+
       @if (tab() === 'parametros') {
         @if (paramDraft(); as pd) {
           <fieldset class="grid grid-cols-1 lg:grid-cols-2 gap-4" [disabled]="!canManage()">
@@ -527,6 +532,7 @@ export class CatalogsPanel {
     { id: 'cuentas' as SubTab, label: 'Cuentas contables', icon: 'account_balance_wallet', count: () => this.cat.accountingAccounts().length },
     { id: 'proveedores' as SubTab, label: 'Catálogo de proveedores', icon: 'handshake', count: undefined },
     { id: 'parametros' as SubTab, label: 'Parámetros generales', icon: 'settings', count: undefined },
+    { id: 'aprobaciones' as SubTab, label: 'Aprobaciones y avisos', icon: 'approval', count: undefined },
   ];
 
   readonly canManage = computed(() => this.rs.hasPermission('canManageCatalogs'));

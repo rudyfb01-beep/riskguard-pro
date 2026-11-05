@@ -53,6 +53,12 @@ export async function sendLoginCode(to: string, name: string, code: string, minu
   });
 }
 
+/** Envía un correo cualquiera (avisos y resúmenes). Requiere SMTP configurado. */
+export async function sendMail(to: string, content: { subject: string; text: string; html: string }): Promise<void> {
+  if (!isMailConfigured()) throw new Error('El envío de correo no está configurado (SMTP_HOST).');
+  await getTransporter().sendMail({ from: process.env['SMTP_FROM'] || process.env['SMTP_USER'], to, ...content });
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }

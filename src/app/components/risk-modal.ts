@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, inject, input, output, signal, OnIn
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
+import { ApprovalBox } from './approval-box';
+import { ApprovalService } from '../services/approval.service';
 import { RiskDataService } from '../services/risk-data.service';
 import { BaselCategory, Risk } from '../models/risk.model';
 import { MoneyPipe } from '../utils/money.pipe';
@@ -11,7 +13,7 @@ import { LinkedPlans } from './linked-plans';
 @Component({
   selector: 'app-risk-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, MatIconModule, MoneyPipe, LinkedPlans],
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule, MoneyPipe, LinkedPlans, ApprovalBox],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden my-6">
@@ -293,6 +295,26 @@ import { LinkedPlans } from './linked-plans';
             }
           </div>
 
+          @if (existingRisk(); as er) {
+            @let appetite = approvals.appetiteOf(er.id);
+            @if (appetite !== 'Dentro del apetito' || er.acceptance || approvals.forTarget('risks', er.id).length) {
+              <div class="border-t border-slate-200 pt-4 space-y-2">
+                <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider">5. Aceptación del riesgo</h3>
+                @if (er.acceptance; as a) {
+                  <div class="p-3 rounded-xl border text-xs" [class]="a.reviewDate < today ? 'border-rose-300 bg-rose-50' : 'border-emerald-200 bg-emerald-50'">
+                    <strong>Aceptado</strong> por {{ a.approvedBy }} el {{ a.approvedDate }} ({{ a.requestCode }}) · revisar el
+                    <strong [class.text-rose-700]="a.reviewDate < today">{{ a.reviewDate }}</strong>.
+                    <div class="text-slate-700 mt-1">{{ a.justification }}</div>
+                  </div>
+                }
+                <app-approval-box kind="aceptacion-riesgo" [targetId]="er.id" [targetLabel]="er.code + ' ' + er.title"
+                  [title]="'Riesgo residual ' + er.residualScore + ': ' + (appetite ?? '')" requestLabel="Solicitar aceptación"
+                  [hint]="appetite === 'Fuera de tolerancia' ? 'Fuera de la tolerancia: la aceptación suma la aprobación del Comité de Riesgos.' : appetite === 'Sobre el apetito' ? 'El residual supera el apetito: mitíguelo con planes de acción o solicite su aceptación formal.' : ''"
+                  [defaults]="{ residualScore: er.residualScore }" (notify)="riskService.permissionNotice.set({ message: $event, at: now() })" />
+              </div>
+            }
+          }
+
         </form>
 
         <!-- Modal Footer -->
@@ -324,6 +346,9 @@ import { LinkedPlans } from './linked-plans';
 export class RiskModal implements OnInit {
   readonly riskService = inject(RiskDataService);
   readonly actionPlans = inject(ActionPlanService);
+  readonly approvals = inject(ApprovalService);
+  readonly today = new Date().toISOString().slice(0, 10);
+  now() { return Date.now(); }
 
   readonly existingRisk = input<Risk | null>(null);
   readonly closeModal = output<void>();

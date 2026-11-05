@@ -1,4 +1,5 @@
 import type { CyberIncidentInfo } from './compliance.model';
+import type { RiskAcceptance } from './approval.model';
 export type BaselCategory =
   | 'Fraude Interno'
   | 'Fraude Externo'
@@ -106,6 +107,8 @@ export interface Risk {
   mitigationPlan: MitigationPlan;
   createdAt: string;
   lastReviewDate: string;
+  /** Aceptación formal (flujo de aprobación) cuando el residual queda sobre el apetito. */
+  acceptance?: RiskAcceptance;
 }
 
 export type IncidentType =
@@ -376,8 +379,12 @@ export interface AuditLogEntry {
     | 'MODIFICACIÓN_PLAN_ACCION'
     | 'CAMPAÑA_AUTOEVALUACION'
     | 'RESPUESTA_AUTOEVALUACION'
-    | 'REVISIÓN_AUTOEVALUACION';
-  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor' | 'Cumplimiento' | 'Plan de Acción' | 'Autoevaluación';
+    | 'REVISIÓN_AUTOEVALUACION'
+    | 'SOLICITUD_APROBACION'
+    | 'DECISIÓN_APROBACION'
+    | 'ANULACIÓN_APROBACION'
+    | 'CONFIGURACIÓN_APROBACIONES';
+  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor' | 'Cumplimiento' | 'Plan de Acción' | 'Autoevaluación' | 'Aprobación' | 'Notificación';
   entityCode: string;
   details: string;
   ipAddress: string;

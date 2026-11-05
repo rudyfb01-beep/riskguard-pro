@@ -21,6 +21,9 @@ import { BusinessProcess, OrgArea } from '../app/models/catalog.model';
 import { ComplianceNorm, ComplianceRequirement, SecurityTest } from '../app/models/compliance.model';
 import { ActionPlan } from '../app/models/action-plan.model';
 import { SurveyCampaign, SurveyResponse } from '../app/models/survey.model';
+import { ApprovalRequest } from '../app/models/approval.model';
+import { AppNotification, NotificationDraft, NotificationPreference } from '../app/models/notification.model';
+import { randomUUID } from 'node:crypto';
 
 /**
  * Repositorio (PostgreSQL o SQLite): convierte los objetos que usa la aplicación en filas
@@ -34,12 +37,12 @@ type Row = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 export const ENTITY_ORDER = [
   'areas', 'processes', 'roles', 'users', 'controls', 'risks', 'providers', 'regulatory-milestones',
   'flaws', 'alerts', 'audits', 'kris', 'bia', 'plans', 'continuity-tests',
-  'info-assets', 'vulnerabilities', 'security-assessment', 'norms', 'compliance', 'security-tests', 'action-plans', 'survey-campaigns', 'survey-responses',
+  'info-assets', 'vulnerabilities', 'security-assessment', 'norms', 'compliance', 'security-tests', 'action-plans', 'survey-campaigns', 'survey-responses', 'approvals',
 ] as const;
 export type EntityName = typeof ENTITY_ORDER[number];
 
 export const SETTING_KEYS = ['current_industry', 'global_notification_preferences', 'loss_registration_threshold_usd', 'apr_operational_inputs', 'general_parameters',
-  'risk_scale', 'risk_appetite', 'accounting_accounts', 'provider_catalogs'] as const;
+  'risk_scale', 'risk_appetite', 'accounting_accounts', 'provider_catalogs', 'approval_matrix', 'notification_settings'] as const;
 export type SettingKey = typeof SETTING_KEYS[number];
 
 export interface BootstrapData {
@@ -67,6 +70,7 @@ export interface BootstrapData {
   actionPlans: ActionPlan[];
   surveyCampaigns: SurveyCampaign[];
   surveyResponses: SurveyResponse[];
+  approvals: ApprovalRequest[];
   ledger: AuditLogEntry[];
   settings: Partial<Record<SettingKey, unknown>>;
 }
@@ -131,7 +135,7 @@ export async function loadAll(): Promise<BootstrapData> {
   const [
     roles, users, controls, tests, risks, riskControls, providers, milestones, flaws, regReports, regSubs, regUpdates,
     alerts, audits, findings, kris, bia, biaProviders, plans, planProcesses, ctests, ledger, settings,
-    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans, surveyCampaigns, surveyResponses,
+    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans, surveyCampaigns, surveyResponses, approvals,
   ] = await Promise.all([
     q('SELECT * FROM organizational_roles ORDER BY created_at, id'),
     q('SELECT * FROM user_profiles ORDER BY created_at, id'),
@@ -167,6 +171,7 @@ export async function loadAll(): Promise<BootstrapData> {
     q('SELECT * FROM action_plans ORDER BY code'),
     q('SELECT * FROM survey_campaigns ORDER BY code'),
     q('SELECT * FROM survey_responses ORDER BY campaign_id, subject'),
+    q('SELECT * FROM approval_requests ORDER BY code'),
   ]);
 
   const testsBy = groupBy(tests, 'control_id');
@@ -213,6 +218,7 @@ export async function loadAll(): Promise<BootstrapData> {
     actionPlans: actionPlans.map(actionPlanFromRow),
     surveyCampaigns: surveyCampaigns.map(campaignFromRow),
     surveyResponses: surveyResponses.map(responseFromRow),
+    approvals: approvals.map(approvalFromRow),
     norms: norms.map((x): ComplianceNorm => ({
       id: x.id, code: x.code, title: x.title, kind: x.kind, issuer: x.issuer ?? '', source: x.source ?? '', url: opt(x.url),
       version: x.version, effectiveDate: opt(x.effective_date), status: x.status, applicability: x.applicability,
@@ -270,6 +276,7 @@ function riskFromRow(r: Row, controlIds: string[]): Risk {
     residualLikelihood: r.residual_likelihood, residualImpact: r.residual_impact, residualScore: r.residual_score,
     residualLevel: r.residual_level, residualExposureUSD: r.residual_exposure_usd,
     mitigationPlan: r.mitigation_plan, createdAt: r.created_at, lastReviewDate: r.last_review_date,
+    acceptance: opt(r.acceptance ?? null),
   };
 }
 
@@ -421,6 +428,21 @@ export async function getSurveyResponse(id: string): Promise<{ response: SurveyR
   return { response: responseFromRow(r.rows[0]), campaign: c.rows[0] ? campaignFromRow(c.rows[0]) : null };
 }
 
+function approvalFromRow(r: Row): ApprovalRequest {
+  return {
+    id: r.id, code: r.code, kind: r.kind, targetEntity: r.target_entity, targetId: r.target_id, targetLabel: r.target_label,
+    justification: r.justification, payload: r.payload && typeof r.payload === 'object' ? r.payload : {}, requestedBy: r.requested_by,
+    requestedAt: r.requested_at, steps: Array.isArray(r.steps) ? r.steps : [], currentStep: Number(r.current_step ?? 0), status: r.status,
+    closedAt: opt(r.closed_at), cancelReason: opt(r.cancel_reason),
+  };
+}
+
+/** Solicitud de aprobación guardada (para validar decisiones). */
+export async function getApproval(id: string): Promise<ApprovalRequest | null> {
+  const r = await getPool()!.query('SELECT * FROM approval_requests WHERE id = $1', [id]);
+  return r.rows[0] ? approvalFromRow(r.rows[0]) : null;
+}
+
 /** Plan de acción guardado (para validar los cambios del responsable). */
 export async function getActionPlan(id: string): Promise<ActionPlan | null> {
   const r = await getPool()!.query('SELECT * FROM action_plans WHERE id = $1', [id]);
@@ -513,7 +535,7 @@ const savers: Record<EntityName, (c: DbClient, o: any) => Promise<void>> = {
       inherent_score: o.inherentScore, inherent_level: o.inherentLevel, financial_exposure_usd: o.financialExposureUSD,
       residual_likelihood: o.residualLikelihood, residual_impact: o.residualImpact, residual_score: o.residualScore,
       residual_level: o.residualLevel, residual_exposure_usd: o.residualExposureUSD, mitigation_plan: json(o.mitigationPlan),
-      created_at: o.createdAt, last_review_date: o.lastReviewDate,
+      created_at: o.createdAt, last_review_date: o.lastReviewDate, acceptance: o.acceptance ? json(o.acceptance) : null,
     });
     await c.query('DELETE FROM risk_controls WHERE risk_id = $1', [o.id]);
     for (const cid of new Set(o.controlIds ?? [])) {
@@ -711,6 +733,14 @@ const savers: Record<EntityName, (c: DbClient, o: any) => Promise<void>> = {
     });
   },
 
+  async approvals(c, o: ApprovalRequest) {
+    await upsertRow(c, 'approval_requests', 'id', {
+      id: o.id, code: o.code, kind: o.kind, target_entity: o.targetEntity, target_id: o.targetId, target_label: o.targetLabel.slice(0, 300),
+      justification: o.justification, payload: json(o.payload ?? {}), requested_by: o.requestedBy, requested_at: o.requestedAt,
+      steps: json(o.steps ?? []), current_step: o.currentStep ?? 0, status: o.status, closed_at: o.closedAt ?? null, cancel_reason: o.cancelReason ?? null,
+    });
+  },
+
   async norms(c, o: ComplianceNorm) {
     await upsertRow(c, 'compliance_norms', 'id', {
       id: o.id, code: o.code, title: o.title, kind: o.kind, issuer: o.issuer || null, source: o.source || null, url: o.url || null,
@@ -795,6 +825,7 @@ const TABLE_BY_ENTITY: Record<EntityName, { table: string; pk: string }> = {
   'action-plans': { table: 'action_plans', pk: 'id' },
   'survey-campaigns': { table: 'survey_campaigns', pk: 'id' },
   'survey-responses': { table: 'survey_responses', pk: 'id' },
+  approvals: { table: 'approval_requests', pk: 'id' },
   compliance: { table: 'compliance_requirements', pk: 'id' },
   'security-tests': { table: 'security_tests', pk: 'id' },
 };
@@ -808,12 +839,29 @@ export async function saveEntity<T extends { id: string }>(entity: EntityName, o
   await withTransaction(c => savers[entity](c, obj));
 }
 
+export async function entityExists(entity: EntityName, id: string): Promise<boolean> {
+  const { table, pk } = TABLE_BY_ENTITY[entity];
+  const r = await getPool()!.query(`SELECT 1 AS x FROM ${table} WHERE ${pk} = $1`, [id]);
+  return r.rows.length > 0;
+}
+
 export async function deleteEntity(entity: EntityName, id: string): Promise<void> {
   const { table, pk } = TABLE_BY_ENTITY[entity];
   await withTransaction(async c => {
     // Una norma se elimina junto con sus requisitos (no hay clave foránea: "chapter" es texto).
     if (entity === 'norms') await c.query('DELETE FROM compliance_requirements WHERE chapter = $1', [id]);
     return c.query(`DELETE FROM ${table} WHERE ${pk} = $1`, [id]);
+  });
+}
+
+/**
+ * Guarda una solicitud de aprobación y, si quedó aprobada, el registro de origen con el
+ * cambio ya aplicado, en una sola transacción.
+ */
+export async function saveApprovalWithEffect(req: ApprovalRequest, effect: { entity: EntityName; obj: { id: string } } | null): Promise<void> {
+  await withTransaction(async c => {
+    await savers.approvals(c, req);
+    if (effect) await savers[effect.entity](c, effect.obj);
   });
 }
 
@@ -935,4 +983,105 @@ export async function convertCurrency(to: 'CLP' | 'USD', rate: number, actor: { 
     }, ip, c);
     return { from, to, rate, risks: risks.rowCount ?? 0, flaws: flaws.rowCount ?? 0, providers: providers.rowCount ?? 0 };
   });
+}
+
+// -----------------------------------------------------------------------------
+// Notificaciones
+// -----------------------------------------------------------------------------
+
+function notificationFromRow(r: Row): AppNotification {
+  return {
+    id: r.id, recipient: r.recipient, recipientName: r.recipient_name ?? '', category: r.category, severity: r.severity, title: r.title,
+    body: r.body ?? '', tab: opt(r.tab), entityType: opt(r.entity_type), entityId: opt(r.entity_id), createdAt: r.created_at,
+    readAt: opt(r.read_at), emailStatus: r.email_status, emailError: opt(r.email_error), emailSentAt: opt(r.email_sent_at), dedupeKey: r.dedupe_key,
+  };
+}
+
+/** Inserta avisos nuevos; los que ya existen (misma clave) se ignoran. Devuelve los insertados. */
+export async function insertNotifications(drafts: NotificationDraft[], now = new Date().toISOString()): Promise<AppNotification[]> {
+  const pool = getPool();
+  if (!pool || !drafts.length) return [];
+  const created: AppNotification[] = [];
+  for (const d of drafts) {
+    const n: AppNotification = { ...d, id: `ntf-${randomUUID()}`, createdAt: now, emailStatus: 'pendiente', dedupeKey: d.dedupeKey.slice(0, 400) };
+    const r = await pool.query(
+      `INSERT INTO notifications (id, recipient, recipient_name, category, severity, title, body, tab, entity_type, entity_id, created_at, email_status, dedupe_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pendiente', $12)
+       ON CONFLICT (dedupe_key) DO NOTHING RETURNING id`,
+      [n.id, n.recipient, n.recipientName, n.category, n.severity, n.title.slice(0, 300), n.body, n.tab ?? null, n.entityType ?? null,
+        n.entityId ?? null, n.createdAt, n.dedupeKey]
+    );
+    if (r.rows.length) created.push(n);
+  }
+  return created;
+}
+
+export async function listNotifications(recipient: string, limit = 100): Promise<{ items: AppNotification[]; unread: number }> {
+  const pool = getPool()!;
+  const email = recipient.toLowerCase();
+  const [items, unread] = await Promise.all([
+    pool.query(`SELECT * FROM notifications WHERE recipient = $1 ORDER BY created_at DESC, id DESC LIMIT ${Math.max(1, Math.min(500, limit))}`, [email]),
+    pool.query('SELECT count(*) AS n FROM notifications WHERE recipient = $1 AND read_at IS NULL', [email]),
+  ]);
+  return { items: items.rows.map(notificationFromRow), unread: Number(unread.rows[0]?.n ?? 0) };
+}
+
+export async function markNotificationsRead(recipient: string, ids: string[] | 'all', at = new Date().toISOString()): Promise<void> {
+  const pool = getPool()!;
+  const email = recipient.toLowerCase();
+  if (ids === 'all') {
+    await pool.query('UPDATE notifications SET read_at = $2 WHERE recipient = $1 AND read_at IS NULL', [email, at]);
+    return;
+  }
+  for (const id of ids.slice(0, 500)) {
+    await pool.query('UPDATE notifications SET read_at = $3 WHERE recipient = $1 AND id = $2 AND read_at IS NULL', [email, id, at]);
+  }
+}
+
+/** Avisos cuyo correo falta enviar (o que van al resumen diario). */
+export async function notificationsByEmailStatus(status: 'pendiente' | 'resumen', limit = 500): Promise<AppNotification[]> {
+  const r = await getPool()!.query(`SELECT * FROM notifications WHERE email_status = $1 ORDER BY created_at, id LIMIT ${limit}`, [status]);
+  return r.rows.map(notificationFromRow);
+}
+
+export async function setEmailStatus(ids: string[], status: 'enviado' | 'resumen' | 'omitido' | 'error', error?: string, at = new Date().toISOString()): Promise<void> {
+  const pool = getPool()!;
+  for (const id of ids) {
+    await pool.query('UPDATE notifications SET email_status = $2, email_error = $3, email_sent_at = $4 WHERE id = $1',
+      [id, status, error ? error.slice(0, 500) : null, status === 'enviado' ? at : null]);
+  }
+}
+
+/** Últimos avisos de todas las personas (registro de envíos para administradores). */
+export async function notificationOutbox(limit = 200): Promise<AppNotification[]> {
+  const r = await getPool()!.query(`SELECT * FROM notifications ORDER BY created_at DESC, id DESC LIMIT ${Math.max(1, Math.min(1000, limit))}`);
+  return r.rows.map(notificationFromRow);
+}
+
+export async function getNotificationPreferences(): Promise<Map<string, NotificationPreference>> {
+  const r = await getPool()!.query('SELECT * FROM notification_preferences');
+  return new Map(r.rows.map((x: Row) => [String(x.email).toLowerCase(), { emailMode: x.email_mode, muted: Array.isArray(x.muted) ? x.muted : [] }]));
+}
+
+export async function saveNotificationPreference(email: string, p: NotificationPreference): Promise<void> {
+  await getPool()!.query(
+    `INSERT INTO notification_preferences (email, email_mode, muted) VALUES ($1, $2, $3)
+     ON CONFLICT (email) DO UPDATE SET email_mode = EXCLUDED.email_mode, muted = EXCLUDED.muted, updated_at = CURRENT_TIMESTAMP`,
+    [email.toLowerCase(), p.emailMode, json(p.muted ?? [])]
+  );
+}
+
+/** Lee un ajuste de system_settings (o undefined). */
+export async function getSetting(key: string): Promise<unknown> {
+  const r = await getPool()!.query('SELECT value FROM system_settings WHERE key = $1', [key]);
+  return r.rows[0]?.value;
+}
+
+/** Guarda un ajuste interno (no expuesto en SETTING_KEYS). */
+export async function setInternalSetting(key: string, value: unknown): Promise<void> {
+  await getPool()!.query(
+    `INSERT INTO system_settings (key, value) VALUES ($1, $2)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
+    [key, json(value)]
+  );
 }

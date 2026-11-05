@@ -30,6 +30,8 @@ export class CatalogService {
   readonly riskAppetiteRaw = signal<unknown>(clone(DEFAULT_RISK_APPETITE));
   readonly accountingAccountsRaw = signal<unknown>(clone(DEMO_ACCOUNTING_ACCOUNTS));
   readonly providerCatalogsRaw = signal<unknown>(clone(DEFAULT_PROVIDER_CATALOGS));
+  /** Parámetros de avisos y correo (se normalizan en NotificationService). */
+  readonly notificationSettingsRaw = signal<unknown>({});
 
   readonly riskScale = computed(() => normalizeRiskScale(this.riskScaleRaw()));
   readonly riskAppetite = computed(() => normalizeRiskAppetite(this.riskAppetiteRaw()));

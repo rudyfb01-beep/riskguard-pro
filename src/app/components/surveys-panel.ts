@@ -542,6 +542,24 @@ export class SurveysPanel {
   readonly form = signal<NewCampaign>(this.emptyForm('RCSA'));
 
   constructor() {
+    // Encuesta pedida desde un aviso: se responde (si es propia y abierta) o se revisa (quien administra).
+    effect(() => {
+      const req = this.sv.openRequest();
+      if (!req) return;
+      untracked(() => {
+        this.sv.openRequest.set(null);
+        const r = this.sv.responses().find(x => x.id === req.id);
+        if (!r) return;
+        if (this.sv.isMine(r) && this.sv.isOpen(r)) { this.openAnswer(r); return; }
+        if (this.sv.canManage()) {
+          this.view.set('campanas');
+          this.selectedId.set(r.campaignId);
+          if (r.status === 'Enviada' || r.status === 'Revisada') this.openReview(r);
+          return;
+        }
+        this.openAnswer(r);
+      });
+    });
     // Si la encuesta abierta cambia (otro dispositivo o recarga), el borrador local se conserva.
     effect(() => {
       const id = this.answerId();

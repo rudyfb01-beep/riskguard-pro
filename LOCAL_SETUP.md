@@ -382,6 +382,52 @@ enviarlas mientras la campaña está en curso; crear, lanzar, reasignar o revisa
 Cumplimiento. Aplicar un cambio exige además el permiso del módulo de destino. Lanzamientos, envíos,
 revisiones y cambios aplicados quedan en el ledger.
 
+## Aprobaciones
+
+En **Estratégico & Ejecutivo → Aprobaciones** están las solicitudes que otro cargo debe aprobar antes
+de aplicarse. Se envían desde el registro con "Solicitar aprobación":
+
+| Tipo | Dónde se solicita | Al aprobarse |
+| :--- | :--- | :--- |
+| Aceptación de riesgo | Matriz de riesgos → editar un riesgo sobre el apetito → "5. Aceptación del riesgo" | El riesgo queda aceptado hasta la fecha de revisión (se ve en la matriz y en el informe ejecutivo) |
+| Aceptación de vulnerabilidad | Seguridad de la Información → vulnerabilidad → "Solicitar aceptación" | Pasa a "Riesgo aceptado" con quien aprobó y la fecha de revisión |
+| Plan de continuidad | Continuidad → Planes → editar → "Solicitar aprobación del plan" | Queda Vigente con la versión, quien aprobó, la fecha y la próxima revisión |
+| Informe de auditoría | Auditorías → auditoría Finalizada → "Enviar informe a aprobación" | La auditoría pasa a Aprobada |
+| Reprogramación de plan | Planes de Acción → el responsable pide "más plazo" | El plan cambia al nuevo plazo y la reprogramación queda registrada |
+
+Los cargos que aprueban cada tipo, en orden, se configuran en **Mantenedores → Aprobaciones y avisos**
+(por defecto: Gerente General para riesgos, planes de continuidad; Jefe de Riesgo Operacional y luego
+Gerente General para vulnerabilidades; Junta de Vigilancia para informes de auditoría; Jefe de Riesgo
+Operacional para reprogramaciones). Un riesgo fuera de la tolerancia suma un nivel (Comité de Riesgos
+por defecto). Quien solicita nunca aprueba su propia solicitud. Por eso, los estados "Riesgo
+aceptado", plan "Vigente" y auditoría "Aprobada" ya no se eligen a mano: se obtienen al aprobarse.
+
+El servidor valida cada paso (quién puede solicitar, que los niveles sean los de la matriz vigente,
+que solo resuelva el cargo del nivel en curso y que no se salte niveles) y, al aprobarse el último
+nivel, aplica el cambio al registro en la misma transacción, aunque quien aprueba no tenga permiso
+de edición en ese módulo. Cada solicitud, decisión y anulación queda en la bitácora.
+
+## Avisos y correo
+
+La campana de la barra superior muestra los avisos de cada persona; un clic abre el registro. Se
+generan:
+
+- **Por cambios:** plan de acción asignado, enviado a verificación, cerrado, devuelto, reprogramado o
+  cancelado; autoevaluación asignada, enviada, devuelta o revisada; aprobación pendiente, aprobada por
+  un nivel, aprobada, rechazada o anulada; incidente crítico o alto registrado; alerta de KRI crítica
+  (según las preferencias de notificación de KRIs, que ahora sí envían correo).
+- **Por plazos** (revisión cada `NOTIFY_INTERVAL_MINUTES`, 15 por defecto): planes por vencer, vencidos
+  y escalados a quien administra planes; autoevaluaciones por vencer o vencidas; aprobaciones sin
+  resolver (recordatorio cada N días); planes de continuidad con revisión vencida o próxima;
+  vulnerabilidades fuera de plazo; aceptaciones de riesgos y vulnerabilidades por revisar; contratos de
+  proveedores por vencer. Cada aviso se genera una sola vez por plazo.
+
+Cada persona elige en la campana (engranaje) si recibe correo al momento, un **resumen diario** o
+ninguno, y qué categorías. Los correos traen un enlace que abre el registro (`APP_URL`). En
+**Mantenedores → Aprobaciones y avisos** se activan los correos, la hora del resumen y los días de
+anticipación, se envía un correo de prueba y se ve el registro de envíos (enviado, en resumen,
+omitido o con error). Sin SMTP los avisos quedan en la campana y los correos figuran como omitidos.
+
 ## Variables de entorno
 
 | Variable | Descripción |
@@ -393,8 +439,12 @@ revisiones y cambios aplicados quedan en el ledger.
 | `ADMIN_EMAIL` | Correo del administrador inicial cuando no se cargan datos de ejemplo. |
 | `DATABASE_SSL` | `true` para conectarse con SSL (bases administradas en la nube). |
 | `DATABASE_SSL_REJECT_UNAUTHORIZED` | `false` solo si el certificado del servidor no es verificable. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_HELO_NAME` | Servidor de correo para enviar los códigos de acceso (ver Google Workspace). |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_HELO_NAME` | Servidor de correo para los códigos de acceso y los avisos (ver Google Workspace). |
 | `AUTH_DEV_LOG_CODES` | `true` muestra los códigos en el log (solo para evaluar sin SMTP). |
+| `APP_URL` | Dirección pública de la aplicación (p. ej. `https://grc.tucooperativa.cl`) para los enlaces de los correos. |
+| `NOTIFY_INTERVAL_MINUTES` | Cada cuántos minutos se revisan los plazos y se envían correos (15 por defecto; `0` lo desactiva). |
+| `NOTIFY_DEV_LOG` | `true` escribe en el log los correos de aviso cuando no hay SMTP (solo para evaluar). |
+| `TZ` | Zona horaria del servidor (p. ej. `America/Santiago`): define la hora del resumen diario y el día de los plazos. |
 | `AUTH_SECRET` | Clave para firmar los códigos. Recomendada; obligatoria con varias instancias. |
 | `SESSION_IDLE_MINUTES`, `SESSION_MAX_HOURS` | Vigencia de la sesión (60 minutos de inactividad y 10 horas en total por defecto). |
 | `TRUST_PROXY`, `COOKIE_SECURE` | Configuración detrás de un proxy HTTPS. |
@@ -415,13 +465,18 @@ enviar la cabecera `X-Requested-With: RiskGuard` (protección CSRF).
 | `PUT /api/data/:entidad/:id` | Guarda un objeto completo (riesgo, control, incidente, proveedor…). |
 | `DELETE /api/data/:entidad/:id` | Elimina un objeto. |
 | `POST /api/ledger` · `GET /api/ledger` | Agrega un bloque a la bitácora / lee la cadena completa. |
-| `PUT /api/settings/:clave` | Guarda un ajuste (industria, umbral de pérdidas, notificaciones). |
+| `PUT /api/settings/:clave` | Guarda un ajuste (industria, umbral de pérdidas, notificaciones, matriz de aprobación). |
+| `GET /api/notifications` · `POST /api/notifications/read` | Avisos de la persona de la sesión / marcarlos como leídos (`{ids}` o `{all:true}`). |
+| `GET/PUT /api/notifications/preferences` | Preferencia de correo de la persona (`inmediato`, `resumen`, `ninguno` y categorías). |
+| `POST /api/notifications/test` | Envía un correo de prueba a la persona de la sesión. |
+| `GET /api/notifications/outbox` · `POST /api/notifications/run` | Registro de envíos / revisar plazos ahora (Mantenedores). |
 | `GET /api/db/health` · `GET /api/db/stats` | Diagnóstico de la conexión y conteos. |
 | `POST /api/db/init` | Vuelve a aplicar el esquema y los datos base. |
 
 Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-milestones`, `flaws`,
 `alerts`, `audits`, `kris`, `bia`, `plans`, `continuity-tests`, `info-assets`, `vulnerabilities`,
-`security-assessment`.
+`security-assessment`, `norms`, `compliance`, `security-tests`, `action-plans`, `survey-campaigns`,
+`survey-responses`, `approvals`.
 
 ## Limitaciones conocidas
 
@@ -448,6 +503,7 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 | Cumplimiento normativo | `compliance_norms`, `compliance_requirements` (y columnas `ran207`, `ran209`, `cyber` en proveedores, continuidad e incidentes) |
 | Planes de acción | `action_plans` |
 | Autoevaluaciones | `survey_campaigns`, `survey_responses` |
+| Aprobaciones y avisos | `approval_requests`, `notifications`, `notification_preferences` (y la columna `acceptance` en `risks`) |
 | Ajustes | `system_settings` |
 
 Vistas de apoyo a reportes: `v_loss_database`, `v_regulatory_deadlines`, `v_provider_rto_gaps`,
