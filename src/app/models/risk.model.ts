@@ -373,8 +373,11 @@ export interface AuditLogEntry {
     | 'CIERRE_PLAN_ACCION'
     | 'RECHAZO_PLAN_ACCION'
     | 'CANCELACIÓN_PLAN_ACCION'
-    | 'MODIFICACIÓN_PLAN_ACCION';
-  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor' | 'Cumplimiento' | 'Plan de Acción';
+    | 'MODIFICACIÓN_PLAN_ACCION'
+    | 'CAMPAÑA_AUTOEVALUACION'
+    | 'RESPUESTA_AUTOEVALUACION'
+    | 'REVISIÓN_AUTOEVALUACION';
+  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor' | 'Cumplimiento' | 'Plan de Acción' | 'Autoevaluación';
   entityCode: string;
   details: string;
   ipAddress: string;
@@ -449,6 +452,8 @@ export interface UserPermissions {
   canManageCompliance?: boolean;
   /** Administrar planes de acción: asignar, reprogramar, cancelar y verificar su cierre. */
   canManageActionPlans?: boolean;
+  /** Crear campañas de autoevaluación, asignarlas, revisarlas y aplicar sus respuestas. */
+  canManageSurveys?: boolean;
 }
 
 export interface OrganizationalRole {

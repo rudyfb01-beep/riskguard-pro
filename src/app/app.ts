@@ -30,6 +30,7 @@ import { CatalogsPanel } from './components/catalogs-panel';
 import { CompliancePanel } from './components/compliance-panel';
 import { ActionPlansPanel } from './components/action-plans-panel';
 import { LinkedPlans } from './components/linked-plans';
+import { SurveysPanel } from './components/surveys-panel';
 import { ActionPlanService } from './services/action-plan.service';
 import { AuditsPanel } from './components/audits-panel';
 import { MoneyPipe } from './utils/money.pipe';
@@ -51,6 +52,7 @@ export type ActiveTab =
   | 'mantenedores'
   | 'cumplimiento-ran'
   | 'planes-accion'
+  | 'autoevaluaciones'
   | 'alertas-kri'
   | 'auditorias'
   | 'bitacora'
@@ -87,6 +89,7 @@ export type ActiveTab =
     CompliancePanel,
     ActionPlansPanel,
     LinkedPlans,
+    SurveysPanel,
     AuditsPanel,
     MoneyPipe,
     LoginScreen,
@@ -202,6 +205,8 @@ export class App {
         return { title: 'Centro de Reportes & PDF', section: 'Gobernanza & Cumplimiento', icon: 'picture_as_pdf' };
       case 'cumplimiento-ran':
         return { title: 'Cumplimiento Normativo', section: 'Gobernanza & Cumplimiento', icon: 'policy' };
+      case 'autoevaluaciones':
+        return { title: 'Autoevaluaciones', section: 'Gestión de Riesgo', icon: 'fact_check' };
       case 'planes-accion':
         return { title: 'Planes de Acción', section: 'Incidentes & Seguimiento', icon: 'assignment_turned_in' };
       case 'mantenedores':

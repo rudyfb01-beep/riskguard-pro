@@ -357,6 +357,31 @@ al registro: planes de mitigación de los riesgos, acciones correctivas de los h
 cumplimiento y de la autoevaluación de seguridad (sus textos se vacían porque quedan como planes) y
 las acciones de las pruebas de continuidad con observaciones.
 
+## Autoevaluaciones (RCSA, BIA y cuestionarios)
+
+En **Gestión de Riesgo → Autoevaluaciones** se lanzan campañas que envían un cuestionario a cada
+dueño de proceso. Hay cuatro tipos:
+
+| Tipo | Qué pregunta | Dónde se aplica lo respondido |
+| :--- | :--- | :--- |
+| Riesgos y controles (RCSA) | Probabilidad e impacto de cada riesgo del proceso, si cada control se ejecutó y tiene evidencia, riesgos nuevos e incidentes no reportados | Matriz de riesgos |
+| Análisis de impacto (BIA) | MTPD, RTO, RPO, dotación mínima, sistemas y cambios de cada proceso crítico | BIA de Continuidad |
+| Cumplimiento | Estado y evidencia de los requisitos de una norma (todos o solo los que tienen brechas) | Evaluación del requisito |
+| Personalizada | Preguntas propias, una por línea (`*` al inicio la hace obligatoria y `\| tipo` define la respuesta) | Solo se revisa |
+
+El flujo es: se guarda la campaña como borrador (muestra cuántas encuestas y preguntas enviará), se
+**lanza**, cada destinatario la ve en **"Mis encuestas"**, la responde (puede guardar y seguir después)
+y la **envía**. Quien administra autoevaluaciones la revisa: ve las diferencias con el valor vigente
+(cambios, brechas y alertas), aplica cada cambio al módulo correspondiente, crea planes de acción
+desde las brechas, la devuelve con observaciones o la marca como revisada. Puede reasignar
+destinatarios, cerrar la campaña y exportar las respuestas a Excel.
+
+El servidor aplica las reglas en cada guardado: el destinatario solo puede cambiar sus respuestas y
+enviarlas mientras la campaña está en curso; crear, lanzar, reasignar o revisar exige el permiso
+**"Administrar Autoevaluaciones"**, asignado por defecto a Jefe de Riesgo Operacional y Oficial de
+Cumplimiento. Aplicar un cambio exige además el permiso del módulo de destino. Lanzamientos, envíos,
+revisiones y cambios aplicados quedan en el ledger.
+
 ## Variables de entorno
 
 | Variable | Descripción |
@@ -422,6 +447,7 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 | Seguridad de la información | `info_assets`, `vulnerabilities`, `security_assessment_items`, `security_tests` |
 | Cumplimiento normativo | `compliance_norms`, `compliance_requirements` (y columnas `ran207`, `ran209`, `cyber` en proveedores, continuidad e incidentes) |
 | Planes de acción | `action_plans` |
+| Autoevaluaciones | `survey_campaigns`, `survey_responses` |
 | Ajustes | `system_settings` |
 
 Vistas de apoyo a reportes: `v_loss_database`, `v_regulatory_deadlines`, `v_provider_rto_gaps`,

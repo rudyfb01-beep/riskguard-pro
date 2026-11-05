@@ -293,6 +293,17 @@
               </button>
 
               <button
+                (click)="setTab('autoevaluaciones')"
+                [class]="activeTab() === 'autoevaluaciones'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-sky-700">fact_check</mat-icon>
+                <span>Autoevaluaciones</span>
+              </button>
+
+              <button
                 (click)="setTab('planes-accion')"
                 [class]="activeTab() === 'planes-accion'
                   ? 'bg-slate-900 text-white font-semibold'
@@ -1130,6 +1141,11 @@
     <!-- TAB: PROVEEDORES Y EXTERNALIZACIÓN -->
     @if (activeTab() === 'proveedores') {
       <app-providers-panel (notify)="showToast($event)" />
+    }
+
+    <!-- TAB: AUTOEVALUACIONES -->
+    @if (activeTab() === 'autoevaluaciones') {
+      <app-surveys-panel (notify)="showToast($event)" />
     }
 
     <!-- TAB: PLANES DE ACCIÓN -->

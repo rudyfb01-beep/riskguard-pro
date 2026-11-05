@@ -657,6 +657,50 @@ CREATE TABLE IF NOT EXISTS action_plans (
     PRIMARY KEY (id)
 );
 
+CREATE TABLE IF NOT EXISTS survey_campaigns (
+    id TEXT NOT NULL,
+    code TEXT NOT NULL,
+    title TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    description TEXT,
+    scope JSONTEXT NOT NULL DEFAULT '[]',
+    norm_id TEXT,
+    respondent TEXT,
+    custom_items JSONTEXT,
+    due_date DATE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Borrador',
+    launched_at TEXT,
+    closed_at TEXT,
+    created_by TEXT NOT NULL,
+    created_at_iso TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    CHECK (((kind) IN ('RCSA', 'BIA', 'Cumplimiento', 'Personalizada'))),
+    CHECK (((status) IN ('Borrador', 'En curso', 'Cerrada'))),
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS survey_responses (
+    id TEXT NOT NULL,
+    campaign_id TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    respondent TEXT NOT NULL,
+    items JSONTEXT NOT NULL DEFAULT '[]',
+    answers JSONTEXT NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'Pendiente',
+    due_date DATE NOT NULL,
+    started_at TEXT,
+    submitted_at TEXT,
+    returned_note TEXT,
+    reviewed_by TEXT,
+    reviewed_at TEXT,
+    review_note TEXT,
+    applied JSONTEXT NOT NULL DEFAULT '[]',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    CHECK (((status) IN ('Pendiente', 'En progreso', 'Enviada', 'Devuelta', 'Revisada'))),
+    FOREIGN KEY (campaign_id) REFERENCES survey_campaigns(id) ON DELETE CASCADE,
+    PRIMARY KEY (id)
+);
+
 CREATE TABLE IF NOT EXISTS security_tests (
     id TEXT NOT NULL,
     test_date DATE NOT NULL,
@@ -725,6 +769,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_action_plans_code ON action_plans (code);
 CREATE INDEX IF NOT EXISTS idx_action_plans_source ON action_plans (source_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_action_plans_owner ON action_plans (lower((owner)));
 CREATE INDEX IF NOT EXISTS idx_action_plans_status ON action_plans (status, due_date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_survey_campaigns_code ON survey_campaigns (code);
+CREATE INDEX IF NOT EXISTS idx_survey_responses_campaign ON survey_responses (campaign_id);
+CREATE INDEX IF NOT EXISTS idx_survey_responses_respondent ON survey_responses (lower((respondent)));
 
 -- =============================================================================
 -- Disparadores (mismas reglas que las funciones de PostgreSQL)

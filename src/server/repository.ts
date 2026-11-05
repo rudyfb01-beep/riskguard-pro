@@ -20,6 +20,7 @@ import { InformationAsset, SecurityAssessmentItem, Vulnerability } from '../app/
 import { BusinessProcess, OrgArea } from '../app/models/catalog.model';
 import { ComplianceNorm, ComplianceRequirement, SecurityTest } from '../app/models/compliance.model';
 import { ActionPlan } from '../app/models/action-plan.model';
+import { SurveyCampaign, SurveyResponse } from '../app/models/survey.model';
 
 /**
  * Repositorio (PostgreSQL o SQLite): convierte los objetos que usa la aplicación en filas
@@ -33,7 +34,7 @@ type Row = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 export const ENTITY_ORDER = [
   'areas', 'processes', 'roles', 'users', 'controls', 'risks', 'providers', 'regulatory-milestones',
   'flaws', 'alerts', 'audits', 'kris', 'bia', 'plans', 'continuity-tests',
-  'info-assets', 'vulnerabilities', 'security-assessment', 'norms', 'compliance', 'security-tests', 'action-plans',
+  'info-assets', 'vulnerabilities', 'security-assessment', 'norms', 'compliance', 'security-tests', 'action-plans', 'survey-campaigns', 'survey-responses',
 ] as const;
 export type EntityName = typeof ENTITY_ORDER[number];
 
@@ -64,6 +65,8 @@ export interface BootstrapData {
   compliance: ComplianceRequirement[];
   securityTests: SecurityTest[];
   actionPlans: ActionPlan[];
+  surveyCampaigns: SurveyCampaign[];
+  surveyResponses: SurveyResponse[];
   ledger: AuditLogEntry[];
   settings: Partial<Record<SettingKey, unknown>>;
 }
@@ -128,7 +131,7 @@ export async function loadAll(): Promise<BootstrapData> {
   const [
     roles, users, controls, tests, risks, riskControls, providers, milestones, flaws, regReports, regSubs, regUpdates,
     alerts, audits, findings, kris, bia, biaProviders, plans, planProcesses, ctests, ledger, settings,
-    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans,
+    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans, surveyCampaigns, surveyResponses,
   ] = await Promise.all([
     q('SELECT * FROM organizational_roles ORDER BY created_at, id'),
     q('SELECT * FROM user_profiles ORDER BY created_at, id'),
@@ -162,6 +165,8 @@ export async function loadAll(): Promise<BootstrapData> {
     q('SELECT * FROM security_tests ORDER BY test_date DESC'),
     q('SELECT * FROM compliance_norms ORDER BY sort_order, code'),
     q('SELECT * FROM action_plans ORDER BY code'),
+    q('SELECT * FROM survey_campaigns ORDER BY code'),
+    q('SELECT * FROM survey_responses ORDER BY campaign_id, subject'),
   ]);
 
   const testsBy = groupBy(tests, 'control_id');
@@ -206,6 +211,8 @@ export async function loadAll(): Promise<BootstrapData> {
       controlIds: Array.isArray(x.control_ids) ? x.control_ids : [], normVersion: opt(x.norm_version),
     })),
     actionPlans: actionPlans.map(actionPlanFromRow),
+    surveyCampaigns: surveyCampaigns.map(campaignFromRow),
+    surveyResponses: surveyResponses.map(responseFromRow),
     norms: norms.map((x): ComplianceNorm => ({
       id: x.id, code: x.code, title: x.title, kind: x.kind, issuer: x.issuer ?? '', source: x.source ?? '', url: opt(x.url),
       version: x.version, effectiveDate: opt(x.effective_date), status: x.status, applicability: x.applicability,
@@ -387,6 +394,31 @@ function actionPlanFromRow(r: Row): ActionPlan {
     tasks: arr(r.tasks), updates: arr(r.updates), reschedules: arr(r.reschedules), closure: r.closure ?? undefined, rejections: arr(r.rejections),
     cancelReason: opt(r.cancel_reason), createdBy: r.created_by, createdAt: r.created_at_iso, closedAt: opt(r.closed_at),
   };
+}
+
+function campaignFromRow(r: Row): SurveyCampaign {
+  return {
+    id: r.id, code: r.code, title: r.title, kind: r.kind, description: r.description ?? '', scope: Array.isArray(r.scope) ? r.scope : [],
+    normId: opt(r.norm_id), respondent: opt(r.respondent), customItems: r.custom_items ?? undefined, dueDate: r.due_date, status: r.status,
+    launchedAt: opt(r.launched_at), closedAt: opt(r.closed_at), createdBy: r.created_by, createdAt: r.created_at_iso,
+  };
+}
+
+function responseFromRow(r: Row): SurveyResponse {
+  return {
+    id: r.id, campaignId: r.campaign_id, subject: r.subject, respondent: r.respondent, items: Array.isArray(r.items) ? r.items : [],
+    answers: r.answers && typeof r.answers === 'object' ? r.answers : {}, status: r.status, dueDate: r.due_date,
+    startedAt: opt(r.started_at), submittedAt: opt(r.submitted_at), returnedNote: opt(r.returned_note), reviewedBy: opt(r.reviewed_by),
+    reviewedAt: opt(r.reviewed_at), reviewNote: opt(r.review_note), applied: Array.isArray(r.applied) ? r.applied : [],
+  };
+}
+
+/** Encuesta guardada y su campaña (para validar los cambios de quien responde). */
+export async function getSurveyResponse(id: string): Promise<{ response: SurveyResponse; campaign: SurveyCampaign | null } | null> {
+  const r = await getPool()!.query('SELECT * FROM survey_responses WHERE id = $1', [id]);
+  if (!r.rows[0]) return null;
+  const c = await getPool()!.query('SELECT * FROM survey_campaigns WHERE id = $1', [r.rows[0].campaign_id]);
+  return { response: responseFromRow(r.rows[0]), campaign: c.rows[0] ? campaignFromRow(c.rows[0]) : null };
 }
 
 /** Plan de acción guardado (para validar los cambios del responsable). */
@@ -650,6 +682,24 @@ const savers: Record<EntityName, (c: DbClient, o: any) => Promise<void>> = {
     });
   },
 
+  async 'survey-campaigns'(c, o: SurveyCampaign) {
+    await upsertRow(c, 'survey_campaigns', 'id', {
+      id: o.id, code: o.code, title: o.title, kind: o.kind, description: o.description || null, scope: json(o.scope ?? []),
+      norm_id: o.normId ?? null, respondent: o.respondent ?? null, custom_items: o.customItems ? json(o.customItems) : null,
+      due_date: o.dueDate, status: o.status, launched_at: o.launchedAt ?? null, closed_at: o.closedAt ?? null,
+      created_by: o.createdBy, created_at_iso: o.createdAt,
+    });
+  },
+
+  async 'survey-responses'(c, o: SurveyResponse) {
+    await upsertRow(c, 'survey_responses', 'id', {
+      id: o.id, campaign_id: o.campaignId, subject: o.subject, respondent: o.respondent, items: json(o.items ?? []), answers: json(o.answers ?? {}),
+      status: o.status, due_date: o.dueDate, started_at: o.startedAt ?? null, submitted_at: o.submittedAt ?? null,
+      returned_note: o.returnedNote ?? null, reviewed_by: o.reviewedBy ?? null, reviewed_at: o.reviewedAt ?? null,
+      review_note: o.reviewNote ?? null, applied: json(o.applied ?? []),
+    });
+  },
+
   async 'action-plans'(c, o: ActionPlan) {
     await upsertRow(c, 'action_plans', 'id', {
       id: o.id, code: o.code, title: o.title, description: o.description || null, source_type: o.sourceType, source_id: o.sourceId ?? null,
@@ -743,6 +793,8 @@ const TABLE_BY_ENTITY: Record<EntityName, { table: string; pk: string }> = {
   'security-assessment': { table: 'security_assessment_items', pk: 'id' },
   norms: { table: 'compliance_norms', pk: 'id' },
   'action-plans': { table: 'action_plans', pk: 'id' },
+  'survey-campaigns': { table: 'survey_campaigns', pk: 'id' },
+  'survey-responses': { table: 'survey_responses', pk: 'id' },
   compliance: { table: 'compliance_requirements', pk: 'id' },
   'security-tests': { table: 'security_tests', pk: 'id' },
 };

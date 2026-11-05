@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { ActionPlanService } from '../services/action-plan.service';
+import { SurveyService } from '../services/survey.service';
 import { AiRiskService } from '../services/ai-risk.service';
 import { MoneyPipe } from '../utils/money.pipe';
 
@@ -231,6 +232,26 @@ import { MoneyPipe } from '../utils/money.pipe';
             }
           </div>
 
+          <!-- Autoevaluaciones -->
+          <div>
+            <h2 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">5. Autoevaluaciones</h2>
+            @if (surveys.sortedCampaigns().length) {
+              <table class="w-full text-left text-[11px] border border-slate-200 rounded-lg overflow-hidden">
+                <thead class="bg-slate-50 text-[10px] text-slate-500 uppercase"><tr><th class="py-1.5 px-2">Campaña</th><th class="py-1.5 px-2">Estado</th><th class="py-1.5 px-2 text-right">Respondidas</th><th class="py-1.5 px-2 text-right">Vencidas</th><th class="py-1.5 px-2 text-right">Observaciones</th></tr></thead>
+                <tbody class="divide-y divide-slate-100">
+                  @for (c of surveys.sortedCampaigns().slice(0, 6); track c.id) {
+                    @let st = surveys.stats(c.id);
+                    <tr><td class="py-1.5 px-2"><span class="font-mono text-slate-500 mr-1">{{ c.code }}</span>{{ c.title }}</td><td class="py-1.5 px-2">{{ c.status }}</td>
+                      <td class="py-1.5 px-2 text-right font-mono">{{ st.submitted }}/{{ st.total }}</td><td class="py-1.5 px-2 text-right font-mono" [class.text-rose-700]="st.overdue">{{ st.overdue }}</td>
+                      <td class="py-1.5 px-2 text-right font-mono">{{ st.findings }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            } @else {
+              <p class="text-[11px] text-slate-500">No hay campañas de autoevaluación.</p>
+            }
+          </div>
+
           <!-- Audit & Inalterable Ledger Verification Seal -->
           <div class="border-t border-slate-200 pt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs text-slate-500">
             <div>
@@ -282,6 +303,7 @@ import { MoneyPipe } from '../utils/money.pipe';
 export class ExecutiveReportModal {
   readonly riskService = inject(RiskDataService);
   readonly actionPlans = inject(ActionPlanService);
+  readonly surveys = inject(SurveyService);
   readonly overduePlans = computed(() => this.actionPlans.sorted().filter(p => this.actionPlans.isOverdue(p)).slice(0, 15));
   readonly aiService = inject(AiRiskService);
 
