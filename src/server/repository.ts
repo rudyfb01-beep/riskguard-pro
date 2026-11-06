@@ -903,6 +903,30 @@ export async function saveApprovalWithEffect(req: ApprovalRequest, effect: { ent
   });
 }
 
+/**
+ * Carga masiva: guarda todos los registros y el bloque de bitácora en una sola transacción
+ * (todo o nada). `check` corre dentro de la transacción después de guardar (p. ej. que
+ * quede un administrador activo); si devuelve un mensaje, se deshace todo.
+ */
+export async function saveBulk(
+  entity: EntityName, records: { id: string }[], ledger: (created: number, updated: number) => LedgerInput, ip: string,
+  check?: (c: DbClient) => Promise<string | null>,
+): Promise<{ created: number; updated: number; entry: AuditLogEntry }> {
+  const { table, pk } = TABLE_BY_ENTITY[entity];
+  return withTransaction(async c => {
+    let created = 0;
+    for (const r of records) {
+      const exists = await c.query(`SELECT 1 AS x FROM ${table} WHERE ${pk} = $1`, [r.id]);
+      if (!exists.rows.length) created++;
+      await savers[entity](c, r);
+    }
+    const problem = check ? await check(c) : null;
+    if (problem) throw Object.assign(new Error(problem), { status: 409 });
+    const entry = await appendLedger(ledger(created, records.length - created), ip, c);
+    return { created, updated: records.length - created, entry };
+  });
+}
+
 export async function saveSetting(key: SettingKey, value: unknown, client?: DbClient): Promise<void> {
   const sql = `INSERT INTO system_settings (key, value) VALUES ($1, $2)
                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`;

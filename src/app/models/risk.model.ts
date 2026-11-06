@@ -388,8 +388,9 @@ export interface AuditLogEntry {
     | 'CARGA_EVIDENCIA'
     | 'BAJA_EVIDENCIA'
     | 'GESTIÓN_DOCUMENTO'
-    | 'LECTURA_DOCUMENTO';
-  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor' | 'Cumplimiento' | 'Plan de Acción' | 'Autoevaluación' | 'Aprobación' | 'Notificación' | 'Evidencia' | 'Documento';
+    | 'LECTURA_DOCUMENTO'
+    | 'CARGA_MASIVA';
+  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor' | 'Cumplimiento' | 'Plan de Acción' | 'Autoevaluación' | 'Aprobación' | 'Notificación' | 'Evidencia' | 'Documento' | 'Carga masiva';
   entityCode: string;
   details: string;
   ipAddress: string;

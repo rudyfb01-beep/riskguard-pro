@@ -396,6 +396,7 @@ export class SidebarNav {
         title: 'Configuración',
         items: [
           { id: 'mantenedores', label: 'Mantenedores', icon: 'tune' },
+          { id: 'carga-masiva', label: 'Carga masiva', icon: 'upload_file' },
         ]
       }
     ];
