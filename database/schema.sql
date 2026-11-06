@@ -1071,3 +1071,26 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
     muted JSONB NOT NULL DEFAULT '[]',
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Evidencias: archivos adjuntos a un registro (contenido en la base, SHA-256 calculado por el servidor).
+-- Las bajas no borran el contenido: se marcan con quién, cuándo y por qué.
+CREATE TABLE IF NOT EXISTS evidence_files (
+    id VARCHAR(80) PRIMARY KEY,
+    entity_type VARCHAR(40) NOT NULL,
+    entity_id VARCHAR(120) NOT NULL,
+    context VARCHAR(120),
+    file_name VARCHAR(200) NOT NULL,
+    mime_type VARCHAR(120) NOT NULL,
+    size_bytes INTEGER NOT NULL CHECK (size_bytes > 0),
+    sha256 CHAR(64) NOT NULL,
+    description TEXT,
+    uploaded_by VARCHAR(255) NOT NULL,
+    uploaded_by_email VARCHAR(255),
+    uploaded_at VARCHAR(40) NOT NULL,
+    deleted_at VARCHAR(40),
+    deleted_by VARCHAR(255),
+    delete_reason TEXT,
+    content BYTEA NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_files_entity ON evidence_files (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_evidence_files_sha ON evidence_files (sha256);

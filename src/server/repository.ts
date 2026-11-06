@@ -22,6 +22,7 @@ import { ComplianceNorm, ComplianceRequirement, SecurityTest } from '../app/mode
 import { ActionPlan } from '../app/models/action-plan.model';
 import { SurveyCampaign, SurveyResponse } from '../app/models/survey.model';
 import { ApprovalRequest } from '../app/models/approval.model';
+import { EvidenceFile } from '../app/models/evidence.model';
 import { AppNotification, NotificationDraft, NotificationPreference } from '../app/models/notification.model';
 import { randomUUID } from 'node:crypto';
 
@@ -71,6 +72,8 @@ export interface BootstrapData {
   surveyCampaigns: SurveyCampaign[];
   surveyResponses: SurveyResponse[];
   approvals: ApprovalRequest[];
+  /** Metadatos de las evidencias (sin el contenido). */
+  evidenceFiles: EvidenceFile[];
   ledger: AuditLogEntry[];
   settings: Partial<Record<SettingKey, unknown>>;
 }
@@ -135,7 +138,7 @@ export async function loadAll(): Promise<BootstrapData> {
   const [
     roles, users, controls, tests, risks, riskControls, providers, milestones, flaws, regReports, regSubs, regUpdates,
     alerts, audits, findings, kris, bia, biaProviders, plans, planProcesses, ctests, ledger, settings,
-    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans, surveyCampaigns, surveyResponses, approvals,
+    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans, surveyCampaigns, surveyResponses, approvals, evidenceFiles,
   ] = await Promise.all([
     q('SELECT * FROM organizational_roles ORDER BY created_at, id'),
     q('SELECT * FROM user_profiles ORDER BY created_at, id'),
@@ -172,6 +175,7 @@ export async function loadAll(): Promise<BootstrapData> {
     q('SELECT * FROM survey_campaigns ORDER BY code'),
     q('SELECT * FROM survey_responses ORDER BY campaign_id, subject'),
     q('SELECT * FROM approval_requests ORDER BY code'),
+    q(`SELECT ${EVIDENCE_COLUMNS} FROM evidence_files ORDER BY uploaded_at`),
   ]);
 
   const testsBy = groupBy(tests, 'control_id');
@@ -219,6 +223,7 @@ export async function loadAll(): Promise<BootstrapData> {
     surveyCampaigns: surveyCampaigns.map(campaignFromRow),
     surveyResponses: surveyResponses.map(responseFromRow),
     approvals: approvals.map(approvalFromRow),
+    evidenceFiles: evidenceFiles.map(evidenceFromRow),
     norms: norms.map((x): ComplianceNorm => ({
       id: x.id, code: x.code, title: x.title, kind: x.kind, issuer: x.issuer ?? '', source: x.source ?? '', url: opt(x.url),
       version: x.version, effectiveDate: opt(x.effective_date), status: x.status, applicability: x.applicability,
@@ -1084,4 +1089,51 @@ export async function setInternalSetting(key: string, value: unknown): Promise<v
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
     [key, json(value)]
   );
+}
+
+// -----------------------------------------------------------------------------
+// Evidencias
+// -----------------------------------------------------------------------------
+
+const EVIDENCE_COLUMNS = 'id, entity_type, entity_id, context, file_name, mime_type, size_bytes, sha256, description, uploaded_by, uploaded_by_email, uploaded_at, deleted_at, deleted_by, delete_reason';
+
+function evidenceFromRow(r: Row): EvidenceFile {
+  return {
+    id: r.id, entityType: r.entity_type, entityId: r.entity_id, context: opt(r.context), fileName: r.file_name, mimeType: r.mime_type,
+    sizeBytes: Number(r.size_bytes), sha256: String(r.sha256).trim(), description: opt(r.description), uploadedBy: r.uploaded_by,
+    uploadedByEmail: opt(r.uploaded_by_email), uploadedAt: r.uploaded_at, deletedAt: opt(r.deleted_at), deletedBy: opt(r.deleted_by),
+    deleteReason: opt(r.delete_reason),
+  };
+}
+
+export async function getEvidence(id: string): Promise<EvidenceFile | null> {
+  const r = await getPool()!.query(`SELECT ${EVIDENCE_COLUMNS} FROM evidence_files WHERE id = $1`, [id]);
+  return r.rows[0] ? evidenceFromRow(r.rows[0]) : null;
+}
+
+export async function getEvidenceContent(id: string): Promise<{ file: EvidenceFile; content: Buffer } | null> {
+  const r = await getPool()!.query(`SELECT ${EVIDENCE_COLUMNS}, content FROM evidence_files WHERE id = $1`, [id]);
+  if (!r.rows[0]) return null;
+  const c = r.rows[0].content;
+  return { file: evidenceFromRow(r.rows[0]), content: Buffer.isBuffer(c) ? c : Buffer.from(c as Uint8Array) };
+}
+
+/** Guarda el archivo y su bloque de bitácora en una sola transacción. */
+export async function insertEvidence(f: EvidenceFile, content: Buffer, ledger: LedgerInput, ip: string): Promise<AuditLogEntry> {
+  return withTransaction(async c => {
+    await insertRow(c, 'evidence_files', {
+      id: f.id, entity_type: f.entityType, entity_id: f.entityId, context: f.context ?? null, file_name: f.fileName, mime_type: f.mimeType,
+      size_bytes: f.sizeBytes, sha256: f.sha256, description: f.description ?? null, uploaded_by: f.uploadedBy,
+      uploaded_by_email: f.uploadedByEmail ?? null, uploaded_at: f.uploadedAt, content,
+    });
+    return appendLedger(ledger, ip, c);
+  });
+}
+
+/** Baja lógica (el contenido se conserva) con su bloque de bitácora. */
+export async function markEvidenceDeleted(id: string, by: string, reason: string, at: string, ledger: LedgerInput, ip: string): Promise<AuditLogEntry> {
+  return withTransaction(async c => {
+    await c.query('UPDATE evidence_files SET deleted_at = $2, deleted_by = $3, delete_reason = $4 WHERE id = $1 AND deleted_at IS NULL', [id, at, by, reason]);
+    return appendLedger(ledger, ip, c);
+  });
 }

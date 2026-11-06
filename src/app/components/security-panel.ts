@@ -8,6 +8,7 @@ import { downloadCsv } from '../utils/csv';
 import { ActionPlanService } from '../services/action-plan.service';
 import { LinkedPlans, PlanChips } from './linked-plans';
 import { ApprovalBox } from './approval-box';
+import { EvidenceFiles } from './evidence-files';
 import {
   ASSESSMENT_DOMAINS,
   ASSET_TYPES,
@@ -31,7 +32,7 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion' | 'pruebas' | 'i
 @Component({
   selector: 'app-security-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, LinkedPlans, PlanChips, ApprovalBox],
+  imports: [CommonModule, MatIconModule, LinkedPlans, PlanChips, ApprovalBox, EvidenceFiles],
   template: `
     <div class="space-y-4">
       <!-- Header -->
@@ -531,6 +532,12 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion' | 'pruebas' | 'i
                 (notify)="notify.emit($event); vulnDraft.set(null)" />
             }
           </fieldset>
+          @if (isSaved(d)) {
+            <div class="px-6 pb-4">
+              <app-evidence-files entity="vulnerabilities" [entityId]="d.id" [label]="d.code" [parent]="d"
+                title="Evidencias (informe del escaneo, remediación, retest)" emptyText="Sin archivos adjuntos." />
+            </div>
+          }
           <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
             <span class="text-[11px] text-rose-700">{{ formError() }}</span>
             <div class="flex gap-2">
@@ -588,6 +595,14 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion' | 'pruebas' | 'i
             <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Hallazgos y acciones</span><textarea rows="2" [class]="inputCls" [value]="t.findings" (input)="setTest('findings', $any($event.target).value)"></textarea></label>
             <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Informada al Consejo (fecha)</span><input type="date" [class]="inputCls" [value]="t.reportedToBoardDate ?? ''" (input)="setTest('reportedToBoardDate', $any($event.target).value || undefined)" /></label>
           </fieldset>
+          @if (!testIsNew()) {
+            <div class="px-6 pb-4">
+              <app-evidence-files entity="security-tests" [entityId]="t.id" [label]="t.type + ' ' + t.date" [parent]="t"
+                title="Informe de la prueba (pentest, ethical hacking, revisión)" emptyText="Adjunte el informe entregado por quien ejecutó la prueba." />
+            </div>
+          } @else {
+            <p class="px-6 pb-4 text-[11px] text-slate-500">Guarde la prueba para adjuntar su informe.</p>
+          }
           <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center gap-3">
             @if (!testIsNew() && canManage()) {
               <button type="button" (click)="removeTest(t)" class="px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer flex items-center gap-1"><mat-icon class="text-sm">delete</mat-icon>Eliminar</button>

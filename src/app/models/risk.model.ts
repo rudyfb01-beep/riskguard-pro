@@ -383,8 +383,10 @@ export interface AuditLogEntry {
     | 'SOLICITUD_APROBACION'
     | 'DECISIÓN_APROBACION'
     | 'ANULACIÓN_APROBACION'
-    | 'CONFIGURACIÓN_APROBACIONES';
-  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor' | 'Cumplimiento' | 'Plan de Acción' | 'Autoevaluación' | 'Aprobación' | 'Notificación';
+    | 'CONFIGURACIÓN_APROBACIONES'
+    | 'CARGA_EVIDENCIA'
+    | 'BAJA_EVIDENCIA';
+  entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor' | 'Cumplimiento' | 'Plan de Acción' | 'Autoevaluación' | 'Aprobación' | 'Notificación' | 'Evidencia';
   entityCode: string;
   details: string;
   ipAddress: string;

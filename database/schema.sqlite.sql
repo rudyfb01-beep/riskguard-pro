@@ -769,6 +769,27 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
     PRIMARY KEY (email)
 );
 
+CREATE TABLE IF NOT EXISTS evidence_files (
+    id TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    context TEXT,
+    file_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,
+    description TEXT,
+    uploaded_by TEXT NOT NULL,
+    uploaded_by_email TEXT,
+    uploaded_at TEXT NOT NULL,
+    deleted_at TEXT,
+    deleted_by TEXT,
+    delete_reason TEXT,
+    content BLOB NOT NULL,
+    CHECK ((size_bytes > 0)),
+    PRIMARY KEY (id)
+);
+
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_org_roles_department ON organizational_roles (department);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_email ON user_profiles (email);
@@ -832,6 +853,8 @@ CREATE INDEX IF NOT EXISTS idx_approval_requests_status ON approval_requests (st
 CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_dedupe ON notifications (dedupe_key);
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications (recipient, created_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_email ON notifications (email_status);
+CREATE INDEX IF NOT EXISTS idx_evidence_files_entity ON evidence_files (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_evidence_files_sha ON evidence_files (sha256);
 
 -- =============================================================================
 -- Disparadores (mismas reglas que las funciones de PostgreSQL)

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
+import { EvidenceService } from '../services/evidence.service';
 import { RiskDataService } from '../services/risk-data.service';
 import { ActionPlanService } from '../services/action-plan.service';
 import { AiRiskService } from '../services/ai-risk.service';
@@ -424,10 +425,11 @@ export type ReportType =
                     <td class="py-2 px-3 text-slate-600 font-mono">{{ c.lastTested }}</td>
                     <td class="py-2 px-3 text-[11px]">
                       <div class="text-slate-800 truncate max-w-[220px]" [title]="c.evidence">{{ c.evidence }}</div>
-                      @if (c.attachments && c.attachments.length > 0) {
+                      @let files = evidence.forEntity('controls', c.id);
+                      @if (files.length) {
                         <div class="text-[10px] text-emerald-800 font-mono flex items-center gap-1 mt-0.5">
                           <mat-icon class="text-[11px] text-emerald-600">attach_file</mat-icon>
-                          <span>{{ c.attachments.length }} soporte(s): {{ c.attachments[0].fileName }}</span>
+                          <span>{{ files.length }} archivo(s): {{ files[0].fileName }}</span>
                         </div>
                       }
                     </td>
@@ -500,6 +502,7 @@ export type ReportType =
 })
 export class ReportsCenter {
   readonly riskService = inject(RiskDataService);
+  readonly evidence = inject(EvidenceService);
   readonly actionPlans = inject(ActionPlanService);
   readonly aiService = inject(AiRiskService);
 

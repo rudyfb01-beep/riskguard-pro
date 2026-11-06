@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { ApprovalBox } from './approval-box';
+import { EvidenceFiles } from './evidence-files';
 import { ApprovalService } from '../services/approval.service';
 import { RiskDataService } from '../services/risk-data.service';
 import { BaselCategory, Risk } from '../models/risk.model';
@@ -13,7 +14,7 @@ import { LinkedPlans } from './linked-plans';
 @Component({
   selector: 'app-risk-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, MatIconModule, MoneyPipe, LinkedPlans, ApprovalBox],
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule, MoneyPipe, LinkedPlans, ApprovalBox, EvidenceFiles],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden my-6">
@@ -296,6 +297,10 @@ import { LinkedPlans } from './linked-plans';
           </div>
 
           @if (existingRisk(); as er) {
+            <div class="border-t border-slate-200 pt-4">
+              <app-evidence-files entity="risks" [entityId]="er.id" [label]="er.code" [parent]="er"
+                title="Documentos de respaldo del riesgo (análisis, estimaciones, actas del Comité)" emptyText="Sin archivos adjuntos." />
+            </div>
             @let appetite = approvals.appetiteOf(er.id);
             @if (appetite !== 'Dentro del apetito' || er.acceptance || approvals.forTarget('risks', er.id).length) {
               <div class="border-t border-slate-200 pt-4 space-y-2">
