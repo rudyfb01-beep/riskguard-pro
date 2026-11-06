@@ -1122,3 +1122,7 @@ CREATE TABLE IF NOT EXISTS controlled_documents (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_controlled_documents_code ON controlled_documents (code);
+
+-- Ingreso con Google: cuenta vinculada (claim "sub" del id_token) para cada persona
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS google_sub VARCHAR(255);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_profiles_google_sub ON user_profiles (google_sub);

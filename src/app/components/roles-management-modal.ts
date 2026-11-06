@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, output, signal, computed } 
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
+import { apiFetch } from '../services/api-fetch';
 import { RiskDataService } from '../services/risk-data.service';
 import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk.model';
 
@@ -532,6 +533,14 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                           }
                         </div>
                         <p class="text-[11px] text-slate-500 truncate">{{ usr.email }}</p>
+                        <div class="mt-1 flex flex-wrap items-center gap-1">
+                          @if (usr.googleLinked) {
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200" title="Ingresa con su cuenta de Google">Google vinculado</span>
+                            @if (canManage()) {
+                              <button type="button" (click)="unlinkGoogle(usr)" class="text-[10px] text-sky-700 hover:underline cursor-pointer" title="La próxima vez que ingrese con Google se vinculará la cuenta que use">Desvincular</button>
+                            }
+                          }
+                        </div>
                         <div class="mt-1">
                           <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
                             {{ usr.role }}
@@ -938,6 +947,20 @@ export class RolesManagementModal {
       { key: 'surveys', label: 'Autoevaluaciones', granted: !!p.canManageSurveys },
       { key: 'documents', label: 'Documentos', granted: !!p.canManageDocuments }
     ];
+  }
+
+  /** Desvincula la cuenta de Google (cambio de cuenta o correo reasignado). */
+  async unlinkGoogle(usr: UserProfile) {
+    if (!this.canManage()) return;
+    try {
+      const resp = await apiFetch(`/api/admin/users/${encodeURIComponent(usr.id)}/google-unlink`, { method: 'POST' });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data?.error || `Error ${resp.status}`);
+      this.riskService.userProfiles.update(l => l.map(u => (u.id === usr.id ? { ...u, googleLinked: false } : u)));
+      this.riskService.permissionNotice.set({ message: `Cuenta de Google de ${usr.name} desvinculada.`, at: Date.now() });
+    } catch (e) {
+      this.riskService.permissionNotice.set({ message: (e as Error).message, at: Date.now() });
+    }
   }
 
   getUserInitials(name: string): string {

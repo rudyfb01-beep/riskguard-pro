@@ -63,6 +63,15 @@ export function clientIp(req: express.Request): string {
 /** Fecha ISO (UTC) desplazada en minutos desde ahora; se usa en vez de now() para que el SQL sea portable. */
 const isoIn = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
 
+/**
+ * Política del código por correo cuando hay ingreso con Google:
+ * 'true' (todos), 'false' (nadie) o 'admins' (solo quien administra cargos, como acceso de emergencia).
+ */
+export type EmailCodePolicy = 'true' | 'false' | 'admins';
+
+const codeAllowed = (user: { permissions?: Partial<UserPermissions> } | undefined, policy: EmailCodePolicy) =>
+  policy === 'true' || (policy === 'admins' && !!user?.permissions?.canManageRoles);
+
 async function findActiveUserByEmail(email: string) {
   const r = await getPool()!.query('SELECT * FROM user_profiles WHERE lower(email) = $1 AND active = TRUE', [email]);
   return r.rows[0];
@@ -76,7 +85,8 @@ async function findActiveUserByEmail(email: string) {
  * Envía un código al correo si pertenece a un usuario activo. La respuesta es
  * la misma exista o no el usuario, para no revelar qué correos están registrados.
  */
-export async function requestLoginCode(rawEmail: unknown, ip: string): Promise<void> {
+export async function requestLoginCode(rawEmail: unknown, ip: string, policy: EmailCodePolicy = 'true'): Promise<void> {
+  if (policy === 'false') throw new AuthError(403, 'El ingreso es con la cuenta de Google de la organización.');
   const email = normalizeEmail(rawEmail);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     throw new AuthError(400, 'Ingresa un correo electrónico válido.');
@@ -85,7 +95,8 @@ export async function requestLoginCode(rawEmail: unknown, ip: string): Promise<v
   const started = Date.now();
 
   const user = await findActiveUserByEmail(email);
-  if (user) {
+  // Con la política "admins" el resto recibe la misma respuesta, pero no se envía código.
+  if (user && codeAllowed(user, policy)) {
     const recent = await getPool()!.query(
       `SELECT count(*) AS n FROM auth_login_codes WHERE user_id = $1 AND created_at > $2`,
       [user.id, isoIn(-15)]
@@ -113,8 +124,9 @@ export async function requestLoginCode(rawEmail: unknown, ip: string): Promise<v
 // -----------------------------------------------------------------------------
 
 export async function verifyLoginCode(
-  rawEmail: unknown, rawCode: unknown, ip: string, userAgent: string
+  rawEmail: unknown, rawCode: unknown, ip: string, userAgent: string, policy: EmailCodePolicy = 'true'
 ): Promise<{ token: string; user: UserProfile; maxAgeSeconds: number }> {
+  if (policy === 'false') throw new AuthError(403, 'El ingreso es con la cuenta de Google de la organización.');
   rateLimit('verify', ip, 30);
   const email = normalizeEmail(rawEmail);
   const code = typeof rawCode === 'string' ? rawCode.replace(/\D/g, '') : '';
@@ -122,7 +134,7 @@ export async function verifyLoginCode(
   if (!email || code.length !== 6) throw invalid;
 
   const user = await findActiveUserByEmail(email);
-  if (!user) {
+  if (!user || !codeAllowed(user, policy)) {
     await delay(300);
     throw invalid;
   }
@@ -158,6 +170,12 @@ export async function verifyLoginCode(
   }
 
   await getPool()!.query('UPDATE auth_login_codes SET consumed_at = $2 WHERE id = $1', [row.id, isoIn(0)]);
+  return createSession(user, ip, userAgent, `Inicio de sesión con código enviado a ${user.email}.`);
+}
+
+/** Crea la sesión (token en cookie, solo su hash en la base) y registra el ingreso en la bitácora. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function createSession(user: any, ip: string, userAgent: string, ledgerDetails: string): Promise<{ token: string; user: UserProfile; maxAgeSeconds: number }> {
   const token = randomBytes(32).toString('base64url');
   await getPool()!.query(
     `INSERT INTO auth_sessions (token_hash, user_id, created_at, last_seen_at, expires_at, ip, user_agent)
@@ -172,7 +190,7 @@ export async function verifyLoginCode(
   const profile = userFromRow(user);
   await appendLedger({
     id: `log-login-${Date.now()}-${randomInt(1000, 9999)}`, userName: profile.name, userRole: profile.role,
-    action: 'INICIO_SESIÓN', entityType: 'Sesión', entityCode: profile.id, details: `Inicio de sesión con código enviado a ${profile.email}.`,
+    action: 'INICIO_SESIÓN', entityType: 'Sesión', entityCode: profile.id, details: ledgerDetails,
   }, ip);
   return { token, user: profile, maxAgeSeconds: SESSION_MAX_HOURS * 3600 };
 }

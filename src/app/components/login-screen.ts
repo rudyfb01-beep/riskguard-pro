@@ -3,6 +3,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { apiFetch } from '../services/persistence.service';
 import { UserProfile } from '../models/risk.model';
 
+interface AuthConfig { google: boolean; emailCode: 'true' | 'false' | 'admins'; domains: string[] }
+
 /**
  * Acceso sin contraseña: el usuario ingresa su correo, recibe un código de
  * 6 dígitos y lo ingresa aquí. Se usa como pantalla inicial y, si la sesión
@@ -31,8 +33,30 @@ import { UserProfile } from '../models/risk.model';
           }
         </div>
 
-        @if (step() === 'email') {
-          <form class="p-6 space-y-4" (submit)="$event.preventDefault(); requestCode()">
+        @if (cfg().google && step() === 'email') {
+          <div class="px-6 pt-6 space-y-3">
+            <button type="button" (click)="google()" [disabled]="googleBusy()"
+              class="w-full py-2.5 text-sm font-semibold text-slate-800 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2 shadow-2xs">
+              @if (googleBusy()) { <span class="w-4 h-4 rounded-full border-2 border-slate-300 border-t-slate-700 animate-spin"></span> }
+              @else { <mat-icon class="text-lg text-slate-600">account_circle</mat-icon> }
+              <span>{{ googleBusy() ? 'Esperando a Google…' : 'Continuar con Google' }}</span>
+            </button>
+            <p class="text-[11px] text-slate-500 text-center">
+              @if (cfg().domains.length) { Con tu cuenta de {{ cfg().domains.join(' o ') }}. } @else { Con la cuenta de Google de tu organización. }
+            </p>
+            @if (error() && !showCodeForm()) { <p class="text-xs text-rose-700 flex items-start gap-1" role="alert"><mat-icon class="text-sm shrink-0">error</mat-icon>{{ error() }}</p> }
+            @if (cfg().emailCode === 'true') {
+              <div class="flex items-center gap-2 text-[11px] text-slate-400"><span class="flex-1 h-px bg-slate-200"></span>o con un código por correo<span class="flex-1 h-px bg-slate-200"></span></div>
+            } @else if (cfg().emailCode === 'admins' && !emergency()) {
+              <p class="text-center pb-4"><button type="button" (click)="emergency.set(true)" class="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer">Acceso de emergencia (administradores)</button></p>
+            }
+          </div>
+        }
+
+        @if (!showCodeForm()) {
+          <div class="pb-2"></div>
+        } @else if (step() === 'email') {
+          <form class="p-6 space-y-4" [class.pt-3]="cfg().google" (submit)="$event.preventDefault(); requestCode()">
             <div>
               <label for="login-email" class="block text-xs font-semibold text-slate-700 mb-1">Correo electrónico</label>
               <input #emailInput id="login-email" type="email" autocomplete="email" required
@@ -93,17 +117,78 @@ export class LoginScreen {
   readonly error = signal<string | null>(null);
   readonly info = signal('');
   readonly cooldown = signal(0);
+  readonly cfg = signal<AuthConfig>({ google: false, emailCode: 'true', domains: [] });
+  readonly emergency = signal(false);
+  readonly googleBusy = signal(false);
+  /** El formulario de código se muestra si la política lo permite (o en acceso de emergencia). */
+  showCodeForm() {
+    const c = this.cfg();
+    return !c.google || c.emailCode === 'true' || (c.emailCode === 'admins' && this.emergency());
+  }
 
   private readonly codeInput = viewChild<ElementRef<HTMLInputElement>>('codeInput');
   private readonly emailInput = viewChild<ElementRef<HTMLInputElement>>('emailInput');
   private timer: ReturnType<typeof setInterval> | null = null;
 
+  private popupTimer: ReturnType<typeof setInterval> | null = null;
+
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.timer && clearInterval(this.timer));
+    inject(DestroyRef).onDestroy(() => {
+      if (this.timer) clearInterval(this.timer);
+      if (this.popupTimer) clearInterval(this.popupTimer);
+    });
+    // Error devuelto por el ingreso con Google (?login_error=...): se muestra y se limpia la dirección.
+    const q = new URLSearchParams(location.search);
+    const loginError = q.get('login_error');
+    if (loginError) {
+      this.error.set(loginError.slice(0, 200));
+      q.delete('login_error');
+      q.delete('popup_login');
+      history.replaceState(null, '', location.pathname + (q.toString() ? `?${q}` : ''));
+    }
+    void apiFetch('/api/auth/config').then(r => (r.ok ? r.json() : null)).then((c: AuthConfig | null) => { if (c) this.cfg.set(c); }).catch(() => undefined);
     afterNextRender(() => {
       if (this.presetEmail()) this.email.set(this.presetEmail());
       this.emailInput()?.nativeElement.focus();
     });
+  }
+
+  /**
+   * Ingreso con Google. En la pantalla inicial se redirige; si la sesión venció en medio del
+   * trabajo se usa una ventana emergente para no perder los cambios pendientes.
+   */
+  google() {
+    this.error.set(null);
+    const hint = this.email().trim() || this.presetEmail();
+    const hintQ = hint ? `&hint=${encodeURIComponent(hint)}` : '';
+    if (!this.overlay()) {
+      this.googleBusy.set(true);
+      location.href = `/api/auth/google/start?return=${encodeURIComponent(location.pathname + location.search)}${hintQ}`;
+      return;
+    }
+    const w = window.open(`/api/auth/google/start?popup=1${hintQ}`, 'rg-google-login', 'width=520,height=680');
+    if (!w) { this.error.set('El navegador bloqueó la ventana de Google. Permite ventanas emergentes para este sitio.'); return; }
+    this.googleBusy.set(true);
+    if (this.popupTimer) clearInterval(this.popupTimer);
+    this.popupTimer = setInterval(async () => {
+      const resp = await apiFetch('/api/auth/me').catch(() => null);
+      if (resp?.ok) {
+        const data = await resp.json().catch(() => null);
+        if (data?.user) {
+          clearInterval(this.popupTimer!);
+          this.popupTimer = null;
+          this.googleBusy.set(false);
+          try { w.close(); } catch { /* ya cerrada */ }
+          this.loggedIn.emit(data.user as UserProfile);
+          return;
+        }
+      }
+      if (w.closed) {
+        clearInterval(this.popupTimer!);
+        this.popupTimer = null;
+        this.googleBusy.set(false);
+      }
+    }, 1500);
   }
 
   async requestCode() {

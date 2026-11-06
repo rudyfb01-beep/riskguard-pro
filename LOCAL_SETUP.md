@@ -92,8 +92,9 @@ npm run dev
 
 ## Inicio de sesión
 
-Los usuarios entran con su **correo electrónico** y un **código de 6 dígitos** que se les envía
-por email (no hay contraseñas).
+Los usuarios entran con su **cuenta de Google** de la organización (si está configurado, ver
+"Ingreso con Google") o con su **correo electrónico** y un **código de 6 dígitos** que se les envía
+por email. No hay contraseñas.
 
 - El código vence a los 10 minutos, sirve una sola vez y admite 5 intentos. Se pueden pedir
   hasta 5 códigos cada 15 minutos por usuario, y hay un límite por dirección IP.
@@ -114,6 +115,47 @@ por email (no hay contraseñas).
   sesiones de inmediato. El sistema impide eliminarse o desactivarse a uno mismo y dejar el
   sistema sin ningún administrador.
 - En la base de datos solo se guardan hashes de los códigos y de los tokens de sesión.
+
+### Ingreso con Google (Google Workspace)
+
+El botón "Continuar con Google" usa OpenID Connect, con el flujo de código de autorización y PKCE.
+
+**Qué verifica el servidor**
+- **El token:** su firma (claves públicas de Google), el emisor, la audiencia, la vigencia y el `nonce`.
+- **La cuenta:** que el correo esté verificado y que el dominio esté permitido (claim `hd`, que solo traen las cuentas de Google Workspace).
+- **Quién entra:** solo personas **ya registradas y activas** en "Puestos & Permisos"; no se crean usuarios automáticamente.
+- **Vínculo con la cuenta:** la primera vez queda vinculada la cuenta de Google de la persona. Si después alguien entra con otra cuenta que tenga el mismo correo (por ejemplo, un correo reasignado), se rechaza. Un administrador puede **desvincularla** en "Puestos & Permisos" (chip "Google vinculado" → Desvincular), y en el siguiente ingreso se vincula la cuenta que use.
+
+**Configuración**
+
+1. En [Google Cloud Console](https://console.cloud.google.com/), dentro del proyecto de la organización:
+   - **APIs y servicios → Pantalla de consentimiento de OAuth:** tipo de usuario **Interno**, para que solo entren cuentas de su Google Workspace.
+   - **Credenciales → Crear credenciales → ID de cliente de OAuth:**
+     - tipo **Aplicación web**;
+     - **URI de redireccionamiento autorizado:** `https://SU_DOMINIO/api/auth/google/callback` (la misma dirección de `APP_URL`).
+2. Configure en el servidor:
+
+   ```bash
+   GOOGLE_CLIENT_ID="123456-abc.apps.googleusercontent.com"
+   GOOGLE_CLIENT_SECRET="GOCSPX-..."
+   GOOGLE_ALLOWED_DOMAINS="tucooperativa.cl"   # uno o varios, separados por coma
+   APP_URL="https://grc.tucooperativa.cl"      # define la dirección de retorno
+   AUTH_EMAIL_CODE="admins"                     # true | false | admins
+   ```
+3. Reinicie el servidor. La pantalla de acceso mostrará "Continuar con Google".
+
+**`AUTH_EMAIL_CODE`: qué pasa con el código por correo cuando Google está activo**
+
+| Valor | Efecto |
+| :--- | :--- |
+| `true` (por defecto) | Siguen disponibles las dos formas de ingreso. |
+| `false` | Solo se entra con Google; el servidor rechaza pedir o usar códigos. |
+| `admins` | El código queda solo como **acceso de emergencia** para quienes administran cargos (por ejemplo, si Google no está disponible). A las demás personas no se les envía código; la respuesta es la misma, para no revelar quién es administrador. |
+
+**Comportamiento**
+- **Sesión:** es la misma que con el código: cookie `HttpOnly`, vencimiento por inactividad y bitácora ("Inicio de sesión con Google").
+- **Sesión vencida mientras se trabaja:** el ingreso con Google se abre en una ventana emergente y los cambios pendientes se guardan al volver.
+- **Enlaces de correo:** un enlace (por ejemplo, a una aprobación) se abre en el registro después de ingresar.
 
 ### Configurar el envío de correo con Google Workspace (Gmail)
 
@@ -489,6 +531,10 @@ En **Supervisión & Auditoría → Gestión Documental** se lleva el listado mae
 | `APP_URL` | Dirección pública de la aplicación (p. ej. `https://grc.tucooperativa.cl`) para los enlaces de los correos. |
 | `NOTIFY_INTERVAL_MINUTES` | Cada cuántos minutos se revisan los plazos y se envían correos (15 por defecto; `0` lo desactiva). |
 | `NOTIFY_DEV_LOG` | `true` escribe en el log los correos de aviso cuando no hay SMTP (solo para evaluar). |
+| `GOOGLE_CLIENT_ID` · `GOOGLE_CLIENT_SECRET` | Credenciales de OAuth de Google Cloud. Con ambas se activa "Continuar con Google". |
+| `GOOGLE_ALLOWED_DOMAINS` | Dominios de Google Workspace permitidos, separados por coma (recomendado). |
+| `AUTH_EMAIL_CODE` | Con Google activo: `true` (código también disponible), `false` (solo Google) o `admins` (código solo como acceso de emergencia de administradores). |
+| `GOOGLE_REDIRECT_URI` | Opcional: dirección de retorno si no es `APP_URL` + `/api/auth/google/callback`. |
 | `EVIDENCE_MAX_MB` | Tamaño máximo por archivo de evidencia (15 por defecto). Detrás de un proxy, ajuste también su límite de carga (p. ej. `client_max_body_size` en nginx). |
 | `TZ` | Zona horaria del servidor (p. ej. `America/Santiago`): define la hora del resumen diario y el día de los plazos. |
 | `AUTH_SECRET` | Clave para firmar los códigos. Recomendada; obligatoria con varias instancias. |
@@ -507,6 +553,9 @@ enviar la cabecera `X-Requested-With: RiskGuard` (protección CSRF).
 | :--- | :--- |
 | `POST /api/auth/request-code` · `POST /api/auth/verify` | Pide el código por correo / lo verifica y abre la sesión. |
 | `GET /api/auth/me` · `POST /api/auth/logout` | Usuario de la sesión / cierre de sesión. |
+| `GET /api/auth/config` | Formas de ingreso disponibles (Google, código y dominios). |
+| `GET /api/auth/google/start` · `GET /api/auth/google/callback` | Ingreso con Google (redirección y retorno). |
+| `POST /api/admin/users/:id/google-unlink` | Desvincula la cuenta de Google de una persona (administradores). |
 | `GET /api/data` | Carga completa de la aplicación (o `{"mode":"demo"}` sin base de datos). |
 | `PUT /api/data/:entidad/:id` | Guarda un objeto completo (riesgo, control, incidente, proveedor…). |
 | `DELETE /api/data/:entidad/:id` | Elimina un objeto. |

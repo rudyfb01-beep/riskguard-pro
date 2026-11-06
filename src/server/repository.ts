@@ -254,6 +254,7 @@ export function userFromRow(r: Row): UserProfile {
   return {
     id: r.id, name: r.name, email: r.email, role: r.role_title, roleId: opt(r.role_id), department: r.department,
     badge: r.badge, isSystemUser: r.is_system_user, permissions: r.permissions, active: r.active ?? true,
+    googleLinked: !!r.google_sub,
   };
 }
 
