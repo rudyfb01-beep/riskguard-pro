@@ -4,6 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { PersistenceService } from '../services/persistence.service';
 import { ResilienceService } from '../services/resilience.service';
+import { CrisisService } from '../services/crisis.service';
 import { SecurityService } from '../services/security.service';
 import { ActiveTab } from '../app';
 import { canOpenBulkImport } from '../utils/bulk-access';
@@ -260,6 +261,7 @@ export class SidebarNav {
   readonly riskService = inject(RiskDataService);
   readonly persistence = inject(PersistenceService);
   readonly resilience = inject(ResilienceService);
+  readonly crisis = inject(CrisisService);
   readonly security = inject(SecurityService);
   readonly compliance = inject(ComplianceService);
   readonly actionPlans = inject(ActionPlanService);
@@ -290,6 +292,7 @@ export class SidebarNav {
     const activeAlerts = this.riskService.metrics().activeAlertsCount;
     const providerHigh = this.resilience.providerKpis().highAlerts;
     const continuityHigh = this.resilience.continuityKpis().highAlerts;
+    const openCrises = this.crisis.open().length;
     const securityHigh = this.security.kpis().highAlerts;
     const cs = this.compliance.summary();
     const complianceGaps = cs.gaps + cs.overdue + cs.versionReview;
@@ -369,6 +372,13 @@ export class SidebarNav {
             icon: 'restart_alt',
             badge: continuityHigh > 0 ? continuityHigh : undefined,
             badgeClass: 'bg-rose-900/60 text-rose-200 border border-rose-700/50'
+          },
+          {
+            id: 'gestion-crisis',
+            label: 'Gestión de Crisis',
+            icon: 'crisis_alert',
+            badge: openCrises > 0 ? `${openCrises} activa${openCrises > 1 ? 's' : ''}` : undefined,
+            badgeClass: 'bg-rose-600 text-white font-bold animate-pulse'
           },
           {
             id: 'seguridad-informacion',

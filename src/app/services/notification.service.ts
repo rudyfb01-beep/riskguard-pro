@@ -1,3 +1,4 @@
+import { CrisisService } from './crisis.service';
 import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RiskDataService } from './risk-data.service';
 import { ActionPlanService } from './action-plan.service';
@@ -34,6 +35,7 @@ export class NotificationService {
   private readonly sec = inject(SecurityService);
   private readonly persistence = inject(PersistenceService);
   private readonly docs = inject(DocumentService);
+  private readonly crisis = inject(CrisisService);
 
   /** Parámetros generales (Mantenedores → Avisos); se guardan como ajuste del sistema. */
   readonly settingsRaw = inject(CatalogService).notificationSettingsRaw;
@@ -83,6 +85,7 @@ export class NotificationService {
         flaws: this.rs.flaws(),
         alerts: this.rs.alerts(),
         documents: this.docs.documents(),
+        'crisis-events': this.crisis.events(),
       } as Record<string, Identified[]>;
       if (!this.demoStarted) return;
       untracked(() => this.diffDemo(sources));
@@ -222,7 +225,7 @@ export class NotificationService {
     this.seeding = true;
     this.diffDemo({
       'action-plans': this.plans.plans(), 'survey-responses': this.surveys.responses(), approvals: this.approvals.approvals(),
-      flaws: this.rs.flaws(), alerts: this.rs.alerts(), documents: this.docs.documents(),
+      flaws: this.rs.flaws(), alerts: this.rs.alerts(), documents: this.docs.documents(), 'crisis-events': this.crisis.events(),
     }, true);
     this.runDemoSchedule();
     // Avisos de las solicitudes de ejemplo ya pendientes.
@@ -237,7 +240,7 @@ export class NotificationService {
 
   private ctx(actorName: string) {
     return {
-      actorName, users: this.rs.userProfiles(), kriPreferences: this.rs.globalNotificationSettings(), now: new Date().toISOString(),
+      actorName, users: this.rs.userProfiles(), kriPreferences: this.rs.globalNotificationSettings(), committee: this.crisis.committee(), now: new Date().toISOString(),
     };
   }
 
@@ -246,7 +249,7 @@ export class NotificationService {
     this.addDemo(scheduledNotifications({
       users: this.rs.userProfiles(), actionPlans: this.plans.plans(), surveyCampaigns: this.surveys.campaigns(), surveyResponses: this.surveys.responses(),
       approvals: this.approvals.approvals(), continuityPlans: this.res.plans(), vulnerabilities: this.sec.vulnerabilities(), risks: this.rs.risks(),
-      providers: this.res.providers(), documents: this.docs.documents(),
+      providers: this.res.providers(), documents: this.docs.documents(), crisisEvents: this.crisis.events(), committee: this.crisis.committee(),
     }, this.settings(), todayIso()));
     return this.demoItems().length - before;
   }

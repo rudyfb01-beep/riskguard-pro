@@ -299,6 +299,39 @@ Cumplimiento normativo); la pantalla los enlaza.
 - Las filas con errores no se cargan. El resto se guarda **en una sola transacción** (si algo falla,
   no se guarda nada) junto con un bloque `CARGA_MASIVA` en la bitácora con el archivo y los totales.
 
+## Gestión de crisis
+
+En **Resiliencia & Terceros → Gestión de Crisis** está la sala del Comité de Crisis (RAN 20-9 I.3,
+RAN 20-10 §2, ISO 22301/22361):
+
+- **Comité de Crisis** (pestaña Comité): integrantes con rol (presidente, coordinador, vocero, TI,
+  operaciones, legal…), teléfono, correo y suplente; sala principal, alternativa y virtual; protocolo
+  de convocatoria y aprobación. Se advierte si falta presidente, vocero, teléfonos o sala alternativa.
+  Lo define quien tiene el permiso "Continuidad". Puede incluir personas sin usuario (reciben los avisos
+  por correo).
+- **Escenarios de desastre y crisis**: amenaza, categoría (las 5 mínimas de la RAN 20-9 más desastre
+  natural y crisis reputacional o de liquidez), probabilidad × impacto, criterio de activación, primeras
+  acciones, mensajes clave, procesos del BIA afectados y planes que se activan. Toda instalación parte
+  con 6 escenarios de referencia para ajustar. Se muestra cuáles de los 5 mínimos se ejercitaron en los
+  últimos 12 meses.
+- **Declarar una crisis o iniciar un simulacro**: lo hace quien integra el comité (o su suplente) o
+  administra continuidad, aunque su cargo no tenga otros permisos. Se elige escenario, nivel
+  (1 Alerta · 2 Crisis · 3 Crisis mayor), incidente vinculado, procesos y planes. Al declarar una crisis
+  real se avisa de inmediato al comité por la aplicación y por correo (urgente) y aparece un aviso en
+  toda la aplicación hasta que se cierra.
+- **Sala de crisis**: tiempo transcurrido, bitácora de situación, decisiones y acciones (cada entrada
+  con hora y autor; no se edita ni se borra), tareas cargadas desde el escenario, comunicaciones
+  emitidas (a socios, colaboradores, CMF, ANCI, medios…), procesos afectados con la hora en que vence su
+  RTO, planes activados y el comité con teléfonos y correo a todos. Se cambia el nivel, se marca
+  estabilizada y se cierra con un resumen.
+- **Cierre y lecciones aprendidas**: los planes de acción que nacen de la revisión quedan vinculados a
+  la crisis. Un simulacro cerrado se registra como **prueba de continuidad** del plan activado (con
+  resultado y RTO logrado), así entra en el programa de pruebas y en los controles de la RAN 20-9.
+- **Programa de simulacros**: se programan con fecha y escenario; el comité recibe aviso al programarse
+  y una semana antes, y se inician desde el listado.
+- El control normativo "Administración de crisis" (RAN 20-9 I.3 y 20-10 §2) considera el plan de
+  crisis vigente, el comité completo y los escenarios ejercitados.
+
 ## Edición simultánea y permisos en pantalla
 
 **Edición simultánea:** cada registro tiene un número de versión. La aplicación guarda indicando la
@@ -651,7 +684,7 @@ enviar la cabecera `X-Requested-With: RiskGuard` (protección CSRF).
 Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-milestones`, `flaws`,
 `alerts`, `audits`, `kris`, `bia`, `plans`, `continuity-tests`, `info-assets`, `vulnerabilities`,
 `security-assessment`, `norms`, `compliance`, `security-tests`, `action-plans`, `survey-campaigns`,
-`survey-responses`, `documents`, `approvals`.
+`survey-responses`, `documents`, `approvals`, `crisis-scenarios`, `crisis-events`.
 
 ## Limitaciones conocidas
 
@@ -675,6 +708,7 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 | Auditoría | `periodic_audits`, `audit_findings`, `crypto_audit_ledger` |
 | Terceros | `service_providers` |
 | Continuidad | `bia_processes`, `bia_process_providers`, `continuity_plans`, `continuity_plan_processes`, `continuity_tests` |
+| Gestión de crisis | `crisis_scenarios`, `crisis_events` (bitácora, tareas y comunicaciones) y el ajuste `crisis_committee` |
 | Seguridad de la información | `info_assets`, `vulnerabilities`, `security_assessment_items`, `security_tests` |
 | Cumplimiento normativo | `compliance_norms`, `compliance_requirements` (y columnas `ran207`, `ran209`, `cyber` en proveedores, continuidad e incidentes) |
 | Planes de acción | `action_plans` |

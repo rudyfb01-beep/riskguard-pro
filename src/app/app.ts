@@ -11,6 +11,8 @@ import { HeatmapMatrix } from './components/heatmap-matrix';
 import { RiskModal } from './components/risk-modal';
 import { RiskImportModal } from './components/risk-import-modal';
 import { BulkImportPanel } from './components/bulk-import-panel';
+import { CrisisPanel } from './components/crisis-panel';
+import { CrisisService } from './services/crisis.service';
 import { canOpenBulkImport } from './utils/bulk-access';
 import { FlawModal } from './components/flaw-modal';
 import { ControlModal } from './components/control-modal';
@@ -61,6 +63,7 @@ export type ActiveTab =
   | 'seguridad-informacion'
   | 'apr-operacional'
   | 'mantenedores'
+  | 'gestion-crisis'
   | 'carga-masiva'
   | 'cumplimiento-ran'
   | 'planes-accion'
@@ -89,6 +92,7 @@ export type ActiveTab =
     RiskModal,
     RiskImportModal,
     BulkImportPanel,
+    CrisisPanel,
     FlawModal,
     ControlModal,
     ExecutiveReportModal,
@@ -188,6 +192,7 @@ export class App {
         if (req.entityType === 'action-plans' && req.entityId) { this.actionPlans.open(req.entityId); return; }
         if (req.entityType === 'approvals' && req.entityId) { this.approvals.open(req.entityId); return; }
         if (req.entityType === 'documents' && req.entityId) { this.documents.open(req.entityId); return; }
+        if (req.entityType === 'crisis-events' && req.entityId) { this.crisisFocus.set(req.entityId); this.setTab('gestion-crisis'); return; }
         if (req.entityType === 'survey-responses' && req.entityId) { this.setTab('autoevaluaciones'); this.surveys.open(req.entityId); return; }
         if (req.tab && this.isTab(req.tab)) this.setTab(req.tab);
       });
@@ -207,7 +212,7 @@ export class App {
 
   private isTab(t: string): t is ActiveTab {
     return ['tablero', 'tableros-departamento', 'graficos-analitica', 'matriz-riesgos', 'controles', 'incidentes-perdidas', 'falencias',
-      'reportes-regulatorios', 'proveedores', 'continuidad', 'seguridad-informacion', 'apr-operacional', 'mantenedores', 'carga-masiva', 'cumplimiento-ran',
+      'reportes-regulatorios', 'proveedores', 'continuidad', 'gestion-crisis', 'seguridad-informacion', 'apr-operacional', 'mantenedores', 'carga-masiva', 'cumplimiento-ran',
       'planes-accion', 'autoevaluaciones', 'aprobaciones', 'documentos', 'alertas-kri', 'auditorias', 'bitacora', 'reportes-pdf'].includes(t);
   }
 
@@ -218,6 +223,9 @@ export class App {
   }
 
   readonly entityLabel = entityLabel;
+  readonly crisis = inject(CrisisService);
+  /** Crisis a abrir en la sala (desde un aviso o un correo). */
+  readonly crisisFocus = signal<string | null>(null);
 
   /** Total de pérdida neta en UF (eventos con valor UF). */
   readonly lossNetUfTotal = computed(() => this.riskService.lossDatabase()
@@ -287,6 +295,8 @@ export class App {
         return { title: 'Proveedores y Externalización', section: 'Resiliencia & Terceros', icon: 'handshake' };
       case 'continuidad':
         return { title: 'Continuidad del Negocio', section: 'Resiliencia & Terceros', icon: 'restart_alt' };
+      case 'gestion-crisis':
+        return { title: 'Gestión de Crisis', section: 'Resiliencia & Terceros', icon: 'crisis_alert' };
       case 'seguridad-informacion':
         return { title: 'Seguridad de la Información', section: 'Resiliencia & Terceros', icon: 'security' };
       case 'apr-operacional':

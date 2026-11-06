@@ -1145,3 +1145,58 @@ CREATE TABLE IF NOT EXISTS record_versions (
     updated_by VARCHAR(255),
     PRIMARY KEY (entity, id)
 );
+
+-- =============================================================================
+-- GESTIÓN DE CRISIS: escenarios, crisis declaradas y simulacros
+-- (el Comité de Crisis se guarda en system_settings, clave crisis_committee)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS crisis_scenarios (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(20) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    likelihood INTEGER NOT NULL DEFAULT 2 CHECK (likelihood BETWEEN 1 AND 4),
+    impact INTEGER NOT NULL DEFAULT 2 CHECK (impact BETWEEN 1 AND 4),
+    activation_criteria TEXT NOT NULL DEFAULT '',
+    initial_actions JSONB NOT NULL DEFAULT '[]',
+    communications TEXT NOT NULL DEFAULT '',
+    affected_process_ids JSONB NOT NULL DEFAULT '[]',
+    plan_ids JSONB NOT NULL DEFAULT '[]',
+    owner VARCHAR(255) NOT NULL DEFAULT '',
+    last_review_date DATE,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crisis_scenarios_code ON crisis_scenarios (code);
+
+CREATE TABLE IF NOT EXISTS crisis_events (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(20) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    mode VARCHAR(12) NOT NULL CHECK (mode IN ('Real', 'Simulacro')),
+    level INTEGER NOT NULL CHECK (level BETWEEN 1 AND 3),
+    status VARCHAR(15) NOT NULL CHECK (status IN ('Programada', 'Activa', 'Estabilizada', 'Cerrada', 'Cancelada')),
+    scenario_id VARCHAR(64),
+    flaw_id VARCHAR(64),
+    planned_date DATE,
+    declared_at VARCHAR(40),
+    declared_by VARCHAR(255),
+    stabilized_at VARCHAR(40),
+    closed_at VARCHAR(40),
+    closed_by VARCHAR(255),
+    affected_process_ids JSONB NOT NULL DEFAULT '[]',
+    activated_plan_ids JSONB NOT NULL DEFAULT '[]',
+    log JSONB NOT NULL DEFAULT '[]',
+    tasks JSONB NOT NULL DEFAULT '[]',
+    communications JSONB NOT NULL DEFAULT '[]',
+    closing_summary TEXT,
+    lessons TEXT,
+    test_id VARCHAR(64),
+    created_by VARCHAR(255) NOT NULL DEFAULT '',
+    created_at VARCHAR(40) NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crisis_events_code ON crisis_events (code);
+CREATE INDEX IF NOT EXISTS idx_crisis_events_status ON crisis_events (status);

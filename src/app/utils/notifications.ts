@@ -11,6 +11,8 @@ import { isOpenPlan, personKey } from './action-plans';
 import { approvalSummary, eligibleApprovers, lastActivity } from './approvals';
 import { ControlledDocument } from '../models/document.model';
 import { audienceOf, currentVersion, hasAcknowledged } from './documents';
+import { CrisisCommittee, CrisisEvent } from '../models/crisis.model';
+import { levelName } from './crisis';
 
 export interface NotifyUser {
   name: string;
@@ -94,6 +96,8 @@ export interface ChangeContext {
   campaign?: SurveyCampaign | null;
   /** Preferencias de KRIs (alerts). */
   kriPreferences?: KriNotificationPreferences | null;
+  /** Comité de Crisis (crisis-events). */
+  committee?: CrisisCommittee | null;
   now: string;   // ISO
 }
 
@@ -107,6 +111,7 @@ export function changeNotifications(entity: string, prev: any, next: any, ctx: C
     case 'flaws': return flawChanges(prev, next, ctx);
     case 'alerts': return alertChanges(prev, next, ctx);
     case 'documents': return documentChanges(prev, next, ctx);
+    case 'crisis-events': return crisisChanges(prev, next, ctx);
     default: return [];
   }
 }
@@ -286,6 +291,45 @@ export interface ScheduleData {
   risks: Risk[];
   providers: ServiceProvider[];
   documents: ControlledDocument[];
+  crisisEvents?: CrisisEvent[];
+  committee?: CrisisCommittee | null;
+}
+
+/**
+ * Integrantes del Comité de Crisis como destinatarios: el usuario con ese nombre o, si es
+ * externo a la aplicación, su correo del comité. Más quienes administran continuidad.
+ */
+export function crisisRecipients(committee: CrisisCommittee | null | undefined, users: NotifyUser[]): NotifyUser[] {
+  const out: NotifyUser[] = [];
+  for (const m of committee?.members ?? []) {
+    const u = userByName(m.name, users);
+    if (u) out.push(u);
+    else if (m.email?.includes('@')) out.push({ name: m.name, email: m.email, permissions: {} });
+  }
+  return [...out, ...usersWithPermission('canManageContinuity', users)];
+}
+
+function crisisChanges(prev: CrisisEvent | null, e: CrisisEvent, ctx: ChangeContext): NotificationDraft[] {
+  const to = crisisRecipients(ctx.committee, ctx.users).filter(notMe(ctx.actorName));
+  const ref = { category: 'Continuidad' as const, tab: 'gestion-crisis', entityType: 'crisis-events', entityId: e.id };
+  const drill = e.mode === 'Simulacro';
+  if (e.status === 'Activa' && (!prev || prev.status === 'Programada')) {
+    const where = [ctx.committee?.primaryRoom, ctx.committee?.virtualRoom].filter(Boolean).join(' · ');
+    return forUsers(to, {
+      ...ref, severity: drill ? 'aviso' : 'urgente',
+      title: `${drill ? 'Simulacro iniciado' : 'Crisis declarada'}: ${e.code} · ${levelName(e.level)}`,
+      body: `${e.title}. Declarada por ${e.declaredBy ?? ctx.actorName}.${where ? ` Comité: ${where}.` : ''} Revise la sala de crisis.`,
+    }, `crisis-declared:${e.id}`);
+  }
+  if (!prev && e.status === 'Programada') {
+    return forUsers(to, { ...ref, severity: 'info', title: `Simulacro programado: ${e.code}`, body: `${e.title}. Fecha: ${e.plannedDate}.` }, `crisis-planned:${e.id}:${e.plannedDate}`);
+  }
+  if (prev && prev.status !== 'Cerrada' && e.status === 'Cerrada') {
+    return forUsers(to, {
+      ...ref, severity: 'info', title: `${drill ? 'Simulacro' : 'Crisis'} cerrada: ${e.code}`, body: `${e.title}. ${e.closingSummary ?? ''}`.trim(),
+    }, `crisis-closed:${e.id}`);
+  }
+  return [];
 }
 
 export function scheduledNotifications(d: ScheduleData, s: NotificationSettings, today: string): NotificationDraft[] {
@@ -361,6 +405,17 @@ export function scheduledNotifications(d: ScheduleData, s: NotificationSettings,
     } else if (days <= 30) {
       out.push(...forUsers(to, { ...ref, severity: 'info', title: `${p.code}: revisión en ${days} días`, body: `"${p.name}" debe revisarse el ${p.nextReviewDate}.` }, `bcp-review-soon:${p.id}:${p.nextReviewDate}`));
     }
+  }
+
+  // Simulacros programados: aviso al comité una semana antes.
+  for (const e of d.crisisEvents ?? []) {
+    if (e.status !== 'Programada' || !e.plannedDate) continue;
+    const days = daysBetween(today, e.plannedDate);
+    if (days < 0 || days > 7) continue;
+    out.push(...forUsers(crisisRecipients(d.committee, users), {
+      category: 'Continuidad', tab: 'gestion-crisis', entityType: 'crisis-events', entityId: e.id, severity: 'aviso',
+      title: `Simulacro ${e.code} ${days === 0 ? 'hoy' : `en ${days} día${days === 1 ? '' : 's'}`}`, body: `${e.title} (${e.plannedDate}).`,
+    }, `crisis-drill:${e.id}:${e.plannedDate}`));
   }
 
   // Vulnerabilidades fuera de plazo y aceptaciones por revisar.
