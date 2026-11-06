@@ -20,7 +20,8 @@ export type EvidenceEntity =
   | 'vulnerabilities'
   | 'survey-responses'
   | 'approvals'
-  | 'providers';
+  | 'providers'
+  | 'documents';
 
 export const EVIDENCE_ENTITY_LABELS: Record<EvidenceEntity, string> = {
   controls: 'Control',
@@ -36,6 +37,7 @@ export const EVIDENCE_ENTITY_LABELS: Record<EvidenceEntity, string> = {
   'survey-responses': 'Autoevaluación',
   approvals: 'Solicitud de aprobación',
   providers: 'Proveedor',
+  documents: 'Documento',
 };
 
 export interface EvidenceFile {

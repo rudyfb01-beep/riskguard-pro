@@ -4,6 +4,7 @@ import { SecurityService } from './security.service';
 import { ResilienceService } from './resilience.service';
 import { ActionPlanService } from './action-plan.service';
 import { CatalogService } from './catalog.service';
+import { DocumentService } from './document.service';
 import {
   APPROVAL_KINDS, ApprovalKind, ApprovalPayload, ApprovalRequest, ApprovalTargetEntity, DEFAULT_APPROVAL_MATRIX,
 } from '../models/approval.model';
@@ -36,6 +37,7 @@ export class ApprovalService {
   private readonly res = inject(ResilienceService);
   private readonly plans = inject(ActionPlanService);
   private readonly cat = inject(CatalogService);
+  private readonly docs = inject(DocumentService);
 
   readonly approvals = signal<ApprovalRequest[]>(this.demoRequests());
   readonly matrixRaw = signal<unknown>(structuredClone(DEFAULT_APPROVAL_MATRIX));
@@ -49,6 +51,10 @@ export class ApprovalService {
 
   /** Pedido de abrir una solicitud (desde avisos o desde los módulos). */
   readonly openRequest = signal<{ id: string; at: number } | null>(null);
+
+  constructor() {
+    this.docs.pendingApproval = id => !!this.pendingFor('documento', id);
+  }
 
   open(id: string) {
     this.openRequest.set({ id, at: Date.now() });
@@ -93,8 +99,8 @@ export class ApprovalService {
   }
 
   /** Cargos que aprobarían una solicitud nueva (para mostrarlos antes de enviarla). */
-  previewSteps(kind: ApprovalKind, appetite?: string) {
-    const steps = buildSteps(approvalRoleIds(kind, this.matrix(), appetite), this.rs.organizationalRoles());
+  previewSteps(kind: ApprovalKind, appetite?: string, docType?: string) {
+    const steps = buildSteps(approvalRoleIds(kind, this.matrix(), appetite, docType), this.rs.organizationalRoles());
     const req = { steps, currentStep: 0, requestedBy: this.me().name };
     return steps.map((s, i) => ({ ...s, people: eligibleApprovers(req, this.rs.userProfiles(), i).map(u => u.name) }));
   }
@@ -127,6 +133,7 @@ export class ApprovalService {
       plans: this.res.plans as unknown as WritableSignal<Identified[]>,
       audits: this.rs.audits as unknown as WritableSignal<Identified[]>,
       'action-plans': this.plans.plans as unknown as WritableSignal<Identified[]>,
+      documents: this.docs.documents as unknown as WritableSignal<Identified[]>,
     };
     return map[entity];
   }
@@ -150,7 +157,7 @@ export class ApprovalService {
     if (pre) this.fail(pre);
     const dup = this.pendingFor(kind, target.id);
     if (dup) this.fail(`Ya hay una solicitud pendiente para este registro (${dup.code}).`);
-    const steps = buildSteps(approvalRoleIds(kind, this.matrix(), appetite), this.rs.organizationalRoles());
+    const steps = buildSteps(approvalRoleIds(kind, this.matrix(), appetite, payload.docType), this.rs.organizationalRoles());
     const code = nextApprovalCode(this.approvals());
     const req: ApprovalRequest = {
       id: `sa-${code.toLowerCase()}-${Math.random().toString(36).slice(2, 6)}`, code, kind, targetEntity: info.entity, targetId: target.id,
@@ -213,6 +220,13 @@ export class ApprovalService {
         justification: 'El portal antiguo se retira en enero; mientras tanto el WAF bloquea TLS 1.0 para socios y queda solo para la integración del banco corresponsal.',
         payload: { reviewDate: '2027-01-31' }, requestedBy: 'Ing. Alejandro Vega', requestedAt: daysAgo(1),
         steps: buildSteps(DEFAULT_APPROVAL_MATRIX.steps['aceptacion-vulnerabilidad'], roles), currentStep: 0, status: 'Pendiente',
+      },
+      {
+        id: 'sa-demo-3', code: 'SA-2026-003', kind: 'documento', targetEntity: 'documents', targetId: 'doc-pol-004',
+        targetLabel: 'POL-004 Política de Externalización de Servicios',
+        justification: 'Primera versión de la política exigida por la RAN 20-7: tolerancia, criterios de actividades estratégicas y contenido mínimo de contratos.',
+        payload: { versionId: 'pol004-v1', version: '1.0', docType: 'Política' }, requestedBy: 'Ing. Carlos Mendoza', requestedAt: daysAgo(2),
+        steps: buildSteps(['role-gerencia-general', 'role-consejo'], roles), currentStep: 0, status: 'Pendiente',
       },
     ];
   }

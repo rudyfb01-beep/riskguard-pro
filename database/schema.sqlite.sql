@@ -733,7 +733,6 @@ CREATE TABLE IF NOT EXISTS approval_requests (
     closed_at TEXT,
     cancel_reason TEXT,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-    CHECK (((kind) IN ('aceptacion-riesgo', 'aceptacion-vulnerabilidad', 'plan-continuidad', 'informe-auditoria', 'reprogramacion-plan'))),
     CHECK (((status) IN ('Pendiente', 'Aprobada', 'Rechazada', 'Anulada'))),
     PRIMARY KEY (id)
 );
@@ -787,6 +786,34 @@ CREATE TABLE IF NOT EXISTS evidence_files (
     delete_reason TEXT,
     content BLOB NOT NULL,
     CHECK ((size_bytes > 0)),
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS controlled_documents (
+    id TEXT NOT NULL,
+    code TEXT NOT NULL,
+    title TEXT NOT NULL,
+    doc_type TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    owner TEXT NOT NULL DEFAULT '',
+    classification TEXT NOT NULL DEFAULT 'Interna',
+    review_months INTEGER NOT NULL DEFAULT 12,
+    audience_role_ids JSONTEXT NOT NULL DEFAULT '[]',
+    requirement_ids JSONTEXT NOT NULL DEFAULT '[]',
+    processes JSONTEXT NOT NULL DEFAULT '[]',
+    versions JSONTEXT NOT NULL DEFAULT '[]',
+    current_version_id TEXT,
+    next_review_date DATE,
+    acknowledgments JSONTEXT NOT NULL DEFAULT '[]',
+    status TEXT NOT NULL DEFAULT 'Activo',
+    obsolete_reason TEXT,
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    CHECK (((classification) IN ('Pública', 'Interna', 'Confidencial'))),
+    CHECK (((doc_type) IN ('Política', 'Manual', 'Reglamento', 'Procedimiento', 'Instructivo', 'Plan', 'Formulario', 'Otro'))),
+    CHECK (((review_months >= 1) AND (review_months <= 60))),
+    CHECK (((status) IN ('Activo', 'Obsoleto'))),
     PRIMARY KEY (id)
 );
 
@@ -855,6 +882,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications (recipie
 CREATE INDEX IF NOT EXISTS idx_notifications_email ON notifications (email_status);
 CREATE INDEX IF NOT EXISTS idx_evidence_files_entity ON evidence_files (entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_files_sha ON evidence_files (sha256);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_controlled_documents_code ON controlled_documents (code);
 
 -- =============================================================================
 -- Disparadores (mismas reglas que las funciones de PostgreSQL)

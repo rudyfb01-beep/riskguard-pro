@@ -136,6 +136,17 @@
               </button>
 
               <button
+                (click)="setTab('documentos')"
+                [class]="activeTab() === 'documentos'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-sky-600">description</mat-icon>
+                <span>Documentos</span>
+              </button>
+
+              <button
                 (click)="setTab('tableros-departamento')"
                 [class]="activeTab() === 'tableros-departamento'
                   ? 'bg-slate-900 text-white font-semibold'
@@ -1158,6 +1169,10 @@
     }
 
     <!-- TAB: AUTOEVALUACIONES -->
+    @if (activeTab() === 'documentos') {
+      <app-documents-panel (notify)="showToast($event)" />
+    }
+
     @if (activeTab() === 'aprobaciones') {
       <app-approvals-panel (notify)="showToast($event)" (goTo)="openModule($event)" />
     }

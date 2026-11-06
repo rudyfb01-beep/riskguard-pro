@@ -9,6 +9,7 @@ import { ActionPlanService } from './action-plan.service';
 import { SurveyService } from './survey.service';
 import { ApprovalService } from './approval.service';
 import { EvidenceService } from './evidence.service';
+import { DocumentService } from './document.service';
 import { EvidenceFile } from '../models/evidence.model';
 import { API_HEADERS, apiFetch } from './api-fetch';
 import { AuditLogEntry, UserProfile } from '../models/risk.model';
@@ -53,6 +54,7 @@ export class PersistenceService {
   private readonly surveys = inject(SurveyService);
   private readonly approvals = inject(ApprovalService);
   private readonly evidence = inject(EvidenceService);
+  private readonly docs = inject(DocumentService);
 
   readonly mode = signal<DataMode>('loading');
   readonly loadError = signal<string | null>(null);
@@ -94,6 +96,7 @@ export class PersistenceService {
     this.col('action-plans', 'actionPlans', this.plans.plans),
     this.col('survey-campaigns', 'surveyCampaigns', this.surveys.campaigns),
     this.col('survey-responses', 'surveyResponses', this.surveys.responses),
+    this.col('documents', 'documents', this.docs.documents),
     this.col('approvals', 'approvals', this.approvals.approvals),
   ];
 

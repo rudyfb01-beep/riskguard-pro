@@ -350,6 +350,8 @@ class SqlitePool implements DbPool {
 const SQLITE_REBUILDS: { table: string; legacy: RegExp }[] = [
   // Cumplimiento multinorma: el requisito dejó de limitarse a los capítulos 20-7 a 20-10.
   { table: 'compliance_requirements', legacy: /CHECK\s*\(+\s*chapter\s*\)*\s+IN\b/i },
+  // Gestión documental: el tipo de solicitud de aprobación lo valida la aplicación (se agregó "documento").
+  { table: 'approval_requests', legacy: /CHECK\s*\(+\s*kind\s*\)*\s+IN\b/i },
 ];
 
 // =============================================================================

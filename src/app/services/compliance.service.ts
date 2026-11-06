@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { RiskDataService } from './risk-data.service';
+import { DocumentService } from './document.service';
 import { ResilienceService } from './resilience.service';
 import { SecurityService } from './security.service';
 import { BASE_NORMS, BASE_REQUIREMENTS } from '../data/compliance-seed';
@@ -26,6 +27,7 @@ export const COMPLIANCE_PERMS = ['canManageCompliance', 'canManageRegulatoryRepo
 @Injectable({ providedIn: 'root' })
 export class ComplianceService {
   private readonly rs = inject(RiskDataService);
+  private readonly docs = inject(DocumentService);
   private readonly res = inject(ResilienceService);
   private readonly sec = inject(SecurityService);
 
@@ -358,9 +360,24 @@ export class ComplianceService {
     return needsVersionReview(r, this.norm(r.chapter));
   }
 
-  /** Estado sugerido: el de la verificación automática y, si no hay, el de los controles vinculados. */
+  /** Documentos (políticas, manuales) que respaldan el requisito y su estado. */
+  documentCoverage(r: ComplianceRequirement): { text: string; suggested: ComplianceStatus } | null {
+    const docs = this.docs.forRequirement(r.id);
+    if (!docs.length) return null;
+    const parts = docs.map(d => {
+      const v = this.docs.current(d);
+      const st = this.docs.status(d);
+      const ack = v ? this.docs.acks(d) : null;
+      return { d, v, st, text: `${d.code} ${v ? `v${v.version}` : 'sin versión aprobada'} (${st.toLowerCase()}${ack && ack.total ? `, lectura ${ack.pct} %` : ''})` };
+    });
+    const ok = parts.filter(p => p.st === 'Vigente');
+    const suggested: ComplianceStatus = ok.length === parts.length ? 'Cumple' : parts.some(p => p.v) ? 'Cumple parcialmente' : 'No cumple';
+    return { text: `Documentos: ${parts.map(p => p.text).join('; ')}.`, suggested };
+  }
+
+  /** Estado sugerido: verificación automática; si no hay, controles vinculados; si no, documentos. */
   suggestedStatus(r: ComplianceRequirement): ComplianceStatus | undefined {
-    return this.autoCheck(r.autoCheck)?.suggested ?? this.coverage(r)?.suggested;
+    return this.autoCheck(r.autoCheck)?.suggested ?? this.coverage(r)?.suggested ?? this.documentCoverage(r)?.suggested;
   }
 
   // ---------------------------------------------------------------------------

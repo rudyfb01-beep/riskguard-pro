@@ -6,7 +6,7 @@ import { APPROVAL_KINDS, ApprovalKind, ApprovalPayload, ApprovalRequest } from '
 
 const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-2.5 py-1.5 text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500';
 
-interface Form { justification: string; reviewDate: string; version: string; nextReviewDate: string; newDueDate: string }
+interface Form { justification: string; reviewDate: string; version: string; nextReviewDate: string; newDueDate: string; effectiveDate: string }
 
 /**
  * Estado de aprobación de un registro y formulario para solicitarla. Se usa en riesgos,
@@ -74,6 +74,10 @@ interface Form { justification: string; reviewDate: string; version: string; nex
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Próxima revisión</span>
                 <input type="date" [class]="inputCls" [value]="form().nextReviewDate" (input)="set('nextReviewDate', $any($event.target).value)" /></label>
             }
+            @if (kind() === 'documento') {
+              <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Entrada en vigencia (opcional; por defecto, al aprobarse)</span>
+                <input type="date" [class]="inputCls" [value]="form().effectiveDate" (input)="set('effectiveDate', $any($event.target).value)" /></label>
+            }
             @if (kind() === 'reprogramacion-plan') {
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Nuevo plazo *</span>
                 <input type="date" [class]="inputCls" [value]="form().newDueDate" (input)="set('newDueDate', $any($event.target).value)" /></label>
@@ -121,14 +125,14 @@ export class ApprovalBox {
   readonly formOpen = signal(false);
   readonly busy = signal(false);
   readonly error = signal('');
-  readonly form = signal<Form>({ justification: '', reviewDate: '', version: '', nextReviewDate: '', newDueDate: '' });
+  readonly form = signal<Form>({ justification: '', reviewDate: '', version: '', nextReviewDate: '', newDueDate: '', effectiveDate: '' });
 
   readonly info = computed(() => APPROVAL_KINDS[this.kind()]);
   readonly history = computed(() => this.svc.forTarget(this.info().entity, this.targetId()).filter(r => r.kind === this.kind()));
   readonly pending = computed(() => this.history().find(r => r.status === 'Pendiente') ?? null);
   readonly last = computed(() => this.history().find(r => r.status !== 'Pendiente' && r.status !== 'Anulada') ?? null);
   readonly canRequest = computed(() => this.svc.canRequest(this.kind(), this.owner()));
-  readonly preview = computed(() => this.svc.previewSteps(this.kind(), this.kind() === 'aceptacion-riesgo' ? this.svc.appetiteOf(this.targetId()) : undefined));
+  readonly preview = computed(() => this.svc.previewSteps(this.kind(), this.kind() === 'aceptacion-riesgo' ? this.svc.appetiteOf(this.targetId()) : undefined, this.defaults().docType));
 
   readonly placeholder = computed(() => ({
     'aceptacion-riesgo': 'Por qué se acepta el riesgo residual sobre el apetito y qué controles compensan',
@@ -136,6 +140,7 @@ export class ApprovalBox {
     'plan-continuidad': 'Qué cambia en esta versión del plan',
     'informe-auditoria': 'Resumen del informe y de las observaciones principales',
     'reprogramacion-plan': 'Por qué se necesita más plazo',
+    documento: 'Qué cambia en esta versión y por qué',
   } as Record<ApprovalKind, string>)[this.kind()]);
 
   approvers(r: ApprovalRequest) {
@@ -155,7 +160,7 @@ export class ApprovalBox {
     const inMonths = (m: number) => { const x = new Date(); x.setMonth(x.getMonth() + m); return x.toISOString().slice(0, 10); };
     this.form.set({
       justification: '', reviewDate: d.reviewDate ?? inMonths(6), version: d.version ?? '', nextReviewDate: d.nextReviewDate ?? inMonths(12),
-      newDueDate: d.newDueDate ?? '',
+      newDueDate: d.newDueDate ?? '', effectiveDate: d.effectiveDate ?? '',
     });
     this.error.set('');
     this.formOpen.set(true);
@@ -177,6 +182,10 @@ export class ApprovalBox {
     if (k === 'plan-continuidad') { payload.version = f.version.trim() || undefined; payload.nextReviewDate = f.nextReviewDate || undefined; }
     if (k === 'reprogramacion-plan') { payload.newDueDate = f.newDueDate; payload.currentDueDate = this.defaults().currentDueDate; }
     if (k === 'aceptacion-riesgo') payload.residualScore = this.defaults().residualScore;
+    if (k === 'documento') {
+      const d = this.defaults();
+      Object.assign(payload, { versionId: d.versionId, version: d.version, docType: d.docType, effectiveDate: f.effectiveDate || undefined });
+    }
     this.busy.set(true);
     this.error.set('');
     try {

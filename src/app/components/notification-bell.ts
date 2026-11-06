@@ -8,7 +8,7 @@ import {
 
 const CATEGORY_ICON: Record<NotificationCategory, string> = {
   'Aprobaciones': 'approval', 'Planes de acción': 'assignment_turned_in', 'Autoevaluaciones': 'fact_check', 'Incidentes': 'report_problem',
-  'Alertas KRI': 'notifications_active', 'Continuidad': 'restore', 'Seguridad': 'shield', 'Riesgos': 'gpp_maybe', 'Proveedores': 'handshake',
+  'Alertas KRI': 'notifications_active', 'Continuidad': 'restore', 'Seguridad': 'shield', 'Riesgos': 'gpp_maybe', 'Proveedores': 'handshake', 'Documentos': 'description',
 };
 
 /** Campana de avisos: bandeja de la persona y sus preferencias de correo. */

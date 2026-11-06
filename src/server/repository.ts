@@ -23,6 +23,7 @@ import { ActionPlan } from '../app/models/action-plan.model';
 import { SurveyCampaign, SurveyResponse } from '../app/models/survey.model';
 import { ApprovalRequest } from '../app/models/approval.model';
 import { EvidenceFile } from '../app/models/evidence.model';
+import { ControlledDocument } from '../app/models/document.model';
 import { AppNotification, NotificationDraft, NotificationPreference } from '../app/models/notification.model';
 import { randomUUID } from 'node:crypto';
 
@@ -38,7 +39,7 @@ type Row = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 export const ENTITY_ORDER = [
   'areas', 'processes', 'roles', 'users', 'controls', 'risks', 'providers', 'regulatory-milestones',
   'flaws', 'alerts', 'audits', 'kris', 'bia', 'plans', 'continuity-tests',
-  'info-assets', 'vulnerabilities', 'security-assessment', 'norms', 'compliance', 'security-tests', 'action-plans', 'survey-campaigns', 'survey-responses', 'approvals',
+  'info-assets', 'vulnerabilities', 'security-assessment', 'norms', 'compliance', 'security-tests', 'action-plans', 'survey-campaigns', 'survey-responses', 'documents', 'approvals',
 ] as const;
 export type EntityName = typeof ENTITY_ORDER[number];
 
@@ -72,6 +73,7 @@ export interface BootstrapData {
   surveyCampaigns: SurveyCampaign[];
   surveyResponses: SurveyResponse[];
   approvals: ApprovalRequest[];
+  documents: ControlledDocument[];
   /** Metadatos de las evidencias (sin el contenido). */
   evidenceFiles: EvidenceFile[];
   ledger: AuditLogEntry[];
@@ -138,7 +140,7 @@ export async function loadAll(): Promise<BootstrapData> {
   const [
     roles, users, controls, tests, risks, riskControls, providers, milestones, flaws, regReports, regSubs, regUpdates,
     alerts, audits, findings, kris, bia, biaProviders, plans, planProcesses, ctests, ledger, settings,
-    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans, surveyCampaigns, surveyResponses, approvals, evidenceFiles,
+    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans, surveyCampaigns, surveyResponses, approvals, evidenceFiles, documents,
   ] = await Promise.all([
     q('SELECT * FROM organizational_roles ORDER BY created_at, id'),
     q('SELECT * FROM user_profiles ORDER BY created_at, id'),
@@ -176,6 +178,7 @@ export async function loadAll(): Promise<BootstrapData> {
     q('SELECT * FROM survey_responses ORDER BY campaign_id, subject'),
     q('SELECT * FROM approval_requests ORDER BY code'),
     q(`SELECT ${EVIDENCE_COLUMNS} FROM evidence_files ORDER BY uploaded_at`),
+    q('SELECT * FROM controlled_documents ORDER BY code'),
   ]);
 
   const testsBy = groupBy(tests, 'control_id');
@@ -224,6 +227,7 @@ export async function loadAll(): Promise<BootstrapData> {
     surveyResponses: surveyResponses.map(responseFromRow),
     approvals: approvals.map(approvalFromRow),
     evidenceFiles: evidenceFiles.map(evidenceFromRow),
+    documents: documents.map(documentFromRow),
     norms: norms.map((x): ComplianceNorm => ({
       id: x.id, code: x.code, title: x.title, kind: x.kind, issuer: x.issuer ?? '', source: x.source ?? '', url: opt(x.url),
       version: x.version, effectiveDate: opt(x.effective_date), status: x.status, applicability: x.applicability,
@@ -440,6 +444,23 @@ function approvalFromRow(r: Row): ApprovalRequest {
     requestedAt: r.requested_at, steps: Array.isArray(r.steps) ? r.steps : [], currentStep: Number(r.current_step ?? 0), status: r.status,
     closedAt: opt(r.closed_at), cancelReason: opt(r.cancel_reason),
   };
+}
+
+const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v as T[] : []);
+
+function documentFromRow(r: Row): ControlledDocument {
+  return {
+    id: r.id, code: r.code, title: r.title, type: r.doc_type, description: r.description ?? '', owner: r.owner ?? '',
+    classification: r.classification, reviewMonths: Number(r.review_months ?? 12), audienceRoleIds: arr(r.audience_role_ids),
+    requirementIds: arr(r.requirement_ids), processes: arr(r.processes), versions: arr(r.versions), currentVersionId: opt(r.current_version_id),
+    nextReviewDate: r.next_review_date ? String(r.next_review_date instanceof Date ? r.next_review_date.toISOString() : r.next_review_date).slice(0, 10) : undefined,
+    acknowledgments: arr(r.acknowledgments), status: r.status, obsoleteReason: opt(r.obsolete_reason), createdBy: r.created_by ?? '', createdAt: r.created_at,
+  };
+}
+
+export async function getDocument(id: string): Promise<ControlledDocument | null> {
+  const r = await getPool()!.query('SELECT * FROM controlled_documents WHERE id = $1', [id]);
+  return r.rows[0] ? documentFromRow(r.rows[0]) : null;
 }
 
 /** Solicitud de aprobación guardada (para validar decisiones). */
@@ -738,6 +759,16 @@ const savers: Record<EntityName, (c: DbClient, o: any) => Promise<void>> = {
     });
   },
 
+  async documents(c, o: ControlledDocument) {
+    await upsertRow(c, 'controlled_documents', 'id', {
+      id: o.id, code: o.code, title: o.title.slice(0, 300), doc_type: o.type, description: o.description ?? '', owner: o.owner ?? '',
+      classification: o.classification, review_months: o.reviewMonths || 12, audience_role_ids: json(o.audienceRoleIds ?? []),
+      requirement_ids: json(o.requirementIds ?? []), processes: json(o.processes ?? []), versions: json(o.versions ?? []),
+      current_version_id: o.currentVersionId ?? null, next_review_date: dateOrNull(o.nextReviewDate), acknowledgments: json(o.acknowledgments ?? []),
+      status: o.status, obsolete_reason: o.obsoleteReason ?? null, created_by: o.createdBy ?? '', created_at: o.createdAt,
+    });
+  },
+
   async approvals(c, o: ApprovalRequest) {
     await upsertRow(c, 'approval_requests', 'id', {
       id: o.id, code: o.code, kind: o.kind, target_entity: o.targetEntity, target_id: o.targetId, target_label: o.targetLabel.slice(0, 300),
@@ -831,6 +862,7 @@ const TABLE_BY_ENTITY: Record<EntityName, { table: string; pk: string }> = {
   'survey-campaigns': { table: 'survey_campaigns', pk: 'id' },
   'survey-responses': { table: 'survey_responses', pk: 'id' },
   approvals: { table: 'approval_requests', pk: 'id' },
+  documents: { table: 'controlled_documents', pk: 'id' },
   compliance: { table: 'compliance_requirements', pk: 'id' },
   'security-tests': { table: 'security_tests', pk: 'id' },
 };

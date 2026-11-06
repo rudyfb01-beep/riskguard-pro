@@ -46,6 +46,11 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-2.5 py-1.5 t
             <option value="" [selected]="!matrix().outOfToleranceRoleId">Ninguno</option>
             @for (r of roles(); track r.id) { <option [value]="r.id" [selected]="r.id === matrix().outOfToleranceRoleId">{{ r.title }}</option> }
           </select></label>
+        <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Nivel adicional para políticas, manuales y reglamentos (aprobación del Consejo)</span>
+          <select [class]="inputCls" (change)="setBoard($any($event.target).value)">
+            <option value="" [selected]="!matrix().boardRoleId">Ninguno</option>
+            @for (r of roles(); track r.id) { <option [value]="r.id" [selected]="r.id === matrix().boardRoleId">{{ r.title }}</option> }
+          </select></label>
         <div class="flex justify-end gap-2">
           <button type="button" (click)="resetMatrix()" class="px-3 py-1.5 text-xs rounded-lg border border-slate-300 bg-white hover:bg-slate-50 cursor-pointer">Descartar</button>
           <button type="button" (click)="saveMatrix()" [disabled]="!matrixDirty()" class="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-500 disabled:opacity-40 cursor-pointer">Guardar matriz</button>
@@ -164,6 +169,10 @@ export class WorkflowSettings {
 
   setTolerance(roleId: string) {
     this.matrix.update(m => ({ ...m, outOfToleranceRoleId: roleId }));
+  }
+
+  setBoard(roleId: string) {
+    this.matrix.update(m => ({ ...m, boardRoleId: roleId }));
   }
 
   resetMatrix() {

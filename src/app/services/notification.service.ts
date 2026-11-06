@@ -7,6 +7,7 @@ import { ResilienceService } from './resilience.service';
 import { SecurityService } from './security.service';
 import { PersistenceService, apiFetch } from './persistence.service';
 import { CatalogService } from './catalog.service';
+import { DocumentService } from './document.service';
 import {
   AppNotification, DEFAULT_NOTIFICATION_PREFERENCE, NotificationDraft, NotificationPreference,
 } from '../models/notification.model';
@@ -32,6 +33,7 @@ export class NotificationService {
   private readonly res = inject(ResilienceService);
   private readonly sec = inject(SecurityService);
   private readonly persistence = inject(PersistenceService);
+  private readonly docs = inject(DocumentService);
 
   /** Parámetros generales (Mantenedores → Avisos); se guardan como ajuste del sistema. */
   readonly settingsRaw = inject(CatalogService).notificationSettingsRaw;
@@ -80,6 +82,7 @@ export class NotificationService {
         approvals: this.approvals.approvals(),
         flaws: this.rs.flaws(),
         alerts: this.rs.alerts(),
+        documents: this.docs.documents(),
       } as Record<string, Identified[]>;
       if (!this.demoStarted) return;
       untracked(() => this.diffDemo(sources));
@@ -219,7 +222,7 @@ export class NotificationService {
     this.seeding = true;
     this.diffDemo({
       'action-plans': this.plans.plans(), 'survey-responses': this.surveys.responses(), approvals: this.approvals.approvals(),
-      flaws: this.rs.flaws(), alerts: this.rs.alerts(),
+      flaws: this.rs.flaws(), alerts: this.rs.alerts(), documents: this.docs.documents(),
     }, true);
     this.runDemoSchedule();
     // Avisos de las solicitudes de ejemplo ya pendientes.
@@ -243,7 +246,7 @@ export class NotificationService {
     this.addDemo(scheduledNotifications({
       users: this.rs.userProfiles(), actionPlans: this.plans.plans(), surveyCampaigns: this.surveys.campaigns(), surveyResponses: this.surveys.responses(),
       approvals: this.approvals.approvals(), continuityPlans: this.res.plans(), vulnerabilities: this.sec.vulnerabilities(), risks: this.rs.risks(),
-      providers: this.res.providers(),
+      providers: this.res.providers(), documents: this.docs.documents(),
     }, this.settings(), todayIso()));
     return this.demoItems().length - before;
   }

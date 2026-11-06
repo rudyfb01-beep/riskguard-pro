@@ -32,6 +32,8 @@ import { ActionPlansPanel } from './components/action-plans-panel';
 import { LinkedPlans } from './components/linked-plans';
 import { SurveysPanel } from './components/surveys-panel';
 import { ApprovalsPanel } from './components/approvals-panel';
+import { DocumentsPanel } from './components/documents-panel';
+import { DocumentService } from './services/document.service';
 import { NotificationBell } from './components/notification-bell';
 import { ApprovalService } from './services/approval.service';
 import { NotificationService } from './services/notification.service';
@@ -61,6 +63,7 @@ export type ActiveTab =
   | 'planes-accion'
   | 'autoevaluaciones'
   | 'aprobaciones'
+  | 'documentos'
   | 'alertas-kri'
   | 'auditorias'
   | 'bitacora'
@@ -99,6 +102,7 @@ export type ActiveTab =
     LinkedPlans,
     SurveysPanel,
     ApprovalsPanel,
+    DocumentsPanel,
     NotificationBell,
     AuditsPanel,
     MoneyPipe,
@@ -145,6 +149,7 @@ export class App {
   private readonly approvals = inject(ApprovalService);
   private readonly notifications = inject(NotificationService);
   private readonly surveys = inject(SurveyService);
+  private readonly documents = inject(DocumentService);
   readonly evidence = inject(EvidenceService);
   readonly fileIcon = fileIcon;
   readonly formatBytes = formatBytes;
@@ -164,6 +169,11 @@ export class App {
       if (!this.approvals.openRequest()) return;
       untracked(() => { this.closeModals(); this.setTab('aprobaciones'); });
     }),
+    // Un documento pedido desde cumplimiento, aprobaciones o avisos lleva a Gestión Documental.
+    effect(() => {
+      if (!this.documents.openRequest()) return;
+      untracked(() => { this.closeModals(); this.setTab('documentos'); });
+    }),
     // Un aviso (campana o enlace de correo) abre su registro.
     effect(() => {
       const req = this.notifications.navigateRequest();
@@ -173,6 +183,7 @@ export class App {
         this.closeModals();
         if (req.entityType === 'action-plans' && req.entityId) { this.actionPlans.open(req.entityId); return; }
         if (req.entityType === 'approvals' && req.entityId) { this.approvals.open(req.entityId); return; }
+        if (req.entityType === 'documents' && req.entityId) { this.documents.open(req.entityId); return; }
         if (req.entityType === 'survey-responses' && req.entityId) { this.setTab('autoevaluaciones'); this.surveys.open(req.entityId); return; }
         if (req.tab && this.isTab(req.tab)) this.setTab(req.tab);
       });
@@ -193,7 +204,7 @@ export class App {
   private isTab(t: string): t is ActiveTab {
     return ['tablero', 'tableros-departamento', 'graficos-analitica', 'matriz-riesgos', 'controles', 'incidentes-perdidas', 'falencias',
       'reportes-regulatorios', 'proveedores', 'continuidad', 'seguridad-informacion', 'apr-operacional', 'mantenedores', 'cumplimiento-ran',
-      'planes-accion', 'autoevaluaciones', 'aprobaciones', 'alertas-kri', 'auditorias', 'bitacora', 'reportes-pdf'].includes(t);
+      'planes-accion', 'autoevaluaciones', 'aprobaciones', 'documentos', 'alertas-kri', 'auditorias', 'bitacora', 'reportes-pdf'].includes(t);
   }
 
   /** El cargo actual tiene al menos uno de los permisos (para mostrar u ocultar acciones). */
@@ -266,6 +277,8 @@ export class App {
         return { title: 'Centro de Reportes & PDF', section: 'Gobernanza & Cumplimiento', icon: 'picture_as_pdf' };
       case 'cumplimiento-ran':
         return { title: 'Cumplimiento Normativo', section: 'Gobernanza & Cumplimiento', icon: 'policy' };
+      case 'documentos':
+        return { title: 'Gestión Documental', section: 'Supervisión & Auditoría', icon: 'description' };
       case 'aprobaciones':
         return { title: 'Aprobaciones', section: 'Estratégico & Ejecutivo', icon: 'approval' };
       case 'autoevaluaciones':
