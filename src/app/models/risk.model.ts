@@ -337,6 +337,7 @@ export interface AuditLogEntry {
     | 'MODIFICACIÓN_PERMISOS'
     | 'ALTA_USUARIO'
     | 'BAJA_USUARIO'
+    | 'GESTIÓN_USUARIO'
     | 'CAMBIO_SESIÓN'
     | 'INICIO_REPORTE_REGULATORIO'
     | 'ENVÍO_REPORTE_REGULATORIO'
@@ -490,6 +491,8 @@ export interface UserProfile {
   permissions: UserPermissions;
   /** Usuario habilitado para iniciar sesión (por defecto true). */
   active?: boolean;
+  /** Tiene una cuenta de Google vinculada (solo lectura; lo informa el servidor). */
+  googleLinked?: boolean;
 }
 
 export interface ProcessHeatmapCell {

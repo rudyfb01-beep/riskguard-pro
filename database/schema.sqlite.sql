@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     active BOOLEAN NOT NULL DEFAULT 1,
     last_login_at TIMESTAMPTZ,
+    google_sub TEXT,
     FOREIGN KEY (role_id) REFERENCES organizational_roles(id) ON DELETE SET NULL,
     PRIMARY KEY (id),
     UNIQUE (email)
@@ -822,6 +823,7 @@ CREATE INDEX IF NOT EXISTS idx_org_roles_department ON organizational_roles (dep
 CREATE INDEX IF NOT EXISTS idx_user_profiles_email ON user_profiles (email);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_role_id ON user_profiles (role_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_profiles_email_lower ON user_profiles (lower((email)));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_profiles_google_sub ON user_profiles (google_sub);
 CREATE INDEX IF NOT EXISTS idx_controls_code ON controls (code);
 CREATE INDEX IF NOT EXISTS idx_controls_process ON controls (process);
 CREATE INDEX IF NOT EXISTS idx_controls_status ON controls (status);
