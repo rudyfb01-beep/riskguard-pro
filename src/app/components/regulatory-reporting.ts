@@ -37,7 +37,7 @@ interface EditableMilestone extends RegulatoryMilestoneTemplate { amount: number
           class="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 flex items-center gap-1.5 cursor-pointer">
           <mat-icon class="text-sm text-emerald-600">download</mat-icon><span>Exportar CSV</span>
         </button>
-        <button type="button" (click)="showConfig.set(!showConfig())"
+        <button type="button" (click)="showConfig.set(!showConfig())" [class.perm-hidden]="!rs.canAny('canManageRegulatoryReports')"
           class="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 flex items-center gap-1.5 shrink-0 cursor-pointer">
           <mat-icon class="text-sm">tune</mat-icon>
           <span>{{ showConfig() ? 'Ocultar plazos' : 'Configurar plazos' }}</span>

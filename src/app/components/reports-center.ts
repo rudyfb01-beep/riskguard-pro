@@ -40,7 +40,7 @@ export type ReportType =
           <!-- Main Actions: Print to PDF & Excel -->
           <div class="flex items-center gap-2 shrink-0">
             <button
-              [class.perm-locked]="!riskService.canAny('canExportReports')" (click)="exportExcel()"
+              [class.perm-hidden]="!riskService.canAny('canExportReports')" (click)="exportExcel()"
               class="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition-colors flex items-center gap-1.5"
               title="Descargar matriz en Excel (.csv UTF-8)"
             >
@@ -49,7 +49,7 @@ export type ReportType =
             </button>
 
             <button
-              [class.perm-locked]="!riskService.canAny('canExportReports')" (click)="printReport()"
+              [class.perm-hidden]="!riskService.canAny('canExportReports')" (click)="printReport()"
               class="px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-colors shadow-sm flex items-center gap-2"
               title="Abre la ventana de impresión para guardar directamente en PDF"
             >

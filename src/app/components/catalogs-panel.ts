@@ -1,3 +1,4 @@
+import { UfSettings } from './uf-settings';
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
@@ -21,7 +22,7 @@ type SubTab = CatalogTab;
 @Component({
   selector: 'app-catalogs-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, WorkflowSettings],
+  imports: [CommonModule, MatIconModule, WorkflowSettings, UfSettings],
   template: `
     <div class="space-y-4">
       <!-- Header -->
@@ -38,19 +39,19 @@ type SubTab = CatalogTab;
         </div>
         @switch (tab()) {
           @case ('procesos') {
-            <button type="button" (click)="newProcess()" [class.perm-locked]="!canManage()"
+            <button type="button" (click)="newProcess()" [class.perm-hidden]="!canManage()"
               class="px-3.5 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-xl flex items-center gap-1.5 cursor-pointer shrink-0">
               <mat-icon class="text-sm">add</mat-icon>Nuevo proceso
             </button>
           }
           @case ('areas') {
-            <button type="button" (click)="newArea()" [class.perm-locked]="!canManage()"
+            <button type="button" (click)="newArea()" [class.perm-hidden]="!canManage()"
               class="px-3.5 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-xl flex items-center gap-1.5 cursor-pointer shrink-0">
               <mat-icon class="text-sm">add</mat-icon>Nueva área
             </button>
           }
           @case ('cuentas') {
-            <button type="button" (click)="newAccount()" [class.perm-locked]="!canManage()"
+            <button type="button" (click)="newAccount()" [class.perm-hidden]="!canManage()"
               class="px-3.5 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-xl flex items-center gap-1.5 cursor-pointer shrink-0">
               <mat-icon class="text-sm">add</mat-icon>Nueva cuenta
             </button>
@@ -279,7 +280,7 @@ type SubTab = CatalogTab;
             <p class="text-[11px] text-slate-600">Copie dos columnas (código y nombre) desde Excel y péguelas aquí, una cuenta por línea. Las cuentas existentes se actualizan.</p>
             <textarea rows="8" [class]="inputCls" class="font-mono" [disabled]="!canManage()" placeholder="4.2.01.001&#9;Pérdidas por fraude externo" [value]="importText()" (input)="importText.set($any($event.target).value)"></textarea>
             <span class="block text-[11px] text-rose-700">{{ importError() }}</span>
-            <button type="button" (click)="importAccounts()" [disabled]="!canManage() || !importText().trim()" class="w-full px-4 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-lg cursor-pointer disabled:opacity-50">Cargar cuentas</button>
+            <button type="button" (click)="importAccounts()" [class.perm-hidden]="!canManage()" [disabled]="!canManage() || !importText().trim()" class="w-full px-4 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-lg cursor-pointer disabled:opacity-50">Cargar cuentas</button>
           </div>
         </div>
       }
@@ -294,10 +295,10 @@ type SubTab = CatalogTab;
                 <div class="flex items-center gap-2">
                   <input [class]="inputCls" [value]="c" (change)="renameCategory(i, $any($event.target).value)" />
                   <span class="text-[10px] text-slate-400 w-16 text-right shrink-0">{{ admin.categoryUsage(originalCategory(i)) || '' }}{{ admin.categoryUsage(originalCategory(i)) ? ' prov.' : '' }}</span>
-                  <button type="button" (click)="removeCategory(i)" class="p-1 text-slate-400 hover:text-rose-600 cursor-pointer disabled:opacity-30" [disabled]="admin.categoryUsage(originalCategory(i)) > 0" title="Quitar"><mat-icon class="text-sm">close</mat-icon></button>
+                  <button type="button" (click)="removeCategory(i)" [class.perm-hidden]="!canManage()" class="p-1 text-slate-400 hover:text-rose-600 cursor-pointer disabled:opacity-30" [disabled]="admin.categoryUsage(originalCategory(i)) > 0" title="Quitar"><mat-icon class="text-sm">close</mat-icon></button>
                 </div>
               }
-              <button type="button" (click)="addCategory()" class="text-[11px] font-semibold text-indigo-700 hover:underline cursor-pointer flex items-center gap-0.5"><mat-icon class="text-sm">add</mat-icon>Agregar categoría</button>
+              <button type="button" (click)="addCategory()" [class.perm-hidden]="!canManage()" class="text-[11px] font-semibold text-indigo-700 hover:underline cursor-pointer flex items-center gap-0.5"><mat-icon class="text-sm">add</mat-icon>Agregar categoría</button>
             </div>
             <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-2">
               <h2 class="text-sm font-bold text-slate-900">Cláusulas mínimas de contrato</h2>
@@ -306,10 +307,10 @@ type SubTab = CatalogTab;
                 <div class="flex items-center gap-2">
                   <input [class]="inputCls" [value]="cl.label" (input)="setClauseDef(i, 'label', $any($event.target).value)" />
                   <label class="flex items-center gap-1 text-[10px] text-slate-600 shrink-0"><input type="checkbox" class="rounded" [checked]="cl.critical" (change)="setClauseDef(i, 'critical', $any($event.target).checked)" />Crítica</label>
-                  <button type="button" (click)="removeClause(i)" class="p-1 text-slate-400 hover:text-rose-600 cursor-pointer" title="Quitar"><mat-icon class="text-sm">close</mat-icon></button>
+                  <button type="button" (click)="removeClause(i)" [class.perm-hidden]="!canManage()" class="p-1 text-slate-400 hover:text-rose-600 cursor-pointer" title="Quitar"><mat-icon class="text-sm">close</mat-icon></button>
                 </div>
               }
-              <button type="button" (click)="addClause()" class="text-[11px] font-semibold text-indigo-700 hover:underline cursor-pointer flex items-center gap-0.5"><mat-icon class="text-sm">add</mat-icon>Agregar cláusula</button>
+              <button type="button" (click)="addClause()" [class.perm-hidden]="!canManage()" class="text-[11px] font-semibold text-indigo-700 hover:underline cursor-pointer flex items-center gap-0.5"><mat-icon class="text-sm">add</mat-icon>Agregar cláusula</button>
             </div>
           </fieldset>
           @if (canManage()) {
@@ -391,6 +392,7 @@ type SubTab = CatalogTab;
               <button type="button" (click)="saveParams()" [disabled]="!paramsDirty()" class="px-4 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-lg cursor-pointer disabled:opacity-50">Guardar parámetros</button>
             </div>
           }
+          <app-uf-settings (notify)="notify.emit($event)" />
         }
       }
     </div>

@@ -63,7 +63,7 @@ import { PersistenceService } from '../services/persistence.service';
 
             <button
               type="button"
-              (click)="openFlawModal.emit()"
+              (click)="openFlawModal.emit()" [class.perm-hidden]="!riskService.canAny('canReportFlaws')"
               class="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors shadow-sm whitespace-nowrap"
               title="Registrar eventos de pérdida real o fallas de control operacional"
             >

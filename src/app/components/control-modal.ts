@@ -312,7 +312,7 @@ import { LinkedPlans } from './linked-plans';
             <button
               type="button"
               (click)="onSubmit()"
-              [class.perm-locked]="!canSave()"
+              [class.perm-hidden]="!canSave()"
               [disabled]="form.invalid"
               class="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >

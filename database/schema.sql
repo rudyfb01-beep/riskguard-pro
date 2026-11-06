@@ -558,7 +558,11 @@ CREATE TABLE IF NOT EXISTS regulatory_report_updates (
     note TEXT NOT NULL
 );
 
--- Vista: base de pérdidas operacionales
+-- Base de pérdidas: valor de la UF usado para expresar cada evento en UF (fecha contable u ocurrencia).
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS uf_value_clp NUMERIC(12,2);
+ALTER TABLE operational_flaws ADD COLUMN IF NOT EXISTS uf_date DATE;
+
+-- Vista: base de pérdidas operacionales (con la referencia en UF)
 CREATE OR REPLACE VIEW v_loss_database AS
 SELECT
     f.id, f.title, f.process, f.business_line,
@@ -569,7 +573,9 @@ SELECT
     GREATEST(f.real_loss_amount_usd - f.recovered_amount_usd, 0) AS net_loss_usd,
     f.credit_risk_boundary,
     COALESCE(r.reportable_to_cmf, FALSE) AS reported_to_cmf,
-    COALESCE(r.reportable_to_anci, FALSE) AS reported_to_anci
+    COALESCE(r.reportable_to_anci, FALSE) AS reported_to_anci,
+    f.uf_value_clp, f.uf_date,
+    ROUND(GREATEST(f.real_loss_amount_usd - f.recovered_amount_usd, 0) / NULLIF(f.uf_value_clp, 0), 2) AS net_loss_uf
 FROM operational_flaws f
 LEFT JOIN regulatory_reports r ON r.flaw_id = f.id
 WHERE f.real_loss_amount_usd > 0;
@@ -1126,3 +1132,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_controlled_documents_code ON controlled_do
 -- Ingreso con Google: cuenta vinculada (claim "sub" del id_token) para cada persona
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS google_sub VARCHAR(255);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_profiles_google_sub ON user_profiles (google_sub);
+
+-- =============================================================================
+-- Versión de cada registro: detecta cuando dos personas editan lo mismo a la vez
+-- (el servidor rechaza con 409 el guardado hecho sobre una versión anterior).
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS record_versions (
+    entity VARCHAR(40) NOT NULL,
+    id VARCHAR(100) NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    updated_at TIMESTAMPTZ,
+    updated_by VARCHAR(255),
+    PRIMARY KEY (entity, id)
+);

@@ -415,7 +415,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                             @if (!role.isSystemRole) {
                               <button
                                 type="button"
-                                [class.perm-locked]="!canManage()" (click)="onDeleteRole(role.id)"
+                                [class.perm-hidden]="!canManage()" (click)="onDeleteRole(role.id)"
                                 class="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                                 title="Eliminar puesto personalizado"
                               >
@@ -506,7 +506,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                       Cancelar
                     </button>
                     <button
-                      type="submit" [class.perm-locked]="!canManage()" [class.perm-locked]="!canManage()"
+                      type="submit" [class.perm-hidden]="!canManage()"
                       [disabled]="userForm.invalid"
                       class="px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm disabled:opacity-50"
                     >
@@ -569,7 +569,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                           } @else {
                             <button
                               type="button"
-                              [class.perm-locked]="!canManage()" (click)="toggleUserActive(usr)"
+                              [class.perm-hidden]="!canManage()" (click)="toggleUserActive(usr)"
                               class="px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
                               [class]="usr.active === false
                                 ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
@@ -844,7 +844,7 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                   Cancelar
                 </button>
                 <button
-                  type="submit" [class.perm-locked]="!canManage()"
+                  type="submit" [class.perm-hidden]="!canManage()"
                   [disabled]="roleForm.invalid"
                   class="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm disabled:opacity-50"
                 >

@@ -1,3 +1,4 @@
+import { normalizeUfTable } from '../utils/uf';
 import { Injectable, computed, signal } from '@angular/core';
 import {
   AccountingAccount, AppetiteLimit, BusinessProcess, DEFAULT_GENERAL_PARAMETERS, DEFAULT_PROVIDER_CATALOGS, DEFAULT_RISK_APPETITE,
@@ -32,6 +33,9 @@ export class CatalogService {
   readonly providerCatalogsRaw = signal<unknown>(clone(DEFAULT_PROVIDER_CATALOGS));
   /** Parámetros de avisos y correo (se normalizan en NotificationService). */
   readonly notificationSettingsRaw = signal<unknown>({});
+  /** Valores diarios de la UF (fecha → pesos), para expresar la base de pérdidas en UF. */
+  readonly ufValuesRaw = signal<unknown>({});
+  readonly ufTable = computed(() => normalizeUfTable(this.ufValuesRaw()));
 
   readonly riskScale = computed(() => normalizeRiskScale(this.riskScaleRaw()));
   readonly riskAppetite = computed(() => normalizeRiskAppetite(this.riskAppetiteRaw()));

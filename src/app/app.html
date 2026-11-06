@@ -26,6 +26,36 @@
     <app-login-screen [overlay]="true" [presetEmail]="persistence.sessionUser()?.email ?? ''" (loggedIn)="persistence.onLoggedIn($event)" />
   }
 
+  <!-- Ediciones simultáneas -->
+  @if (persistence.conflicts().length) {
+    <div class="fixed top-20 right-4 left-4 sm:left-auto z-[60] sm:w-[26rem] space-y-2 no-print" role="alert" aria-live="assertive">
+      @for (k of persistence.conflicts(); track k.key) {
+        <div class="bg-white border border-amber-300 shadow-xl rounded-2xl p-4 text-xs text-slate-700">
+          <div class="flex items-start gap-2">
+            <mat-icon class="text-amber-600 shrink-0">sync_problem</mat-icon>
+            <div class="min-w-0">
+              <p class="font-bold text-slate-900">{{ entityLabel(k.entity) }} modificado por otra persona</p>
+              <p class="mt-1">
+                <strong>{{ k.updatedBy || 'Otra persona' }}</strong> {{ k.theirs ? 'guardó' : 'eliminó' }} «{{ k.label }}»@if (k.updatedAt) { a las {{ k.updatedAt | date:'HH:mm' }}} mientras lo editabas.
+                {{ k.theirs ? 'Se cargó su versión; tus cambios no se guardaron.' : 'Ya no está en la base.' }}
+              </p>
+            </div>
+          </div>
+          <div class="flex flex-wrap justify-end gap-2 mt-3">
+            <button type="button" (click)="persistence.dismissConflict(k.key)" class="px-3 py-1.5 rounded-lg bg-slate-900 text-white font-semibold hover:bg-slate-700 cursor-pointer">
+              {{ k.theirs ? 'Mantener su versión' : 'Aceptar' }}
+            </button>
+            @if (k.mine) {
+              <button type="button" (click)="persistence.overwriteConflict(k.key)" class="px-3 py-1.5 rounded-lg border border-amber-400 text-amber-900 hover:bg-amber-50 font-semibold cursor-pointer">
+                {{ k.theirs ? 'Guardar la mía encima' : 'Volver a crearlo con mis datos' }}
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+
   <!-- Estado de guardado -->
   @if (persistence.mode() === 'database') {
     <div class="fixed bottom-6 left-6 z-40 no-print">
@@ -359,7 +389,7 @@
               </button>
 
               <button
-                (click)="setTab('carga-masiva')"
+                (click)="setTab('carga-masiva')" [class.perm-hidden]="!canBulk()"
                 [class]="activeTab() === 'carga-masiva'
                   ? 'bg-slate-900 text-white font-semibold'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
@@ -375,7 +405,7 @@
             <div class="hidden lg:flex items-center gap-2 shrink-0">
               <button
                 (click)="simulateRealTimeAnomaly()"
-                [class.perm-locked]="!can('canConfigureKRIs')"
+                [class.perm-hidden]="!can('canConfigureKRIs')"
                 class="text-xs px-2.5 py-1 text-slate-700 hover:text-rose-700 bg-slate-100 hover:bg-rose-50 border border-slate-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
                 title="Simula en vivo la detección de una anomalía en un proceso interno"
               >
@@ -441,7 +471,7 @@
 
             <button
               type="button"
-              (click)="isRolesModalOpen.set(true)"
+              (click)="isRolesModalOpen.set(true)" [class.perm-hidden]="!can('canManageRoles')"
               class="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 rounded-lg transition-colors border border-slate-300 shadow-2xs cursor-pointer"
               title="Administrar puestos y roles reales de tu organización y matriz de permisos"
             >
@@ -464,7 +494,7 @@
             <button
               type="button"
               (click)="openCreateFlaw()"
-              [class.perm-locked]="!can('canReportFlaws')"
+              [class.perm-hidden]="!can('canReportFlaws')"
               class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors shadow-2xs cursor-pointer"
               title="Registrar incidencia o evento de pérdida"
             >
@@ -522,7 +552,7 @@
           <div class="flex items-center gap-2">
             <button
               (click)="openCreateRisk()"
-              [class.perm-locked]="!can('canEditRisks')"
+              [class.perm-hidden]="!can('canEditRisks')"
               class="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
             >
               <mat-icon class="text-sm">add</mat-icon>
@@ -530,7 +560,7 @@
             </button>
             <button
               (click)="riskService.exportToExcel('complete')"
-              [class.perm-locked]="!can('canExportReports')"
+              [class.perm-hidden]="!can('canExportReports')"
               class="px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
             >
               <mat-icon class="text-sm">download</mat-icon>
@@ -606,7 +636,7 @@
               <div class="mt-3 pt-2 border-t border-slate-100">
                 <button
                   (click)="simulateRealTimeAnomaly()"
-                  [class.perm-locked]="!can('canConfigureKRIs')"
+                  [class.perm-hidden]="!can('canConfigureKRIs')"
                   class="w-full py-2 px-3 text-xs text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 flex items-center justify-center gap-1"
                 >
                   <mat-icon class="text-xs text-rose-600">bolt</mat-icon>
@@ -662,7 +692,7 @@
           </div>
           <button
             (click)="openCreateFlaw()"
-            [class.perm-locked]="!can('canReportFlaws')"
+            [class.perm-hidden]="!can('canReportFlaws')"
             class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition-all whitespace-nowrap flex items-center gap-1.5"
           >
             <mat-icon class="text-xs">add_alert</mat-icon>
@@ -706,7 +736,7 @@
           <div class="flex items-center gap-2">
             <button
               (click)="openCreateRisk()"
-              [class.perm-locked]="!can('canEditRisks')"
+              [class.perm-hidden]="!can('canEditRisks')"
               class="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
             >
               <mat-icon class="text-sm">add</mat-icon>
@@ -714,7 +744,7 @@
             </button>
             <button
               (click)="openImportRisks()"
-              [class.perm-locked]="!can('canEditRisks')"
+              [class.perm-hidden]="!can('canEditRisks')"
               title="Cargar riesgos desde una matriz en Excel (.xlsx) o CSV"
               class="px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
             >
@@ -723,7 +753,7 @@
             </button>
             <button
               (click)="riskService.exportToExcel('risks')"
-              [class.perm-locked]="!can('canExportReports')"
+              [class.perm-hidden]="!can('canExportReports')"
               class="px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
             >
               <mat-icon class="text-sm">download</mat-icon>
@@ -943,9 +973,9 @@
                       <button
                         (click)="openEditRisk(risk)"
                         class="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors mr-1"
-                        title="Modificar evaluación o controles"
+                        [title]="can('canEditRisks') ? 'Modificar evaluación o controles' : 'Ver detalle'"
                       >
-                        <mat-icon class="text-base">edit</mat-icon>
+                        <mat-icon class="text-base">{{ can('canEditRisks') ? 'edit' : 'visibility' }}</mat-icon>
                       </button>
                     </td>
 
@@ -978,7 +1008,7 @@
                                 Controles Asociados ({{ risk.controlIds.length }})
                               </span>
                               <button
-                                (click)="openEditRisk(risk)"
+                                (click)="openEditRisk(risk)" [class.perm-hidden]="!can('canEditRisks')"
                                 class="text-[11px] text-emerald-700 hover:underline font-medium"
                               >
                                 Vincular / Desvincular
@@ -1047,7 +1077,7 @@
           <div class="flex items-center gap-2">
             <button
               (click)="openCreateControl()"
-              [class.perm-locked]="!can('canEditRisks', 'canEvaluateControls')"
+              [class.perm-hidden]="!can('canEditRisks', 'canEvaluateControls')"
               class="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
             >
               <mat-icon class="text-sm">add</mat-icon>
@@ -1055,7 +1085,7 @@
             </button>
             <button
               (click)="riskService.exportToExcel('controls')"
-              [class.perm-locked]="!can('canExportReports')"
+              [class.perm-hidden]="!can('canExportReports')"
               class="px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
             >
               <mat-icon class="text-sm">download</mat-icon>
@@ -1162,8 +1192,8 @@
                   (click)="openEditControl(ctrl)"
                   class="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold rounded-lg text-xs transition-colors flex items-center gap-1"
                 >
-                  <mat-icon class="text-xs">tune</mat-icon>
-                  <span>Probar y Adjuntar</span>
+                  <mat-icon class="text-xs">{{ can('canEvaluateControls', 'canEditRisks') ? 'tune' : 'visibility' }}</mat-icon>
+                  <span>{{ can('canEvaluateControls', 'canEditRisks') ? 'Probar y Adjuntar' : 'Ver detalle' }}</span>
                 </button>
               </div>
 
@@ -1258,7 +1288,7 @@
 
           <button
             (click)="openCreateFlaw()"
-            [class.perm-locked]="!can('canReportFlaws')"
+            [class.perm-hidden]="!can('canReportFlaws')"
             class="px-4 py-2.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-all flex items-center gap-2 shadow-sm shrink-0 cursor-pointer"
           >
             <mat-icon class="text-sm">add_alert</mat-icon>
@@ -1278,33 +1308,33 @@
 
           <div class="bg-white p-3.5 rounded-xl border border-rose-200 bg-rose-50/20 shadow-2xs">
             <span class="text-[11px] font-semibold text-rose-800 block">Pérdida Bruta Cuantificada</span>
-            <div class="flex items-baseline justify-between mt-1">
-              <span class="text-2xl font-bold font-mono text-rose-700">{{ riskService.totalRealLossesUSD() | money }}</span>
-              <span class="text-[10px] text-rose-700 font-semibold bg-rose-100 px-1.5 py-0.5 rounded">{{ riskService.currencyCode() }} Directo</span>
+            <div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 mt-1">
+              <span class="text-xl xl:text-2xl font-bold font-mono text-rose-700">{{ riskService.totalRealLossesUSD() | money }}</span>
+              <span class="text-[10px] text-rose-700 font-semibold bg-rose-100 px-1.5 py-0.5 rounded whitespace-nowrap">{{ riskService.currencyCode() }} Directo</span>
             </div>
           </div>
 
           <div class="bg-white p-3.5 rounded-xl border border-amber-200 bg-amber-50/20 shadow-2xs">
             <span class="text-[11px] font-semibold text-amber-800 block">Fallas de Control Reportadas</span>
-            <div class="flex items-baseline justify-between mt-1">
-              <span class="text-2xl font-bold font-mono text-amber-900">{{ riskService.controlFailuresCount() }}</span>
-              <span class="text-[10px] text-amber-800 font-semibold bg-amber-100 px-1.5 py-0.5 rounded">Deficiencias</span>
+            <div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 mt-1">
+              <span class="text-xl xl:text-2xl font-bold font-mono text-amber-900">{{ riskService.controlFailuresCount() }}</span>
+              <span class="text-[10px] text-amber-800 font-semibold bg-amber-100 px-1.5 py-0.5 rounded whitespace-nowrap">Deficiencias</span>
             </div>
           </div>
 
           <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
             <span class="text-[11px] font-semibold text-slate-500 block">Pérdida Recuperada</span>
-            <div class="flex items-baseline justify-between mt-1">
-              <span class="text-2xl font-bold font-mono text-emerald-700">{{ riskService.totalLossesRecoveredUSD() | money }}</span>
-              <span class="text-[10px] text-emerald-700 font-semibold bg-emerald-100 px-1.5 py-0.5 rounded">{{ riskService.currencyCode() }} Recuperado</span>
+            <div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 mt-1">
+              <span class="text-xl xl:text-2xl font-bold font-mono text-emerald-700">{{ riskService.totalLossesRecoveredUSD() | money }}</span>
+              <span class="text-[10px] text-emerald-700 font-semibold bg-emerald-100 px-1.5 py-0.5 rounded whitespace-nowrap">{{ riskService.currencyCode() }} Recuperado</span>
             </div>
           </div>
 
           <div class="bg-white p-3.5 rounded-xl border border-slate-300 shadow-2xs col-span-2 lg:col-span-1">
             <span class="text-[11px] font-semibold text-slate-700 block">Pérdida Neta</span>
-            <div class="flex items-baseline justify-between mt-1">
-              <span class="text-2xl font-bold font-mono text-slate-900">{{ riskService.totalNetLossesUSD() | money }}</span>
-              <span class="text-[10px] text-slate-700 font-semibold bg-slate-100 px-1.5 py-0.5 rounded">Bruta − Recup.</span>
+            <div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 mt-1">
+              <span class="text-xl xl:text-2xl font-bold font-mono text-slate-900">{{ riskService.totalNetLossesUSD() | money }}</span>
+              <span class="text-[10px] text-slate-700 font-semibold bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap">@if (riskService.currencyCode() === 'CLP' && lossNetUfTotal()) {≈ UF {{ lossNetUfTotal() | number:'1.0-0' }}} @else {Bruta − Recup.}</span>
             </div>
           </div>
         </div>
@@ -1491,17 +1521,17 @@
                   <button
                     (click)="openEditFlaw(flaw)"
                     class="px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                    title="Actualizar detalles o eventos del incidente"
+                    [title]="can('canReportFlaws', 'canConvertFlaws', 'canManageRegulatoryReports') ? 'Actualizar detalles o eventos del incidente' : 'Ver detalle'"
                   >
-                    <mat-icon class="text-xs">edit</mat-icon>
-                    <span>Editar</span>
+                    <mat-icon class="text-xs">{{ can('canReportFlaws', 'canConvertFlaws', 'canManageRegulatoryReports') ? 'edit' : 'visibility' }}</mat-icon>
+                    <span>{{ can('canReportFlaws', 'canConvertFlaws', 'canManageRegulatoryReports') ? 'Editar' : 'Ver' }}</span>
                   </button>
 
                   <!-- Convertir a Riesgo Button -->
                   @if (flaw.status !== 'Convertida a Riesgo') {
                     <button
                       (click)="convertFlawDirectly(flaw)"
-                      [class.perm-locked]="!can('canConvertFlaws')"
+                      [class.perm-hidden]="!can('canConvertFlaws')"
                       class="px-3 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
                       title="Evaluar y transformar formalmente en riesgo mitigable"
                     >
@@ -1520,7 +1550,7 @@
               <p class="text-xs text-slate-500">Puedes registrar un nuevo evento de pérdida o falla de control con el botón superior.</p>
               <button
                 (click)="openCreateFlaw()"
-                [class.perm-locked]="!can('canReportFlaws')"
+                [class.perm-hidden]="!can('canReportFlaws')"
                 class="px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors inline-flex items-center gap-1.5"
               >
                 <mat-icon class="text-sm">add_alert</mat-icon>
@@ -1540,18 +1570,26 @@
                 </h2>
                 <p class="text-[11px] text-slate-500 mt-0.5">
                   Eventos con pérdida bruta mayor a cero, con sus fechas, clasificación Basilea y línea de negocio. Las filas en ámbar tienen datos incompletos.
+                  @if (riskService.currencyCode() === 'CLP') { Montos en pesos; la columna UF usa el valor de la UF de la fecha contable (o de descubrimiento u ocurrencia). }
                 </p>
+                @if (riskService.currencyCode() === 'USD') {
+                  <p class="mt-2 text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-1.5" role="note">
+                    <mat-icon class="text-sm text-amber-600 shrink-0">currency_exchange</mat-icon>
+                    <span>La base está en dólares. Para reportar en pesos con referencia en UF, cambia la moneda de registro a CLP en
+                      <strong>Mantenedores → Parámetros generales</strong> (convierte los montos con el tipo de cambio que indiques).</span>
+                  </p>
+                }
               </div>
               <div class="flex items-center gap-2 flex-wrap">
                 <label class="text-[11px] text-slate-600 flex items-center gap-1.5">
-                  <span>Umbral de registro ({{ riskService.currencyCode() }})</span>
+                  <span>Umbral de registro ({{ riskService.currencyCode() }})@if (thresholdUf(); as tu) { <span class="text-slate-400"> ≈ UF {{ tu | number:'1.0-0' }}</span> }</span>
                   <input type="number" min="0" step="100" [value]="riskService.lossRegistrationThresholdUSD()"
                     [disabled]="!riskService.hasPermission('canManageRegulatoryReports')"
                     (change)="riskService.setLossThreshold(+$any($event.target).value)"
                     class="w-24 text-xs rounded-lg border border-slate-300 px-2 py-1 font-mono disabled:bg-slate-100" />
                 </label>
                 @if (riskService.hasPermission('canExportReports')) {
-                  <button [class.perm-locked]="!can('canExportReports')" (click)="riskService.exportToExcel('loss_database')"
+                  <button [class.perm-hidden]="!can('canExportReports')" (click)="riskService.exportToExcel('loss_database')"
                     class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white hover:bg-slate-50 flex items-center gap-1 cursor-pointer">
                     <mat-icon class="text-sm text-emerald-600">download</mat-icon><span>Exportar CSV</span>
                   </button>
@@ -1572,6 +1610,7 @@
                     <th class="text-right py-2.5 px-3">Bruta {{ riskService.currencyCode() }}</th>
                     <th class="text-right py-2.5 px-3">Recup. {{ riskService.currencyCode() }}</th>
                     <th class="text-right py-2.5 px-3">Neta {{ riskService.currencyCode() }}</th>
+                    @if (riskService.currencyCode() === 'CLP') { <th class="text-right py-2.5 px-3" title="Pérdida neta en UF, con el valor de la UF de la fecha contable (o de descubrimiento u ocurrencia)">Neta UF</th> }
                     <th class="text-center py-2.5 px-3">Umbral</th>
                     <th class="text-center py-2.5 px-3">Regulador</th>
                     <th class="py-2.5 px-3"></th>
@@ -1606,6 +1645,12 @@
                       <td class="py-2.5 px-3 font-mono text-right text-rose-700">{{ f.realLossAmountUSD | number:'1.0-0' }}</td>
                       <td class="py-2.5 px-3 font-mono text-right text-emerald-700">{{ (f.recoveredAmountUSD || 0) | number:'1.0-0' }}</td>
                       <td class="py-2.5 px-3 font-mono text-right font-bold text-slate-900">{{ riskService.netLoss(f) | number:'1.0-0' }}</td>
+                      @if (riskService.currencyCode() === 'CLP') {
+                        @let uf = riskService.lossUf(f);
+                        <td class="py-2.5 px-3 font-mono text-right text-slate-700 whitespace-nowrap" [title]="uf ? 'UF $' + (uf.value | number:'1.2-2') + ' del ' + uf.date + (uf.stored ? '' : ' (aún no asignada al evento)') : 'Sin valor UF para la fecha del evento'">
+                          @if (uf) { {{ riskService.amountInUf(f, riskService.netLoss(f)) | number:'1.2-2' }} } @else { <span class="text-amber-600">s/UF</span> }
+                        </td>
+                      }
                       <td class="py-2.5 px-3 text-center">
                         @if (riskService.isAboveLossThreshold(f)) {
                           <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-white font-semibold">Sobre</span>
@@ -1619,13 +1664,13 @@
                         @if (!f.regulatoryReport) { <span class="text-slate-400">—</span> }
                       </td>
                       <td class="py-2.5 px-3 text-right">
-                        <button (click)="openEditFlaw(f)" class="p-1 rounded hover:bg-slate-200 text-slate-600 cursor-pointer" title="Completar o editar evento">
-                          <mat-icon class="text-sm">edit</mat-icon>
+                        <button (click)="openEditFlaw(f)" class="p-1 rounded hover:bg-slate-200 text-slate-600 cursor-pointer" [title]="can('canReportFlaws', 'canConvertFlaws', 'canManageRegulatoryReports') ? 'Completar o editar evento' : 'Ver detalle'">
+                          <mat-icon class="text-sm">{{ can('canReportFlaws', 'canConvertFlaws', 'canManageRegulatoryReports') ? 'edit' : 'visibility' }}</mat-icon>
                         </button>
                       </td>
                     </tr>
                   } @empty {
-                    <tr><td colspan="13" class="py-8 text-center text-slate-500">No hay eventos con pérdida registrada.</td></tr>
+                    <tr><td [attr.colspan]="riskService.currencyCode() === 'CLP' ? 14 : 13" class="py-8 text-center text-slate-500">No hay eventos con pérdida registrada.</td></tr>
                   }
                 </tbody>
                 @if (riskService.lossDatabase().length > 0) {
@@ -1635,6 +1680,7 @@
                       <td class="py-2.5 px-3 font-mono text-right text-rose-700">{{ riskService.totalRealLossesUSD() | number:'1.0-0' }}</td>
                       <td class="py-2.5 px-3 font-mono text-right text-emerald-700">{{ riskService.totalLossesRecoveredUSD() | number:'1.0-0' }}</td>
                       <td class="py-2.5 px-3 font-mono text-right">{{ riskService.totalNetLossesUSD() | number:'1.0-0' }}</td>
+                      @if (riskService.currencyCode() === 'CLP') { <td class="py-2.5 px-3 font-mono text-right">{{ lossNetUfTotal() | number:'1.2-2' }}</td> }
                       <td colspan="3"></td>
                     </tr>
                   </tfoot>
@@ -1671,7 +1717,7 @@
             <button
               type="button"
               (click)="openAlertSettings()"
-              [class.perm-locked]="!can('canConfigureKRIs')"
+              [class.perm-hidden]="!can('canConfigureKRIs')"
               class="px-3.5 py-2 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors flex items-center gap-1.5 border border-amber-300 shadow-2xs cursor-pointer"
               title="Configurar canales de notificación (Email, SMS y Webhook) para alertas de KRI"
             >
@@ -1682,7 +1728,7 @@
             <button
               type="button"
               (click)="openKriThresholds()"
-              [class.perm-locked]="!can('canConfigureKRIs')"
+              [class.perm-hidden]="!can('canConfigureKRIs')"
               class="px-3.5 py-2 text-xs font-semibold text-slate-800 bg-white hover:bg-slate-50 rounded-lg transition-colors flex items-center gap-1.5 border border-slate-300 shadow-2xs cursor-pointer"
               title="Seleccionar industria y configurar umbrales de tolerancia de KRIs"
             >
@@ -1693,7 +1739,7 @@
             <button
               type="button"
               (click)="simulateRealTimeAnomaly()"
-              [class.perm-locked]="!can('canConfigureKRIs')"
+              [class.perm-hidden]="!can('canConfigureKRIs')"
               class="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
             >
               <mat-icon class="text-sm">flash_on</mat-icon>
@@ -1733,7 +1779,7 @@
             <button
               type="button"
               (click)="openAlertSettings()"
-              [class.perm-locked]="!can('canConfigureKRIs')"
+              [class.perm-hidden]="!can('canConfigureKRIs')"
               class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 rounded-xl text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
               title="Configurar canales de notificación Email y SMS"
             >
@@ -1744,7 +1790,7 @@
             <button
               type="button"
               (click)="openKriThresholds()"
-              [class.perm-locked]="!can('canConfigureKRIs')"
+              [class.perm-hidden]="!can('canConfigureKRIs')"
               class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors cursor-pointer"
             >
               Cambiar Industria
@@ -1835,7 +1881,7 @@
                     <button
                       type="button"
                       (click)="openAlertSettings(kri)"
-                      [class.perm-locked]="!can('canConfigureKRIs')"
+                      [class.perm-hidden]="!can('canConfigureKRIs')"
                       class="px-2 py-1 text-xs font-semibold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
                       title="Configurar preferencias de notificación por Email y SMS para este KRI"
                     >
@@ -1846,7 +1892,7 @@
                     <button
                       type="button"
                       (click)="openKriThresholds()"
-                      [class.perm-locked]="!can('canConfigureKRIs')"
+                      [class.perm-hidden]="!can('canConfigureKRIs')"
                       class="px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
                       title="Calibrar umbrales preventivos y críticos de este KRI"
                     >
@@ -1911,14 +1957,14 @@
                   @if (alert.status === 'Activa') {
                     <button
                       (click)="riskService.updateAlertStatus(alert.id, 'En Investigación')"
-                      [class.perm-locked]="!can('canAcknowledgeAlerts')"
+                      [class.perm-hidden]="!can('canAcknowledgeAlerts')"
                       class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
                     >
                       Investigar
                     </button>
                     <button
                       (click)="riskService.updateAlertStatus(alert.id, 'Mitigada')"
-                      [class.perm-locked]="!can('canAcknowledgeAlerts')"
+                      [class.perm-hidden]="!can('canAcknowledgeAlerts')"
                       class="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors cursor-pointer"
                     >
                       Resolver
@@ -1926,7 +1972,7 @@
                   } @else if (alert.status === 'En Investigación') {
                     <button
                       (click)="riskService.updateAlertStatus(alert.id, 'Mitigada')"
-                      [class.perm-locked]="!can('canAcknowledgeAlerts')"
+                      [class.perm-hidden]="!can('canAcknowledgeAlerts')"
                       class="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors cursor-pointer"
                     >
                       Cerrar Mitigación
@@ -1979,7 +2025,7 @@
 
             <button
               (click)="riskService.exportToExcel('audit_trail')"
-              [class.perm-locked]="!can('canExportReports')"
+              [class.perm-hidden]="!can('canExportReports')"
               class="px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
             >
               <mat-icon class="text-sm">download</mat-icon>

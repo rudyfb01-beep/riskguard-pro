@@ -3,7 +3,7 @@ import { getPool } from './db';
 import { ensureDatabase } from './bootstrap-db';
 import {
   appendLedger, convertCurrency, countReferences, deleteEntity, EntityName, entityExists, getActionPlan, getApproval, getNotificationPreferences, getSetting,
-  getSurveyResponse, getDocument, isEntity, saveBulk, listNotifications, loadAll, markNotificationsRead, notificationOutbox, saveApprovalWithEffect, saveEntity,
+  getSurveyResponse, getDocument, isEntity, saveBulk, saveEntityChecked, VersionConflictError, BootstrapData, listNotifications, loadAll, markNotificationsRead, notificationOutbox, saveApprovalWithEffect, getVersion,
   saveNotificationPreference, saveSetting, SETTING_KEYS, SettingKey, getEvidence, getEvidenceContent, insertEvidence, markEvidenceDeleted,
 } from './repository';
 import { DEFAULT_EVIDENCE_MAX_MB, EVIDENCE_ENTITY_LABELS, EvidenceEntity, EvidenceFile } from '../app/models/evidence.model';
@@ -17,6 +17,7 @@ import { appetiteStatus, normalizeRiskAppetite } from '../app/models/catalog.mod
 import { DEFAULT_NOTIFICATION_PREFERENCE, EmailMode, NOTIFICATION_CATEGORIES, NotificationCategory } from '../app/models/notification.model';
 import { deliverPending, normalizeNotificationSettings, notifyChange, runDigest, runNotifierCycle } from './notifier';
 import { isMailConfigured, sendMail } from './mailer';
+import { syncUf } from './uf-sync';
 import { notificationEmail } from '../app/utils/notifications';
 import { ActionPlan } from '../app/models/action-plan.model';
 import { checkPlanChange } from '../app/utils/action-plans';
@@ -93,6 +94,7 @@ const SETTING_PERMISSIONS: Record<SettingKey, (keyof UserPermissions)[]> = {
   provider_catalogs: ['canManageCatalogs'],
   approval_matrix: ['canManageCatalogs'],
   notification_settings: ['canManageCatalogs'],
+  uf_values: ['canManageCatalogs', 'canManageRegulatoryReports'],
 };
 
 /** Mensajes comprensibles para errores frecuentes de PostgreSQL y SQLite. */
@@ -312,7 +314,7 @@ dataApi.put('/data/:entity/:id', async (req, res) => {
     return;
   }
   if (entity === 'approvals') {
-    await saveApproval(res, body as ApprovalRequest);
+    await saveApproval(res, body as ApprovalRequest, baseVersion(req));
     return;
   }
   // Estado previo: para validar reglas y para generar avisos.
@@ -354,8 +356,8 @@ dataApi.put('/data/:entity/:id', async (req, res) => {
         return;
       }
     }
-    await saveEntity(entity, body as { id: string });
-    res.json({ ok: true });
+    const version = await saveEntityChecked(entity, body as { id: string }, baseVersion(req), currentUser(res)!.name);
+    res.json({ ok: true, version });
     if (NOTIFY_ENTITIES.has(entity)) {
       // Para incidentes y alertas solo importa si son nuevos (prev = {} indica que ya existían).
       const before = entity === 'flaws' || entity === 'alerts' ? (prev ? body : null) : prev;
@@ -364,9 +366,44 @@ dataApi.put('/data/:entity/:id', async (req, res) => {
       void notifyChange(entity, before, body, currentUser(res)!.name, { campaign: camp });
     }
   } catch (err) {
+    if (err instanceof VersionConflictError) {
+      await sendConflict(res, entity, id, err);
+      return;
+    }
     res.status(422).json({ error: friendlyDbError(err) });
   }
 });
+
+/** Versión sobre la que se editó (cabecera X-Base-Version); sin cabecera no se compara. */
+function baseVersion(req: express.Request): number | null {
+  const h = req.get('x-base-version');
+  if (h === undefined || h === '') return null;
+  const n = Number(h);
+  return Number.isInteger(n) && n >= 0 ? n : null;
+}
+
+/** Colección de /api/data donde está cada entidad (para devolver la versión guardada). */
+const DATA_KEY: Record<EntityName, keyof BootstrapData> = {
+  areas: 'areas', processes: 'processes', roles: 'roles', users: 'users', controls: 'controls', risks: 'risks', providers: 'providers',
+  'regulatory-milestones': 'regulatoryMilestones', flaws: 'flaws', alerts: 'alerts', audits: 'audits', kris: 'kris', bia: 'bia', plans: 'plans',
+  'continuity-tests': 'continuityTests', 'info-assets': 'infoAssets', vulnerabilities: 'vulnerabilities', 'security-assessment': 'securityAssessment',
+  norms: 'norms', compliance: 'compliance', 'security-tests': 'securityTests', 'action-plans': 'actionPlans', 'survey-campaigns': 'surveyCampaigns',
+  'survey-responses': 'surveyResponses', documents: 'documents', approvals: 'approvals',
+};
+
+/** 409 con la versión guardada, para que el cliente la muestre y decida. */
+async function sendConflict(res: express.Response, entity: EntityName, id: string, err: VersionConflictError) {
+  const all = await loadAll().catch(() => null);
+  const list = (all?.[DATA_KEY[entity]] ?? []) as { id: string }[];
+  const current = list.find(x => x.id === id) ?? null;
+  const who = err.updatedBy ? ` (${err.updatedBy})` : '';
+  res.status(409).json({
+    error: current
+      ? `Otra persona${who} guardó este registro mientras lo editabas.`
+      : `Otra persona${who} eliminó este registro mientras lo editabas.`,
+    conflict: { version: err.current, updatedBy: err.updatedBy, updatedAt: err.updatedAt, current },
+  });
+}
 
 // -----------------------------------------------------------------------------
 // Carga masiva (Excel / CSV): todos los registros en una sola transacción
@@ -602,7 +639,7 @@ async function approvalTarget(r: ApprovalRequest) {
  * aprueba el último nivel, aplica el cambio al registro de origen en la misma transacción
  * (quien aprueba no necesita permiso de edición en ese módulo).
  */
-async function saveApproval(res: express.Response, next: ApprovalRequest) {
+async function saveApproval(res: express.Response, next: ApprovalRequest, base: number | null) {
   const user = currentUser(res)!;
   try {
     const prev = await getApproval(next.id);
@@ -638,11 +675,15 @@ async function saveApproval(res: express.Response, next: ApprovalRequest) {
       res.status(422).json({ error: 'El registro de origen ya no admite este cambio (revise su estado actual).' });
       return;
     }
-    await saveApprovalWithEffect(next, updated ? { entity: next.targetEntity, obj: updated } : null);
-    res.json({ ok: true, applied: updated ? { entity: next.targetEntity, record: updated } : null });
+    const v = await saveApprovalWithEffect(next, updated ? { entity: next.targetEntity, obj: updated } : null, base, user.name);
+    res.json({ ok: true, version: v.version, applied: updated ? { entity: next.targetEntity, record: updated, version: v.effectVersion } : null });
     void notifyChange('approvals', prev, next, user.name);
     if (updated && (next.targetEntity === 'action-plans' || next.targetEntity === 'documents')) void notifyChange(next.targetEntity, target, updated, user.name);
   } catch (e) {
+    if (e instanceof VersionConflictError) {
+      await sendConflict(res, 'approvals', next.id, e);
+      return;
+    }
     res.status(422).json({ error: friendlyDbError(e) });
   }
 }
@@ -763,6 +804,14 @@ dataApi.delete('/data/:entity/:id', async (req, res) => {
         return;
       }
     }
+    const base = baseVersion(req);
+    if (base !== null) {
+      const cur = await getVersion(entity, id);
+      if (cur !== base) {
+        await sendConflict(res, entity, id, new VersionConflictError(cur, null, null));
+        return;
+      }
+    }
     await deleteEntity(entity, id);
     res.json({ ok: true });
   } catch (err) {
@@ -812,6 +861,26 @@ dataApi.put('/settings/:key', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(422).json({ error: friendlyDbError(err) });
+  }
+});
+
+/** Descarga los valores de la UF (mindicador.cl) del año indicado o del actual. */
+dataApi.post('/admin/uf-sync', async (req, res) => {
+  if (!authorize(res, ['canManageCatalogs', 'canManageRegulatoryReports'], 'los valores de la UF')) return;
+  const now = new Date().getFullYear();
+  const years = Array.isArray(req.body?.years) ? (req.body.years as unknown[]).map(Number).filter(Number.isInteger).slice(0, 5) : [now];
+  try {
+    const r = await syncUf(years.length ? years : [now]);
+    const user = currentUser(res)!;
+    if (r.added) {
+      await appendLedger({
+        id: `log-uf-${Date.now()}`, userName: user.name, userRole: user.role, action: 'CONFIGURACIÓN_PARÁMETROS', entityType: 'Mantenedor',
+        entityCode: 'UF', details: `Valores de la UF actualizados desde la fuente oficial (${years.join(', ')}): ${r.added} nuevo(s), último ${r.latest?.date} = ${r.latest?.value}.`,
+      }, clientIp(req));
+    }
+    res.json(r);
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
   }
 });
 

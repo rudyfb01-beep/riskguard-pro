@@ -6,6 +6,7 @@ import { PersistenceService } from '../services/persistence.service';
 import { ResilienceService } from '../services/resilience.service';
 import { SecurityService } from '../services/security.service';
 import { ActiveTab } from '../app';
+import { canOpenBulkImport } from '../utils/bulk-access';
 import { ComplianceService } from '../services/compliance.service';
 import { ActionPlanService } from '../services/action-plan.service';
 import { SurveyService } from '../services/survey.service';
@@ -124,7 +125,7 @@ export interface NavGroup {
         }
 
         <!-- Quick Operational Actions Card -->
-        @if (!isCollapsed()) {
+        @if (!isCollapsed() && riskService.canAny('canReportFlaws', 'canEditRisks', 'canConfigureKRIs')) {
           <div class="pt-2">
             <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800/90 space-y-2">
               <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
@@ -134,7 +135,7 @@ export interface NavGroup {
 
               <button
                 type="button"
-                (click)="openFlawModal.emit()"
+                (click)="openFlawModal.emit()" [class.perm-hidden]="!riskService.canAny('canReportFlaws')"
                 class="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-600/90 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors cursor-pointer"
               >
                 <mat-icon class="text-sm">add_alert</mat-icon>
@@ -143,7 +144,7 @@ export interface NavGroup {
 
               <button
                 type="button"
-                (click)="openRiskModal.emit()"
+                (click)="openRiskModal.emit()" [class.perm-hidden]="!riskService.canAny('canEditRisks')"
                 class="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium border border-slate-700/80 transition-colors cursor-pointer"
               >
                 <mat-icon class="text-sm text-emerald-400">add_box</mat-icon>
@@ -152,7 +153,7 @@ export interface NavGroup {
 
               <button
                 type="button"
-                (click)="simulateAnomaly.emit()"
+                (click)="simulateAnomaly.emit()" [class.perm-hidden]="!riskService.canAny('canConfigureKRIs')"
                 class="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-rose-300 rounded-lg text-[11px] font-medium border border-slate-800 transition-colors cursor-pointer"
               >
                 <mat-icon class="text-sm text-rose-500">flash_on</mat-icon>
@@ -232,7 +233,7 @@ export interface NavGroup {
 
               <button
                 type="button"
-                (click)="openRolesModal.emit()"
+                (click)="openRolesModal.emit()" [class.perm-hidden]="!riskService.canAny('canManageRoles')"
                 class="w-full mt-2 flex items-center justify-center gap-1.5 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white rounded-md text-[10px] font-medium border border-slate-700/80 transition-colors cursor-pointer"
                 title="Definir puestos reales y matriz de permisos"
               >
@@ -276,6 +277,11 @@ export class SidebarNav {
   readonly openFlawModal = output<void>();
   readonly simulateAnomaly = output<void>();
   readonly openRolesModal = output<void>();
+
+  /** Hay algo que este cargo pueda cargar en Carga masiva. */
+  readonly canBulk = computed(() => {
+    return canOpenBulkImport(this.riskService.currentProfile().permissions);
+  });
 
   readonly navGroups = computed<NavGroup[]>(() => {
     const risksCount = this.riskService.risks().length;
@@ -396,7 +402,7 @@ export class SidebarNav {
         title: 'Configuración',
         items: [
           { id: 'mantenedores', label: 'Mantenedores', icon: 'tune' },
-          { id: 'carga-masiva', label: 'Carga masiva', icon: 'upload_file' },
+          ...(this.canBulk() ? [{ id: 'carga-masiva' as ActiveTab, label: 'Carga masiva', icon: 'upload_file' }] : []),
         ]
       }
     ];

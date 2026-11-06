@@ -1,4 +1,5 @@
 import { getPool } from './db';
+import { autoSyncUf } from './uf-sync';
 import { isMailConfigured, sendMail } from './mailer';
 import {
   getNotificationPreferences, getSetting, insertNotifications, loadAll, notificationsByEmailStatus, setEmailStatus, setInternalSetting, userFromRow,
@@ -155,6 +156,7 @@ export async function runDigest(now = new Date(), force = false): Promise<number
 
 /** Una vuelta completa: plazos, correos inmediatos y resumen diario. */
 export async function runNotifierCycle(): Promise<{ created: number }> {
+  await autoSyncUf(localNow().day).catch(err => console.warn('[UF]', (err as Error).message));
   const created = await runSchedule();
   await deliverPending();
   await runDigest();

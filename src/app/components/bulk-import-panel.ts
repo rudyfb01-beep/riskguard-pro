@@ -55,9 +55,8 @@ function download(name: string, data: Uint8Array) {
       <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
         <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-3">1. ¿Qué quieres cargar?</h3>
         <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          @for (s of specs; track s.entity) {
-            @let allowed = can(s);
-            <button type="button" (click)="choose(s)" [disabled]="!allowed"
+          @for (s of allowedSpecs(); track s.entity) {
+            <button type="button" (click)="choose(s)"
               [attr.data-entity]="s.entity"
               class="text-left rounded-xl border p-3 transition-colors flex gap-3 items-start disabled:opacity-50 disabled:cursor-not-allowed"
               [class]="spec()?.entity === s.entity ? 'border-emerald-500 bg-emerald-50/60 ring-1 ring-emerald-500' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'">
@@ -65,18 +64,20 @@ function download(name: string, data: Uint8Array) {
               <span class="min-w-0">
                 <span class="block text-sm font-semibold text-slate-900">{{ s.label }}</span>
                 <span class="block text-[11px] text-slate-500 leading-snug mt-0.5">{{ s.description }}</span>
-                @if (!allowed) { <span class="block text-[11px] text-amber-700 mt-1 flex items-center gap-1"><mat-icon class="text-xs">lock</mat-icon> Tu cargo no tiene este permiso</span> }
               </span>
             </button>
           }
-          <button type="button" (click)="importRisks.emit()" [disabled]="!rs.canAny('canEditRisks')"
-            class="text-left rounded-xl border border-dashed border-slate-300 p-3 hover:bg-slate-50 flex gap-3 items-start disabled:opacity-50 disabled:cursor-not-allowed">
+          @if (rs.canAny('canEditRisks')) {
+          <button type="button" (click)="importRisks.emit()"
+            class="text-left rounded-xl border border-dashed border-slate-300 p-3 hover:bg-slate-50 flex gap-3 items-start">
             <mat-icon class="text-slate-600 shrink-0">grid_view</mat-icon>
             <span>
               <span class="block text-sm font-semibold text-slate-900">Matriz de riesgos</span>
               <span class="block text-[11px] text-slate-500 leading-snug mt-0.5">Importador propio: convierte escalas de probabilidad e impacto y asocia controles.</span>
             </span>
           </button>
+          }
+          @if (rs.canAny('canManageCompliance', 'canManageRegulatoryReports')) {
           <button type="button" (click)="openModule.emit('cumplimiento-ran')"
             class="text-left rounded-xl border border-dashed border-slate-300 p-3 hover:bg-slate-50 flex gap-3 items-start">
             <mat-icon class="text-slate-600 shrink-0">policy</mat-icon>
@@ -85,7 +86,11 @@ function download(name: string, data: Uint8Array) {
               <span class="block text-[11px] text-slate-500 leading-snug mt-0.5">Se importan desde cada norma en Cumplimiento Normativo.</span>
             </span>
           </button>
+          }
         </div>
+        @if (!allowedSpecs().length && !rs.canAny('canEditRisks', 'canManageCompliance', 'canManageRegulatoryReports')) {
+          <p class="text-xs text-slate-500">Tu cargo no tiene permisos para cargar datos.</p>
+        }
       </section>
 
       @if (spec(); as s) {
@@ -243,6 +248,8 @@ export class BulkImportPanel {
   readonly openModule = output<string>();
 
   readonly specs = BULK_SPECS;
+  /** Solo los tipos que el cargo puede cargar. */
+  readonly allowedSpecs = computed(() => BULK_SPECS.filter(s => canBulkImport(s, this.rs.currentProfile().permissions)));
   readonly maxRows = MAX_BULK_ROWS;
 
   readonly spec = signal<BulkSpec | null>(null);

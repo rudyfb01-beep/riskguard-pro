@@ -42,11 +42,12 @@ import { LinkedPlans, PlanChips } from './linked-plans';
             <mat-icon class="text-sm text-emerald-600">download</mat-icon><span>Exportar registro</span>
           </button>
         }
-          <button type="button" (click)="openNew()" [disabled]="!canManage()"
-            [title]="canManage() ? 'Registrar un nuevo proveedor o servicio externalizado' : noPermissionText()"
-            class="px-4 py-2.5 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-600 rounded-xl flex items-center gap-2 shrink-0 cursor-pointer disabled:bg-slate-300 disabled:text-slate-600 disabled:cursor-not-allowed">
-            <mat-icon class="text-sm">{{ canManage() ? 'add_business' : 'lock' }}</mat-icon><span>Nuevo proveedor</span>
-          </button>
+          @if (canManage()) {
+            <button type="button" (click)="openNew()" title="Registrar un nuevo proveedor o servicio externalizado"
+              class="px-4 py-2.5 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-600 rounded-xl flex items-center gap-2 shrink-0 cursor-pointer">
+              <mat-icon class="text-sm">add_business</mat-icon><span>Nuevo proveedor</span>
+            </button>
+          }
         </div>
       </div>
 
@@ -328,10 +329,10 @@ import { LinkedPlans, PlanChips } from './linked-plans';
                         <input class="col-span-2 text-xs rounded-lg border border-slate-300 px-2 py-1" placeholder="País" [value]="s.country" (input)="setSub(i, 'country', $any($event.target).value)" />
                         <input class="col-span-3 text-xs rounded-lg border border-slate-300 px-2 py-1" placeholder="Servicio" [value]="s.service" (input)="setSub(i, 'service', $any($event.target).value)" />
                         <label class="col-span-2 flex items-center gap-1 text-[10px]"><input type="checkbox" class="rounded" [checked]="s.meetsConditions" (change)="setSub(i, 'meetsConditions', $any($event.target).checked)" />Conforme</label>
-                        <button type="button" (click)="removeSub(i)" class="col-span-1 text-slate-400 hover:text-rose-600 cursor-pointer"><mat-icon class="text-sm">close</mat-icon></button>
+                        <button type="button" (click)="removeSub(i)" [class.perm-hidden]="!canManage()" class="col-span-1 text-slate-400 hover:text-rose-600 cursor-pointer"><mat-icon class="text-sm">close</mat-icon></button>
                       </div>
                     }
-                    <button type="button" (click)="addSub()" class="text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer flex items-center gap-0.5"><mat-icon class="text-sm">add</mat-icon>Agregar subcontratista</button>
+                    <button type="button" (click)="addSub()" [class.perm-hidden]="!canManage()" class="text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer flex items-center gap-0.5"><mat-icon class="text-sm">add</mat-icon>Agregar subcontratista</button>
                   </div>
                 }
 

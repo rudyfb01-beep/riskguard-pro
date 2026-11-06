@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, effect, inject, input, output, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
+import { lossReferenceDay, toUf, ufOn } from '../utils/uf';
 import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { EvidenceFiles } from './evidence-files';
@@ -190,6 +191,12 @@ import { LinkedPlans } from './linked-plans';
                     placeholder="0"
                     class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
+                  @if (ufPreview(); as u) {
+                    <p class="text-[10px] mt-1" [class]="u.value ? 'text-slate-500' : 'text-amber-700'" data-testid="uf-preview">
+                      @if (u.value) { ≈ UF {{ u.amount | number:'1.2-2' }} · UF $ {{ u.value | number:'1.2-2' }} del {{ u.date }} }
+                      @else { Sin valor UF para {{ u.date }}: se asignará al cargar los valores en Mantenedores. }
+                    </p>
+                  }
                 </div>
 
                 <div>
@@ -558,7 +565,7 @@ import { LinkedPlans } from './linked-plans';
             <button
               type="button"
               (click)="saveIncidentOnly()"
-              [class.perm-locked]="!canSave()"
+              [class.perm-hidden]="!canSave()"
               [disabled]="form.invalid || isSaving()"
               class="px-3.5 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
             >
@@ -570,7 +577,7 @@ import { LinkedPlans } from './linked-plans';
             <button
               type="button"
               (click)="saveAndConvertToRisk()"
-              [class.perm-locked]="!canSave() || !riskService.canAny('canConvertFlaws')"
+              [class.perm-hidden]="!canSave() || !riskService.canAny('canConvertFlaws')"
               [disabled]="form.invalid || isSaving()"
               class="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
             >
@@ -813,6 +820,21 @@ export class FlawModal {
       await this.riskService.startRegulatoryReport(id, { awarenessAt: awarenessIso, occurredAt: occurredIso, cmf, anci });
     }
     return id;
+  }
+
+  /** Equivalencia en UF de la pérdida, con la fecha de referencia del formulario (montos en pesos). */
+  ufPreview(): { amount: number; value: number; date: string } | { amount: 0; value: 0; date: string } | null {
+    if (this.riskService.currencyCode() !== 'CLP') return null;
+    const v = this.form.getRawValue() as Record<string, unknown>;
+    const amount = Number(v['realLossAmountUSD']) || 0;
+    if (amount <= 0) return null;
+    const day = lossReferenceDay({
+      accountingDate: (v['accountingDate'] as string) || undefined, discoveryDate: (v['discoveryDate'] as string) || undefined,
+      occurrenceDate: (v['occurrenceDate'] as string) || undefined, reportedAt: new Date().toISOString(),
+    });
+    const hit = ufOn(this.riskService.catalog.ufTable(), day);
+    if (!hit) return Object.keys(this.riskService.catalog.ufTable()).length ? { amount: 0, value: 0, date: day ?? '' } : null;
+    return { amount: toUf(amount, hit.value), value: hit.value, date: hit.date };
   }
 
   canSave(): boolean {

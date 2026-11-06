@@ -117,7 +117,7 @@ import { MoneyPipe } from '../utils/money.pipe';
             </button>
 
             <button
-              [class.perm-locked]="!riskService.canAny('canExportReports')" (click)="riskService.exportToExcel('complete')"
+              [class.perm-hidden]="!riskService.canAny('canExportReports')" (click)="riskService.exportToExcel('complete')"
               class="px-3 py-2 text-xs font-medium text-slate-200 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl transition-colors flex items-center gap-1.5"
               title="Descargar matriz en Excel"
             >
@@ -459,7 +459,7 @@ import { MoneyPipe } from '../utils/money.pipe';
               </h3>
             </div>
             <button
-              [class.perm-locked]="!riskService.canAny('canExportReports')" (click)="riskService.exportToExcel('complete')"
+              [class.perm-hidden]="!riskService.canAny('canExportReports')" (click)="riskService.exportToExcel('complete')"
               class="text-xs font-medium text-slate-700 hover:text-slate-900 flex items-center gap-1"
             >
               <mat-icon class="text-xs">file_download</mat-icon>

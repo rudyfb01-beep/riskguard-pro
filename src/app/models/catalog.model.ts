@@ -48,7 +48,7 @@ export interface GeneralParameters {
 }
 
 export const DEFAULT_GENERAL_PARAMETERS: GeneralParameters = {
-  currency: 'USD',
+  currency: 'CLP',
   contractExpiryWarningDays: 90,
   providerAssessmentMonths: { 'Crítico': 12, 'Alto': 12, 'Medio': 24, 'Bajo': 36 },
   vulnSlaDays: { 'Crítica': 15, 'Alta': 30, 'Media': 90, 'Baja': 180 },
@@ -66,7 +66,7 @@ export function normalizeGeneralParameters(raw: unknown): GeneralParameters {
   const pam = (r.providerAssessmentMonths ?? {}) as Partial<Record<ProcessCriticality, number>>;
   const sla = (r.vulnSlaDays ?? {}) as Partial<GeneralParameters['vulnSlaDays']>;
   return {
-    currency: r.currency === 'CLP' ? 'CLP' : 'USD',
+    currency: r.currency === 'USD' ? 'USD' : 'CLP',
     contractExpiryWarningDays: posInt(r.contractExpiryWarningDays, d.contractExpiryWarningDays, 365),
     providerAssessmentMonths: {
       'Crítico': posInt(pam['Crítico'], d.providerAssessmentMonths['Crítico'], 60),

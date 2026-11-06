@@ -158,6 +158,8 @@ CREATE TABLE IF NOT EXISTS operational_flaws (
     accounting_date DATE,
     accounting_account TEXT,
     credit_risk_boundary BOOLEAN NOT NULL DEFAULT 0,
+    uf_value_clp NUMERIC,
+    uf_date DATE,
     provider_id TEXT,
     affected_asset_ids TEXTARRAY NOT NULL DEFAULT '[]',
     cyber JSONTEXT,
@@ -816,6 +818,15 @@ CREATE TABLE IF NOT EXISTS controlled_documents (
     CHECK (((review_months >= 1) AND (review_months <= 60))),
     CHECK (((status) IN ('Activo', 'Obsoleto'))),
     PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS record_versions (
+    entity TEXT NOT NULL,
+    id TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    updated_at TIMESTAMPTZ,
+    updated_by TEXT,
+    PRIMARY KEY (entity, id)
 );
 
 -- Índices

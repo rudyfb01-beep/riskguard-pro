@@ -62,6 +62,7 @@ export class BulkImportService {
       allProcesses: this.cat.processes(),
       updateExisting,
       newId: prefix => `${prefix}-${stamp}-${(++this.seq).toString(36)}`,
+      ufTable: this.cat.currency() === 'CLP' ? this.cat.ufTable() : undefined,
     };
   }
 

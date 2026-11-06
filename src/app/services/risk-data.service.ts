@@ -28,6 +28,7 @@ import {
 import { computeBlockHash } from '../utils/crypto-ledger';
 import { ImportRow } from '../utils/risk-import';
 import { DEFAULT_ORGANIZATIONAL_ROLES, DEFAULT_REGULATORY_MILESTONES, formatMinutes } from '../data/base-seed';
+import { lossReferenceDay, toUf, ufForLoss, ufStampFor } from '../utils/uf';
 import { DEMO_ALERTS, DEMO_AUDITS, DEMO_CONTROLS, DEMO_FLAWS, DEMO_KRIS, DEMO_LEDGER, DEMO_RISKS, DEMO_USERS } from '../data/demo-seed';
 
 export { DEFAULT_ORGANIZATIONAL_ROLES, DEFAULT_REGULATORY_MILESTONES, formatMinutes };
@@ -1444,7 +1445,7 @@ export class RiskDataService {
         title: `Plan de Mitigación para ${code}`,
         owner: riskData.responsible || this.currentProfile().name,
         dueDate: '2026-12-31',
-        budgetUSD: 15000,
+        budgetUSD: this.currencyCode() === 'CLP' ? 15_000_000 : 15000,
         progressPct: 10,
         status: 'En Progreso',
         actions: ['Definir controles preventivos clave', 'Implementar monitoreo de umbral']
@@ -1792,7 +1793,7 @@ export class RiskDataService {
   // ===========================================================================
 
   /** Umbral mínimo de pérdida bruta para incluir un evento en la base de pérdidas. */
-  readonly lossRegistrationThresholdUSD = signal<number>(1000);
+  readonly lossRegistrationThresholdUSD = signal<number>(1_000_000);
 
   netLoss(f: OperationalFlaw): number {
     return Math.max(0, (f.realLossAmountUSD || 0) - (f.recoveredAmountUSD || 0));
@@ -1804,6 +1805,37 @@ export class RiskDataService {
       .filter(f => (f.realLossAmountUSD || 0) > 0)
       .sort((a, b) => (b.occurrenceDate || b.reportedAt).localeCompare(a.occurrenceDate || a.reportedAt))
   );
+
+  /** Valor UF del evento (guardado o, si falta, de la tabla de UF). Solo con montos en pesos. */
+  lossUf(f: OperationalFlaw): { value: number; date: string; stored: boolean } | null {
+    return this.currencyCode() === 'CLP' ? ufForLoss(f, this.catalog.ufTable()) : null;
+  }
+
+  /** Monto del evento expresado en UF (null si no hay valor UF para su fecha). */
+  amountInUf(f: OperationalFlaw, amount: number | undefined): number | null {
+    const uf = this.lossUf(f);
+    return uf ? toUf(amount || 0, uf.value) : null;
+  }
+
+  /** Fija en el evento el valor UF de su fecha de referencia (montos en pesos). */
+  private stampUf(f: OperationalFlaw): OperationalFlaw {
+    if (this.currencyCode() !== 'CLP' || !(f.realLossAmountUSD || f.recoveredAmountUSD)) return f;
+    const stamp = ufStampFor(f, this.catalog.ufTable());
+    return stamp.ufValueClp ? { ...f, ...stamp } : f;
+  }
+
+  /** Asigna el valor UF a los eventos con pérdida que aún no lo tienen. Devuelve cuántos. */
+  fillMissingUf(): number {
+    this.ensure(['canManageRegulatoryReports'], 'asignar valores UF');
+    let n = 0;
+    this.flaws.update(list => list.map(f => {
+      if (f.ufValueClp || !(f.realLossAmountUSD || 0)) return f;
+      const s = this.stampUf(f);
+      if (s !== f) n++;
+      return s;
+    }));
+    return n;
+  }
 
   isAboveLossThreshold(f: OperationalFlaw): boolean {
     return (f.realLossAmountUSD || 0) >= this.lossRegistrationThresholdUSD();
@@ -2031,14 +2063,15 @@ export class RiskDataService {
       providerId: flawData.providerId
     };
 
-    this.flaws.update(list => [newFlaw, ...list]);
+    const stamped = this.stampUf(newFlaw);
+    this.flaws.update(list => [stamped, ...list]);
     await this.appendAuditLog(
       'REPORTE_INCIDENCIA',
       'Incidencia',
       newFlaw.id,
       `Registro de incidencia (${newFlaw.incidentType}) en proceso ${newFlaw.process}: "${newFlaw.title}". Severidad: ${newFlaw.severity}.${newFlaw.realLossAmountUSD ? ` Pérdida real: ${this.catalog.formatMoney(newFlaw.realLossAmountUSD)}.` : ''}`
     );
-    return newFlaw;
+    return stamped;
   }
 
   // Update an existing incident / event (Actualizar evento de pérdida o falla de control)
@@ -2047,10 +2080,17 @@ export class RiskDataService {
     const existing = this.flaws().find(f => f.id === id);
     if (!existing) throw new Error('Incidencia no encontrada');
 
-    const updated: OperationalFlaw = {
+    let updated: OperationalFlaw = {
       ...existing,
       ...updates
     };
+    // Si cambió la fecha de referencia o no tenía valor UF, se toma el de la nueva fecha.
+    if (!updated.ufValueClp || lossReferenceDay(updated) !== lossReferenceDay(existing)) {
+      updated = this.stampUf({ ...updated, ufValueClp: undefined, ufDate: undefined });
+      if (!updated.ufValueClp && existing.ufValueClp && lossReferenceDay(updated) === lossReferenceDay(existing)) {
+        updated = { ...updated, ufValueClp: existing.ufValueClp, ufDate: existing.ufDate };
+      }
+    }
 
     this.flaws.update(list => list.map(f => f.id === id ? updated : f));
     await this.appendAuditLog(
@@ -2075,7 +2115,7 @@ export class RiskDataService {
       category: customData?.category || flaw.aiSuggestedCategory || 'Ejecución y Procesos',
       inherentLikelihood: customData?.inherentLikelihood || (flaw.severity === 'Crítica' ? 4 : flaw.severity === 'Alta' ? 3 : 2),
       inherentImpact: customData?.inherentImpact || (flaw.severity === 'Crítica' ? 4 : flaw.severity === 'Alta' ? 3 : 2),
-      financialExposureUSD: customData?.financialExposureUSD || (flaw.realLossAmountUSD && flaw.realLossAmountUSD > 0 ? flaw.realLossAmountUSD * 2 : 150000),
+      financialExposureUSD: customData?.financialExposureUSD || (flaw.realLossAmountUSD && flaw.realLossAmountUSD > 0 ? flaw.realLossAmountUSD * 2 : (this.currencyCode() === 'CLP' ? 150_000_000 : 150000)),
       controlIds: customData?.controlIds || []
     });
 
@@ -2340,12 +2380,19 @@ export class RiskDataService {
       const q = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
       csvContent += 'BASE DE PÉRDIDAS OPERACIONALES\n';
       csvContent += `Umbral de registro (${this.currencyCode()}):;${this.lossRegistrationThresholdUSD()}\n`;
-      csvContent += `ID;Título;Línea de Negocio;Categoría Basilea (N1);Subcategoría (N2);Proceso;Fecha Ocurrencia;Fecha Descubrimiento;Fecha Contabilización;Cuenta Contable;Pérdida Bruta ${this.currencyCode()};Recuperaciones ${this.currencyCode()};Pérdida Neta ${this.currencyCode()};Sobre Umbral;Frontera Riesgo de Crédito;Reporte CMF;Reporte ANCI\n`;
+      csvContent += `ID;Título;Línea de Negocio;Categoría Basilea (N1);Subcategoría (N2);Proceso;Fecha Ocurrencia;Fecha Descubrimiento;Fecha Contabilización;Cuenta Contable;Pérdida Bruta ${this.currencyCode()};Recuperaciones ${this.currencyCode()};Pérdida Neta ${this.currencyCode()};${this.currencyCode() === 'CLP' ? 'Valor UF;Fecha UF;Pérdida Bruta UF;Recuperaciones UF;Pérdida Neta UF;' : ''}Sobre Umbral;Frontera Riesgo de Crédito;Reporte CMF;Reporte ANCI\n`;
       this.lossDatabase().forEach(f => {
         csvContent += [
           q(f.id), q(f.title), q(f.businessLine), q(f.baselCategory ?? f.aiSuggestedCategory), q(f.baselSubcategory), q(f.process),
           q(f.occurrenceDate), q(f.discoveryDate), q(f.accountingDate), q(this.catalog.accountLabel(f.accountingAccount)),
           f.realLossAmountUSD || 0, f.recoveredAmountUSD || 0, this.netLoss(f),
+          ...(this.currencyCode() === 'CLP' ? (() => {
+            const uf = this.lossUf(f);
+            const dec = (v: number | null) => (v === null ? '' : String(v).replace('.', ','));
+            return uf
+              ? [dec(uf.value), q(uf.date), dec(toUf(f.realLossAmountUSD || 0, uf.value)), dec(toUf(f.recoveredAmountUSD || 0, uf.value)), dec(toUf(this.netLoss(f), uf.value))]
+              : ['', '', '', '', ''];
+          })() : []),
           q(this.isAboveLossThreshold(f) ? 'Sí' : 'No'), q(f.creditRiskBoundary ? 'Sí' : 'No'),
           q(f.regulatoryReport?.reportableToCMF ? 'Sí' : 'No'), q(f.regulatoryReport?.reportableToANCI ? 'Sí' : 'No'),
         ].join(';') + '\n';
