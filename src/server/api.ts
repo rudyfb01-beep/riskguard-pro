@@ -3,7 +3,7 @@ import { getPool } from './db';
 import { ensureDatabase } from './bootstrap-db';
 import {
   appendLedger, convertCurrency, countReferences, deleteEntity, EntityName, entityExists, getActionPlan, getApproval, getNotificationPreferences, getSetting,
-  getSurveyResponse, getDocument, isEntity, listNotifications, loadAll, markNotificationsRead, notificationOutbox, saveApprovalWithEffect, saveEntity,
+  getSurveyResponse, getDocument, isEntity, saveBulk, listNotifications, loadAll, markNotificationsRead, notificationOutbox, saveApprovalWithEffect, saveEntity,
   saveNotificationPreference, saveSetting, SETTING_KEYS, SettingKey, getEvidence, getEvidenceContent, insertEvidence, markEvidenceDeleted,
 } from './repository';
 import { DEFAULT_EVIDENCE_MAX_MB, EVIDENCE_ENTITY_LABELS, EvidenceEntity, EvidenceFile } from '../app/models/evidence.model';
@@ -27,6 +27,7 @@ import {
   requestLoginCode, requireAuth, requireCsrfHeader, setSessionCookie, verifyLoginCode,
 } from './auth';
 import { UserPermissions, UserProfile } from '../app/models/risk.model';
+import { bulkLedgerDetails, bulkSpec, canBulkImport, MAX_BULK_ROWS, validateBulkRecord } from '../app/utils/bulk-import';
 
 let ready: ReturnType<typeof ensureDatabase> | null = null;
 
@@ -192,7 +193,7 @@ dataApi.post('/auth/logout', async (req, res) => {
 // -----------------------------------------------------------------------------
 
 /** Sin DATABASE_URL la app funciona en modo demostración: no hay API de datos. */
-dataApi.use(['/data', '/ledger', '/settings', '/admin', '/notifications', '/evidence'], async (req, res, next) => {
+dataApi.use(['/data', '/ledger', '/settings', '/admin', '/notifications', '/evidence', '/import'], async (req, res, next) => {
   if (!getPool()) {
     if (req.method === 'GET' && req.baseUrl.endsWith('/data') && req.path === '/') {
       res.json({ mode: 'demo' });
@@ -299,6 +300,66 @@ dataApi.put('/data/:entity/:id', async (req, res) => {
     }
   } catch (err) {
     res.status(422).json({ error: friendlyDbError(err) });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// Carga masiva (Excel / CSV): todos los registros en una sola transacción
+// -----------------------------------------------------------------------------
+
+dataApi.post('/import/:entity', async (req, res) => {
+  const spec = bulkSpec(req.params.entity);
+  if (!spec || !isEntity(spec.entity)) {
+    res.status(404).json({ error: `No hay carga masiva para: ${req.params.entity}` });
+    return;
+  }
+  const entity = spec.entity;
+  const user = currentUser(res)!;
+  if (!canBulkImport(spec, user.permissions) || !hasAny(user, WRITE_PERMISSIONS[entity])) {
+    res.status(403).json({ error: `Tu cargo no tiene permiso para la carga masiva de ${spec.label.toLowerCase()}.` });
+    return;
+  }
+  const records = req.body?.records as { id: string }[] | undefined;
+  const fileName = typeof req.body?.fileName === 'string' ? req.body.fileName : 'archivo';
+  if (!Array.isArray(records) || !records.length) {
+    res.status(400).json({ error: 'No hay registros para cargar.' });
+    return;
+  }
+  if (records.length > MAX_BULK_ROWS) {
+    res.status(413).json({ error: `Máximo ${MAX_BULK_ROWS} registros por carga.` });
+    return;
+  }
+  const ids = new Set<string>();
+  for (const [i, r] of records.entries()) {
+    const problem = validateBulkRecord(spec.entity, r);
+    if (problem) {
+      res.status(400).json({ error: `Registro ${i + 1}: ${problem}` });
+      return;
+    }
+    if (ids.has(r.id)) {
+      res.status(400).json({ error: `Registro ${i + 1}: identificador repetido.` });
+      return;
+    }
+    ids.add(r.id);
+  }
+  if (entity === 'users' && (records as UserProfile[]).some(u => u.id === user.id && u.active === false)) {
+    res.status(400).json({ error: 'No puedes desactivar tu propio usuario.' });
+    return;
+  }
+  try {
+    const result = await saveBulk(entity, records, (created, updated) => ({
+      id: `blk-${Date.now()}-${randomUUID().slice(0, 8)}`, userName: user.name, userRole: user.role, action: 'CARGA_MASIVA',
+      entityType: 'Carga masiva', entityCode: spec.label, details: bulkLedgerDetails(spec, created, updated, fileName),
+    }), clientIp(req), entity === 'users'
+      ? async c => {
+        const r = await c.query(`SELECT count(*)::int AS n FROM user_profiles WHERE active = TRUE AND (permissions->>'canManageRoles')::boolean = TRUE`);
+        return Number(r.rows[0].n) > 0 ? null : 'Debe quedar al menos un usuario activo con permiso para administrar cargos.';
+      }
+      : undefined);
+    res.json({ ok: true, created: result.created, updated: result.updated, ledger: result.entry });
+  } catch (err) {
+    const status = (err as { status?: number }).status;
+    res.status(status ?? 422).json({ error: status ? (err as Error).message : friendlyDbError(err) });
   }
 });
 

@@ -215,6 +215,48 @@ formato .xls antiguo debe guardarse antes como .xlsx). Requiere el permiso de ed
   importación queda en la bitácora con el detalle de los riesgos creados y actualizados.
 - **Descargar plantilla** entrega un CSV con los encabezados que se reconocen automáticamente.
 
+## Carga masiva (Excel o CSV)
+
+En **Configuración → Carga masiva** se cargan de una vez los datos de la organización desde una
+planilla (.xlsx o .csv, hasta 5.000 filas por archivo). Cada tipo exige el permiso que corresponde:
+
+| Tipo | Se reconoce por | Permiso |
+| :--- | :--- | :--- |
+| Áreas | Nombre | Mantenedores |
+| Procesos | Código (o nombre) | Mantenedores |
+| Usuarios | Correo | Administrar cargos |
+| Controles | Código | Evaluar controles o editar riesgos |
+| Proveedores | Código o RUT | Proveedores |
+| Activos de información | Código | Seguridad de la información |
+| Incidentes y pérdidas (base histórica) | — (siempre nuevos) | Reportes regulatorios o convertir incidencias |
+
+La matriz de riesgos y los requisitos normativos tienen sus importadores propios (ver arriba y en
+Cumplimiento normativo); la pantalla los enlaza.
+
+- **Plantilla Excel**: hoja *Datos* con los encabezados (los obligatorios en verde) y una fila de
+  ejemplo, hoja *Instrucciones* con el formato de cada columna y hoja *Listas* con los valores
+  permitidos (procesos, áreas, puestos, categorías…), que en *Datos* aparecen como listas desplegables.
+- También sirve una planilla propia: se detecta la hoja y la fila de encabezado (aunque haya un título
+  arriba) y las columnas por su nombre o sinónimos (p. ej. *Cargo* → Puesto, *Email* → Correo). Cada
+  asociación se puede corregir antes de cargar.
+- Valores: fechas como fecha de Excel, `AAAA-MM-DD` o `DD-MM-AAAA`; montos con o sin separador de
+  miles (`1.200.000`, `$ 2.500.000`); Sí/No; las listas aceptan mayúsculas, tildes y abreviaturas
+  (*prev* → Preventivo). Los procesos se asocian al más parecido con un aviso.
+- **Actualizar los existentes** (opción activa por defecto): si la clave coincide, se actualiza el
+  registro y las celdas vacías conservan el valor actual. Si se desactiva, esas filas se omiten. Los
+  códigos que faltan se asignan en orden (CTR-, PRV-, AST-, PRC-).
+- Reglas: en usuarios los permisos vienen del puesto (un cambio de puesto aplica los del nuevo); no se
+  puede desactivar el propio usuario ni dejar el sistema sin un administrador de cargos activo. Un
+  proceso no se renombra por carga (se hace en Mantenedores, que actualiza las referencias). En
+  controles, una nueva efectividad agrega una prueba al historial. Los incidentes cargados no generan
+  avisos por correo y se advierten los posibles duplicados.
+- **Vista previa** con lo que se crea, se actualiza, se omite o tiene errores, y avisos (RUT con dígito
+  verificador inválido, montos recuperados mayores a la pérdida, fechas futuras…). **Resultado (.xlsx)**
+  descarga el archivo original con el resultado y las observaciones de cada fila, para corregir y
+  volver a cargar.
+- Las filas con errores no se cargan. El resto se guarda **en una sola transacción** (si algo falla,
+  no se guarda nada) junto con un bloque `CARGA_MASIVA` en la bitácora con el archivo y los totales.
+
 ## Mantenedores
 
 En **Configuración → Mantenedores** (permiso "Administrar mantenedores", que por defecto tiene el
@@ -516,6 +558,7 @@ enviar la cabecera `X-Requested-With: RiskGuard` (protección CSRF).
 | `GET/PUT /api/notifications/preferences` | Preferencia de correo de la persona (`inmediato`, `resumen`, `ninguno` y categorías). |
 | `POST /api/notifications/test` | Envía un correo de prueba a la persona de la sesión. |
 | `GET /api/notifications/outbox` · `POST /api/notifications/run` | Registro de envíos / revisar plazos ahora (Mantenedores). |
+| `POST /api/import/:tipo` | Carga masiva `{records, fileName}` (`areas`, `processes`, `users`, `controls`, `providers`, `info-assets`, `flaws`): valida y guarda todo en una transacción. |
 | `POST /api/evidence?entityType=&entityId=&context=&description=` | Carga un archivo (cuerpo binario, nombre en `X-File-Name`). |
 | `GET /api/evidence/:id` · `GET /api/evidence/:id/verify` · `DELETE /api/evidence/:id` | Descarga (`?inline=1` para ver PDF/imágenes) / verifica el SHA-256 / baja con `{reason}`. |
 | `GET /api/db/health` · `GET /api/db/stats` | Diagnóstico de la conexión y conteos. |

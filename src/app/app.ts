@@ -10,6 +10,7 @@ import { ExecutiveKpis } from './components/executive-kpis';
 import { HeatmapMatrix } from './components/heatmap-matrix';
 import { RiskModal } from './components/risk-modal';
 import { RiskImportModal } from './components/risk-import-modal';
+import { BulkImportPanel } from './components/bulk-import-panel';
 import { FlawModal } from './components/flaw-modal';
 import { ControlModal } from './components/control-modal';
 import { ExecutiveReportModal } from './components/executive-report-modal';
@@ -59,6 +60,7 @@ export type ActiveTab =
   | 'seguridad-informacion'
   | 'apr-operacional'
   | 'mantenedores'
+  | 'carga-masiva'
   | 'cumplimiento-ran'
   | 'planes-accion'
   | 'autoevaluaciones'
@@ -85,6 +87,7 @@ export type ActiveTab =
     ReportsCenter,
     RiskModal,
     RiskImportModal,
+    BulkImportPanel,
     FlawModal,
     ControlModal,
     ExecutiveReportModal,
@@ -203,7 +206,7 @@ export class App {
 
   private isTab(t: string): t is ActiveTab {
     return ['tablero', 'tableros-departamento', 'graficos-analitica', 'matriz-riesgos', 'controles', 'incidentes-perdidas', 'falencias',
-      'reportes-regulatorios', 'proveedores', 'continuidad', 'seguridad-informacion', 'apr-operacional', 'mantenedores', 'cumplimiento-ran',
+      'reportes-regulatorios', 'proveedores', 'continuidad', 'seguridad-informacion', 'apr-operacional', 'mantenedores', 'carga-masiva', 'cumplimiento-ran',
       'planes-accion', 'autoevaluaciones', 'aprobaciones', 'documentos', 'alertas-kri', 'auditorias', 'bitacora', 'reportes-pdf'].includes(t);
   }
 
@@ -287,6 +290,8 @@ export class App {
         return { title: 'Planes de Acción', section: 'Incidentes & Seguimiento', icon: 'assignment_turned_in' };
       case 'mantenedores':
         return { title: 'Mantenedores', section: 'Configuración', icon: 'tune' };
+      case 'carga-masiva':
+        return { title: 'Carga masiva', section: 'Configuración', icon: 'upload_file' };
     }
   });
 

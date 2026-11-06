@@ -358,6 +358,17 @@
                 <span>Mantenedores</span>
               </button>
 
+              <button
+                (click)="setTab('carga-masiva')"
+                [class]="activeTab() === 'carga-masiva'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-emerald-700">upload_file</mat-icon>
+                <span>Carga masiva</span>
+              </button>
+
             </div>
 
             <!-- Quick Live Simulation Action -->
@@ -1194,6 +1205,15 @@
     <!-- TAB: MANTENEDORES -->
     @if (activeTab() === 'mantenedores') {
       <app-catalogs-panel (notify)="showToast($event)" />
+    }
+
+    <!-- TAB: CARGA MASIVA -->
+    @if (activeTab() === 'carga-masiva') {
+      @defer (on immediate) {
+        <app-bulk-import-panel (notify)="showToast($event)" (importRisks)="openImportRisks()" (openModule)="openModule($event)" />
+      } @loading {
+        <p class="text-xs text-slate-500 p-4">Cargando…</p>
+      }
     }
 
     <!-- TAB: APR POR RIESGO OPERACIONAL -->
