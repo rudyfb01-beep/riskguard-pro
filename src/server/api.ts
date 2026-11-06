@@ -24,8 +24,11 @@ import { SurveyResponse } from '../app/models/survey.model';
 import { checkResponseChange } from '../app/utils/surveys';
 import {
   AuthError, clearSessionCookie, clientIp, currentUser, destroySession, getSessionUser, hasAny, readSessionCookie,
-  requestLoginCode, requireAuth, requireCsrfHeader, setSessionCookie, verifyLoginCode,
+  requestLoginCode, requireAuth, requireCsrfHeader, setSessionCookie, verifyLoginCode, createSession,
 } from './auth';
+import {
+  authorizationUrl, decodeFlow, encodeFlow, exchangeCode, FLOW_COOKIE, googleConfig, newFlow, userForGoogle, verifyIdToken,
+} from './google-sso';
 import { UserPermissions, UserProfile } from '../app/models/risk.model';
 import { bulkLedgerDetails, bulkSpec, canBulkImport, MAX_BULK_ROWS, validateBulkRecord } from '../app/utils/bulk-import';
 
@@ -157,7 +160,7 @@ dataApi.post('/auth/request-code', async (req, res) => {
   }
   try {
     await getDbReady();
-    await requestLoginCode(req.body?.email, clientIp(req));
+    await requestLoginCode(req.body?.email, clientIp(req), googleConfig().emailCode);
     res.json({ ok: true, message: 'Si el correo está registrado, te enviamos un código de acceso.' });
   } catch (err) {
     sendAuthError(res, err);
@@ -171,13 +174,75 @@ dataApi.post('/auth/verify', async (req, res) => {
   }
   try {
     await getDbReady();
-    const { token, user, maxAgeSeconds } = await verifyLoginCode(req.body?.email, req.body?.code, clientIp(req), req.get('user-agent') ?? '');
+    const { token, user, maxAgeSeconds } = await verifyLoginCode(req.body?.email, req.body?.code, clientIp(req), req.get('user-agent') ?? '', googleConfig().emailCode);
     setSessionCookie(req, res, token, maxAgeSeconds);
     res.json({ user });
   } catch (err) {
     sendAuthError(res, err);
   }
 });
+
+/** Formas de ingreso disponibles (pública: la usa la pantalla de acceso). */
+dataApi.get('/auth/config', (_req, res) => {
+  const cfg = googleConfig();
+  res.json({ google: cfg.enabled && !!getPool(), emailCode: cfg.emailCode, domains: cfg.domains });
+});
+
+const flowCookieOptions = (req: express.Request) => ({
+  // Lax: el navegador la envía al volver desde Google (navegación de primer nivel).
+  httpOnly: true, sameSite: 'lax' as const, secure: process.env['COOKIE_SECURE'] === 'true' || (process.env['COOKIE_SECURE'] !== 'false' && req.secure),
+  path: '/api/auth/google', maxAge: 10 * 60_000,
+});
+
+/** Paso 1: redirige a Google con state, nonce y PKCE. */
+dataApi.get('/auth/google/start', (req, res) => {
+  const cfg = googleConfig();
+  if (!cfg.enabled || !getPool()) {
+    res.redirect(302, `/?login_error=${encodeURIComponent('El ingreso con Google no está configurado.')}`);
+    return;
+  }
+  const { flow, challenge } = newFlow(req.query['return'], req.query['popup'] === '1');
+  res.cookie(FLOW_COOKIE, encodeFlow(flow), flowCookieOptions(req));
+  res.redirect(302, authorizationUrl(cfg, req, flow, challenge, typeof req.query['hint'] === 'string' ? req.query['hint'] : undefined));
+});
+
+/** Paso 2: Google vuelve con el código; se verifica todo y se crea la sesión. */
+dataApi.get('/auth/google/callback', async (req, res) => {
+  const cfg = googleConfig();
+  const flow = decodeFlow(readCookie(req, FLOW_COOKIE));
+  res.clearCookie(FLOW_COOKIE, { ...flowCookieOptions(req), maxAge: undefined });
+  const fail = (msg: string) => {
+    // Se vuelve a la página pedida (p. ej. el enlace de un correo) con el motivo visible.
+    const target = flow?.popup ? '/?popup_login=error' : flow?.returnTo ?? '/';
+    res.redirect(302, `${target}${target.includes('?') ? '&' : '?'}login_error=${encodeURIComponent(msg.slice(0, 200))}`);
+  };
+  try {
+    if (!cfg.enabled || !getPool()) return fail('El ingreso con Google no está configurado.');
+    if (req.query['error']) return fail(req.query['error'] === 'access_denied' ? 'Cancelaste el ingreso con Google.' : 'Google no completó el ingreso.');
+    const state = String(req.query['state'] ?? '');
+    const code = String(req.query['code'] ?? '');
+    if (!flow || !state || state !== flow.state || !code) return fail('El ingreso venció o no corresponde a esta ventana. Vuelve a intentarlo.');
+    await getDbReady();
+    const idToken = await exchangeCode(cfg, req, code, flow.verifier);
+    const identity = await verifyIdToken(cfg, idToken, flow.nonce);
+    const user = await userForGoogle(identity);
+    const { token, maxAgeSeconds } = await createSession(user, clientIp(req), req.get('user-agent') ?? '', `Inicio de sesión con Google (${identity.email}).`);
+    setSessionCookie(req, res, token, maxAgeSeconds);
+    res.redirect(302, flow.popup ? '/?popup_login=ok' : flow.returnTo);
+  } catch (err) {
+    if (!(err instanceof AuthError)) console.error('[Auth] Error en el ingreso con Google:', err);
+    else console.warn(`[Auth] Ingreso con Google rechazado: ${err.message}`);
+    fail(err instanceof AuthError ? err.message : 'Error interno al ingresar con Google.');
+  }
+});
+
+function readCookie(req: express.Request, name: string): string | undefined {
+  for (const part of (req.headers.cookie ?? '').split(';')) {
+    const [k, ...v] = part.trim().split('=');
+    if (k === name) return decodeURIComponent(v.join('='));
+  }
+  return undefined;
+}
 
 dataApi.post('/auth/logout', async (req, res) => {
   try {
@@ -751,6 +816,26 @@ dataApi.put('/settings/:key', async (req, res) => {
 });
 
 /** Cambia la moneda de registro convirtiendo todos los montos guardados. */
+/** Desvincula la cuenta de Google de una persona (cambio de cuenta o correo reasignado). */
+dataApi.post('/admin/users/:id/google-unlink', async (req, res) => {
+  if (!authorize(res, ['canManageRoles'], 'los usuarios')) return;
+  const admin = currentUser(res)!;
+  try {
+    const r = await getPool()!.query('SELECT name, email, google_sub FROM user_profiles WHERE id = $1', [req.params['id']]);
+    const u = r.rows[0];
+    if (!u) { res.status(404).json({ error: 'Usuario no encontrado.' }); return; }
+    if (!u.google_sub) { res.json({ ok: true }); return; }
+    await getPool()!.query('UPDATE user_profiles SET google_sub = NULL WHERE id = $1', [req.params['id']]);
+    const ledger = await appendLedger({
+      id: `log-gunlink-${randomUUID()}`, userName: admin.name, userRole: admin.role, action: 'GESTIÓN_USUARIO', entityType: 'Usuario',
+      entityCode: req.params['id'], details: `Cuenta de Google desvinculada de ${u.name} (${u.email}). En su próximo ingreso con Google se vinculará la cuenta que use.`,
+    }, clientIp(req));
+    res.json({ ok: true, ledger });
+  } catch (err) {
+    res.status(422).json({ error: friendlyDbError(err) });
+  }
+});
+
 dataApi.post('/admin/convert-currency', async (req, res) => {
   if (!authorize(res, ['canManageCatalogs'], 'la moneda de registro')) return;
   const to = req.body?.to;

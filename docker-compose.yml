@@ -53,6 +53,11 @@ services:
       # En producción debe ser false.
       AUTH_DEV_LOG_CODES: ${AUTH_DEV_LOG_CODES:-true}
       AUTH_SECRET: ${AUTH_SECRET:-}
+      # Ingreso con Google (vacío: desactivado).
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_ALLOWED_DOMAINS: ${GOOGLE_ALLOWED_DOMAINS:-}
+      AUTH_EMAIL_CODE: ${AUTH_EMAIL_CODE:-true}
       COOKIE_SECURE: ${COOKIE_SECURE:-}
       TRUST_PROXY: ${TRUST_PROXY:-}
       # Avisos: enlaces de los correos, hora del resumen diario y frecuencia de revisión de plazos.
