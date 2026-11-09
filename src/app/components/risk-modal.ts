@@ -40,7 +40,7 @@ import { LinkedPlans } from './linked-plans';
         </div>
 
         <!-- Modal Body (Form) -->
-        <form [formGroup]="form" (ngSubmit)="onSubmit()" class="flex-1 overflow-y-auto p-6 space-y-5">
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" class="flex-1 min-h-0 overflow-y-auto p-6 space-y-5">
           
           <!-- Title & Process -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

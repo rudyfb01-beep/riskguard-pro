@@ -1,3 +1,4 @@
+import { apiFetch } from './api-fetch';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { CatalogService } from './catalog.service';
 import {
@@ -480,13 +481,14 @@ export const INDUSTRY_KRI_PRESETS: Record<IndustryType, Omit<KriDefinition, 'id'
 };
 
 export const DEFAULT_GLOBAL_NOTIFICATION_PREFERENCES: KriNotificationPreferences = {
+  // Quienes atienden alertas (permiso canAcknowledgeAlerts) siempre reciben el aviso; estas listas son adicionales.
   emailEnabled: true,
-  emailRecipients: ['oficial.riesgo@demo.riskguard.cl', 'alertas-kri@demo.riskguard.cl'],
+  emailRecipients: [],
   emailTemplate: 'completa',
-  smsEnabled: true,
-  smsRecipients: ['+54 9 11 4589-2044', '+52 55 8421-9930'],
+  smsEnabled: false,
+  smsRecipients: [],
   webhookEnabled: false,
-  webhookUrl: 'https://api.demo.riskguard.cl/v1/webhooks/kri-alerts',
+  webhookUrl: '',
   notifyOnWarning: true,
   notifyOnCritical: true,
   cooldownMinutes: 30,
@@ -1090,30 +1092,33 @@ export class RiskDataService {
     }
   }
 
-  // Simulate sending a test alert notification (Email, SMS or Webhook)
+  /** Envío de prueba real por un canal de avisos de KRIs (lo hace el servidor; en la demostración no hay envíos). */
   async testSendNotification(
     channel: 'email' | 'sms' | 'webhook',
     kriCode: string,
     recipient: string,
-    messagePreview?: string
   ): Promise<{ success: boolean; message: string; timestamp: string }> {
     this.ensure(['canConfigureKRIs'], 'probar notificaciones de KRIs');
-    const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const user = this.currentProfile();
-    const details = `Envío de prueba vía ${channel.toUpperCase()} para KRI [${kriCode}] a "${recipient}". Disparado por ${user.name}. ${messagePreview ? `Detalle: "${messagePreview.slice(0, 60)}..."` : ''}`;
+    const timestamp = new Date().toLocaleTimeString();
+    if (!this.sessionLocked()) {
+      return { success: false, message: 'En el modo demostración no se envían correos, SMS ni webhooks.', timestamp };
+    }
+    try {
+      const resp = await apiFetch('/api/notifications/kri-test', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel, to: recipient, kriCode }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      return { success: resp.ok, message: resp.ok ? data.message : (data.error || `Error ${resp.status}`), timestamp };
+    } catch {
+      return { success: false, message: 'No se pudo contactar al servidor.', timestamp };
+    }
+  }
 
-    await this.appendAuditLog(
-      'CONFIGURACIÓN_NOTIFICACIONES',
-      'KRI',
-      kriCode,
-      `[PRUEBA DISPATCH ${channel.toUpperCase()}] ${details}`
-    );
-
-    return {
-      success: true,
-      message: `Notificación de prueba enviada exitosamente a través del canal ${channel.toUpperCase()} a ${recipient}.`,
-      timestamp
-    };
+  /** Canales disponibles en el servidor (correo, SMS y webhook). */
+  async notificationChannels(): Promise<{ email: boolean; sms: boolean; webhook: boolean } | null> {
+    if (!this.sessionLocked()) return null;
+    const resp = await apiFetch('/api/notifications/channels').catch(() => null);
+    return resp?.ok ? resp.json() : null;
   }
 
   // Record a new sensor / telemetry value for a KRI
@@ -1295,10 +1300,13 @@ export class RiskDataService {
       canExportReports: true
     });
 
+    const email = (userData.email ?? '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Ingrese un correo electrónico válido: es con el que la persona inicia sesión.');
+    if (this.userProfiles().some(u => u.email.toLowerCase() === email)) throw new Error(`Ya existe una persona con el correo ${email}.`);
     const newUser: UserProfile = {
       id: `usr-${Date.now()}`,
       name: userData.name || 'Nuevo Colaborador',
-      email: userData.email || 'colaborador@demo.riskguard.cl',
+      email,
       role: userData.role || (roleMatch ? roleMatch.title : 'Colaborador Operativo'),
       roleId: userData.roleId || (roleMatch ? roleMatch.id : undefined),
       department: userData.department || (roleMatch ? roleMatch.department : (this.catalog.activeAreas()[0]?.name ?? 'Sin área')),
@@ -2313,7 +2321,8 @@ export class RiskDataService {
       entityType,
       entityCode,
       details,
-      ipAddress: '10.240.1.45', // simulated verified corporate internal IP
+      // Con base de datos el servidor registra el bloque con la IP real; en la demostración queda local.
+      ipAddress: 'local (demostración)',
       previousHash,
       hash
     };
@@ -2330,6 +2339,9 @@ export class RiskDataService {
       if (block.blockNumber > 1 && block.previousHash !== prevHash) {
         return { isValid: false, brokenBlockNumber: block.blockNumber, totalBlocks: list.length };
       }
+      // Se recalcula el hash de cada bloque: detecta cambios en su contenido, no solo en el encadenamiento.
+      const hash = await computeBlockHash(block.blockNumber, block.timestamp, block.userName, block.action, block.entityCode, block.details, block.previousHash);
+      if (hash !== block.hash) return { isValid: false, brokenBlockNumber: block.blockNumber, totalBlocks: list.length };
       prevHash = block.hash;
     }
     return { isValid: true, totalBlocks: list.length };
@@ -2351,7 +2363,7 @@ export class RiskDataService {
     let csvContent = csvContentStart;
 
     if (type === 'risks' || type === 'complete') {
-      csvContent += 'MATRIZ DE GESTIÓN DE RIESGO OPERACIONAL - CUSTODIA RISK\n';
+      csvContent += 'MATRIZ DE GESTIÓN DE RIESGO OPERACIONAL - RISKGUARD PRO\n';
       csvContent += `Fecha de Exportación:;${new Date().toLocaleString()};Generado Por:;${this.currentProfile().name} (${this.currentProfile().role})\n\n`;
       csvContent += `Código;Título;Proceso;Categoría Basilea;Riesgo Inherente Prob;Riesgo Inherente Imp;Score Inherente;Nivel Inherente;Exposición ${this.currencyCode()};Controles Aplicados;Score Residual;Nivel Residual;Exposición Residual ${this.currencyCode()};Estado;Plan de Mitigación;Avance Plan %\n`;
 

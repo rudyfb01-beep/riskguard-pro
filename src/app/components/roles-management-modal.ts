@@ -1000,7 +1000,7 @@ export class RolesManagementModal {
       // Add a simulated user for this new role
       const newUser = {
         name: `Responsable ${role.title}`,
-        email: `${role.title.toLowerCase().replace(/[^a-z0-9]/g, '.')}@organizacion.com`,
+        email: `${role.title.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '.')}@demo.riskguard.cl`,
         role: role.title,
         roleId: role.id,
         department: role.department,
@@ -1087,10 +1087,11 @@ export class RolesManagementModal {
       department: selectedRole ? selectedRole.department : '',
       badge: selectedRole ? selectedRole.badge : 'Colaborador',
       permissions: selectedRole ? selectedRole.permissions : undefined
-    });
-
-    this.userForm.reset();
-    this.showAddUserForm.set(false);
+    }).then(created => {
+      this.userForm.reset();
+      this.showAddUserForm.set(false);
+      this.showToast(`${created.name} fue agregada como ${created.role}. Ingresa con ${created.email}.`);
+    }).catch((err: Error) => this.showToast(err.message));
   }
 
   promptDeleteUser(userId: string) {

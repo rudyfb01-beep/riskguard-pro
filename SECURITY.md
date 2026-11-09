@@ -38,7 +38,7 @@ monitoreo del SIEM.
 | A07 Autenticación | Sin contraseñas: código de un solo uso por correo o Google (OIDC con PKCE, `state`, `nonce`, verificación de firma, emisor, audiencia y dominio); límites de intentos; sesión con vencimiento por inactividad y máximo; cierre de sesión invalida el token en la base. | `auth.ts`, `google-sso.ts` |
 | A08 Integridad | Bitácora encadenada y verificable; SHA-256 de evidencias y respaldos; `bun install --frozen-lockfile`. | `repository.ts` (`verifyLedgerChain`), `backup.ts` |
 | A09 Registro | Bitácora de cambios, inicios de sesión, cargas masivas, respaldos y descargas de respaldos; identificador `X-Request-Id` en cada respuesta y en el log de errores. | `repository.ts`, `security.ts` |
-| A10 SSRF | El servidor solo llama a URLs configuradas (Google, mindicador.cl, SMTP); el renderizado SSR acepta solo los hosts de `NG_ALLOWED_HOSTS`/`APP_URL`; retorno tras el ingreso limitado a rutas locales. | `server.ts`, `google-sso.ts`, `uf-sync.ts` |
+| A10 SSRF | El servidor solo llama a URLs configuradas (Google, mindicador.cl, SMTP, pasarela de SMS); los webhooks de alertas exigen https y se rechazan si resuelven a direcciones internas (salvo `WEBHOOK_ALLOW_PRIVATE=true`), sin seguir redirecciones; el renderizado SSR acepta solo los hosts de `NG_ALLOWED_HOSTS`/`APP_URL`; retorno tras el ingreso limitado a rutas locales. | `server.ts`, `google-sso.ts`, `uf-sync.ts` |
 
 ### Cabeceras
 
@@ -66,6 +66,7 @@ permite ejecutar código. `CSP=off` desactiva la política (solo para diagnósti
 | `ALLOWED_ORIGINS` | Orígenes adicionales aceptados en escrituras (separados por coma). |
 | `HSTS_MAX_AGE` | Segundos de HSTS (un año por defecto). |
 | `CSP` | `off` desactiva la CSP (diagnóstico). |
+| `WEBHOOK_ALLOW_HTTP`, `WEBHOOK_ALLOW_PRIVATE` | Permiten webhooks de alertas por http o a la red interna. Úselos solo si el destino es de confianza. |
 
 ## 3. Pruebas de seguridad automatizadas
 

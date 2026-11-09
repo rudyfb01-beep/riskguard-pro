@@ -272,7 +272,8 @@ function alertChanges(prev: AnomalyAlert | null, a: AnomalyAlert, ctx: ChangeCon
   return forUsers(to, {
     category: 'Alertas KRI', severity: critical ? 'urgente' : 'aviso', tab: 'alertas-kri', entityType: 'alerts', entityId: a.id,
     title: `Alerta ${a.severity.toLowerCase()}: ${a.title}`,
-    body: `${a.kriMetric}: valor ${a.currentValue} (umbral ${a.threshold}) en ${a.process}.`,
+    body: `${a.kriMetric}: valor ${a.currentValue} (umbral ${a.threshold}) en ${a.process}.`
+      + (prefs?.emailTemplate !== 'ejecutiva' && a.description ? ` ${a.description}` : ''),
   }, prefs?.cooldownMinutes ? `kri:${a.kriMetric}:${bucket}` : `alert:${a.id}`);
 }
 

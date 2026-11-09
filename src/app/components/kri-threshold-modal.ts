@@ -148,10 +148,10 @@ import { IndustryType, KriDefinition, BaselCategory } from '../models/risk.model
                         type="button"
                         (click)="startSimulateValue(kri)"
                         class="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                        title="Inyectar lectura simulada de métrica para verificar disparo de alerta"
+                        title="Registrar la lectura del período; si supera un umbral se genera la alerta"
                       >
-                        <mat-icon class="text-xs text-rose-600">sensors</mat-icon>
-                        <span>Simular Lectura</span>
+                        <mat-icon class="text-xs text-rose-600">edit_note</mat-icon>
+                        <span>Registrar lectura</span>
                       </button>
 
                       <button
@@ -287,7 +287,7 @@ import { IndustryType, KriDefinition, BaselCategory } from '../models/risk.model
                       <div class="flex items-center justify-between text-xs font-bold text-slate-900 border-b border-rose-200 pb-2">
                         <span class="flex items-center gap-1.5 text-rose-800">
                           <mat-icon class="text-sm">sensors</mat-icon>
-                          <span>Inyección de Lectura de Sensor: {{ kri.name }}</span>
+                          <span>Registrar lectura: {{ kri.name }}</span>
                         </span>
                         <button type="button" (click)="cancelSimulate()" class="text-slate-400 hover:text-slate-600 text-xs">
                           Cerrar
@@ -297,7 +297,7 @@ import { IndustryType, KriDefinition, BaselCategory } from '../models/risk.model
                       <div class="flex flex-col sm:flex-row items-center gap-3">
                         <div class="flex-1 w-full">
                           <label [for]="'sim-' + kri.id" class="block text-[11px] font-semibold text-slate-700 mb-1">
-                            Valor de Prueba ({{ kri.unit }}):
+                            Valor medido ({{ kri.unit }}):
                           </label>
                           <input
                             [id]="'sim-' + kri.id"
@@ -315,8 +315,8 @@ import { IndustryType, KriDefinition, BaselCategory } from '../models/risk.model
                             (click)="applySimulation(kri)"
                             class="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 rounded-lg shadow-sm flex items-center gap-1 cursor-pointer"
                           >
-                            <mat-icon class="text-sm">bolt</mat-icon>
-                            <span>Evaluar & Disparar</span>
+                            <mat-icon class="text-sm">save</mat-icon>
+                            <span>Registrar</span>
                           </button>
                         </div>
                       </div>
@@ -598,8 +598,9 @@ export class KriThresholdModal {
     this.simulatingKriId.set(null);
   }
 
-  applySimulation(kri: KriDefinition) {
-    this.riskService.recordKriValue(kri.id, this.simValue);
+  async applySimulation(kri: KriDefinition) {
+    if (!Number.isFinite(this.simValue)) return;
+    await this.riskService.recordKriValue(kri.id, this.simValue);
     this.simulatingKriId.set(null);
   }
 

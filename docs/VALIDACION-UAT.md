@@ -86,6 +86,14 @@ Bloqueado), evidencia y defecto asociado.
 | INC-05 | | Convertir un incidente en riesgo con controles sugeridos | Riesgo creado y vinculado al incidente | — |
 | INC-06 | | Exportar la base de pérdidas a CSV | Columnas en CLP y UF; abre en Excel con acentos correctos | — |
 
+### Alertas y KRIs
+
+| ID | C | Caso | Resultado esperado | Referencia |
+| :--- | :-: | :--- | :--- | :--- |
+| KRI-01 | ✔ | Registrar la lectura de un KRI sobre su umbral crítico | Se genera la alerta, aparece en Alertas & KRIs y llega el aviso a quienes atienden alertas | Cap. 1-13 RAN (indicadores de riesgo) |
+| KRI-02 | | Configurar avisos del KRI (correo, SMS si hay pasarela, webhook) y usar "Probar" | El envío de prueba llega realmente al destino; si falla, se muestra el error | RAN 20-10 |
+| KRI-03 | | Investigar y resolver una alerta | El estado cambia y queda en la bitácora | — |
+
 ### Proveedores, continuidad y crisis
 
 | ID | C | Caso | Resultado esperado | Referencia |
@@ -143,7 +151,7 @@ Bloqueado), evidencia y defecto asociado.
 | RAN 20-8 Reporte de incidentes operacionales | INC-02, INC-03, CUM-01 |
 | RAN 20-9 Continuidad del negocio | BCP-01, BCP-02, CRI-01, CRI-02, OPE-01, OPE-03, OPE-05 |
 | RAN 20-10 Seguridad de la información y ciberseguridad | ACC-01…06, SEG-01…03, BIT-01, OPE-02, OPE-04 |
-| Cap. 1-13 RAN (evaluación de la gestión de riesgo operacional) | RSG-01, RSG-02, RSG-05, AUT-01 |
+| Cap. 1-13 RAN (evaluación de la gestión de riesgo operacional) | RSG-01, RSG-02, RSG-05, AUT-01, KRI-01 |
 | Ley 21.663 (ANCI) | INC-04 |
 | Ley 21.719 (datos personales) | SEG-01 |
 | CAC-20 / Basilea III (APR) | INC-01, REP-02 |

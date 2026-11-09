@@ -22,7 +22,7 @@ const BTN = 'px-2.5 py-1.5 text-[11px] font-semibold rounded-lg border flex item
 const MODULE_LABELS: Record<string, string> = {
   'proveedores': 'Proveedores', 'continuidad': 'Continuidad', 'seguridad-informacion': 'Seguridad de la Información',
   'reportes-regulatorios': 'Reporte CMF / ANCI', 'incidentes-perdidas': 'Incidentes y Pérdidas', 'auditorias': 'Auditorías',
-  'reportes-pdf': 'Reportes', 'matriz-riesgos': 'Matriz de riesgos', 'controles': 'Controles', 'cumplimiento-ran': 'Evidencia documental',
+  'reportes-pdf': 'Reportes', 'matriz-riesgos': 'Matriz de riesgos', 'controles': 'Controles', 'cumplimiento-ran': 'Evidencia documental', 'documentos': 'Gestión documental',
 };
 
 interface RequirementForm {
@@ -312,7 +312,7 @@ interface RequirementForm {
                       <div class="text-[11px] text-slate-600 mt-0.5">{{ i.requirement }}</div>
                       <div class="flex flex-wrap items-center gap-2 mt-1.5 text-[10px]">
                         @if (i.module) {
-                          <button type="button" (click)="openModule.emit(i.module)" class="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer flex items-center gap-0.5"><mat-icon class="text-[12px] w-3 h-3">open_in_new</mat-icon>{{ moduleLabel(i.module) }}</button>
+                          <button type="button" (click)="openModule.emit(moduleTarget(i.module))" class="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer flex items-center gap-0.5"><mat-icon class="text-[12px] w-3 h-3">open_in_new</mat-icon>{{ moduleLabel(i.module) }}</button>
                         }
                         <span class="text-slate-500">{{ i.frequency }}</span>
                         @if (i.lastReviewDate) {
@@ -560,6 +560,11 @@ export class CompliancePanel {
 
   moduleLabel(m: string) {
     return MODULE_LABELS[m] ?? m;
+  }
+
+  /** "Evidencia documental" se gestiona en Gestión documental (no en esta misma pantalla). */
+  moduleTarget(m: string): string {
+    return m === 'cumplimiento-ran' ? 'documentos' : m;
   }
 
   isPastDue(r: ComplianceRequirement) {

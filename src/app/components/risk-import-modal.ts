@@ -41,7 +41,7 @@ const colLetter = (i: number): string => {
           </button>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-6 space-y-5">
+        <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-5">
 
           <!-- 1. Archivo -->
           <section class="flex flex-col md:flex-row gap-4 md:items-center">

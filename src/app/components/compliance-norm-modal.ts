@@ -39,7 +39,7 @@ interface NormForm {
           </button>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div class="flex-1 min-h-0 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-4 gap-3">
           <label class="block"><span class="block text-[11px] font-semibold text-slate-700 mb-1">Código *</span>
             <input [class]="inputCls" [value]="f().code" (input)="set('code', $any($event.target).value)" placeholder="Ley 21.719" /></label>
           <label class="block md:col-span-3"><span class="block text-[11px] font-semibold text-slate-700 mb-1">Título *</span>
