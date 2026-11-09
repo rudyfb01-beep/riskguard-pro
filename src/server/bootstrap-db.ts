@@ -6,6 +6,8 @@ import {
   DEMO_ACCOUNTING_ACCOUNTS, DEMO_ALERTS, DEMO_AUDITS, DEMO_CONTROLS, DEMO_FLAWS, DEMO_KRIS, DEMO_LEDGER, DEMO_PROCESSES, DEMO_RISKS, DEMO_USERS,
 } from '../app/data/demo-seed';
 import { SEED_BIA, SEED_PLANS, SEED_PROVIDERS, SEED_TESTS } from '../app/data/resilience-seed';
+import { BASE_SCENARIOS, DEMO_COMMITTEE, DEMO_CRISIS_EVENTS, DEMO_SCENARIOS } from '../app/data/crisis-seed';
+import { EMPTY_COMMITTEE } from '../app/models/crisis.model';
 import { BASE_ASSESSMENT_ITEMS, DEMO_ASSESSMENT, DEMO_ASSETS, DEMO_SECURITY_TESTS, DEMO_VULNERABILITIES } from '../app/data/security-seed';
 import { UserPermissions } from '../app/models/risk.model';
 import { DEMO_APR_INPUTS, EMPTY_APR_INPUTS } from '../app/models/apr.model';
@@ -211,8 +213,17 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
       ['accounting_accounts', wantDemo ? DEMO_ACCOUNTING_ACCOUNTS : []],
       ['provider_catalogs', DEFAULT_PROVIDER_CATALOGS],
       ['apr_operational_inputs', wantDemo ? DEMO_APR_INPUTS : EMPTY_APR_INPUTS],
+      ['crisis_committee', EMPTY_COMMITTEE],
     ] as const) {
       await c.query('INSERT INTO system_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [key, JSON.stringify(value)]);
+    }
+
+    // Escenarios de crisis de referencia: una sola vez (si luego se eliminan, no se reponen).
+    if ((await c.query(`SELECT 1 FROM system_settings WHERE key = 'crisis_scenarios_seeded'`)).rowCount === 0) {
+      if ((await c.query('SELECT 1 FROM crisis_scenarios LIMIT 1')).rowCount === 0) {
+        for (const x of BASE_SCENARIOS) await saveEntity('crisis-scenarios', x, c);
+      }
+      await c.query(`INSERT INTO system_settings (key, value) VALUES ('crisis_scenarios_seeded', 'true') ON CONFLICT (key) DO NOTHING`);
     }
 
     const hasRisks = (await c.query('SELECT 1 FROM risks LIMIT 1')).rowCount! > 0;
@@ -229,6 +240,9 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
       for (const x of SEED_BIA) await saveEntity('bia', x, c);
       for (const x of SEED_PLANS) await saveEntity('plans', x, c);
       for (const x of SEED_TESTS) await saveEntity('continuity-tests', x, c);
+      for (const x of DEMO_SCENARIOS) await saveEntity('crisis-scenarios', x, c);
+      for (const x of DEMO_CRISIS_EVENTS) await saveEntity('crisis-events', x, c);
+      await saveSetting('crisis_committee', DEMO_COMMITTEE, c);
       for (const x of DEMO_ASSETS) await saveEntity('info-assets', x, c);
       for (const x of DEMO_VULNERABILITIES) await saveEntity('vulnerabilities', x, c);
       for (const x of DEMO_SECURITY_TESTS) await saveEntity('security-tests', x, c);

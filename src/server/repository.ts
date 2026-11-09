@@ -22,6 +22,7 @@ import { ComplianceNorm, ComplianceRequirement, SecurityTest } from '../app/mode
 import { ActionPlan } from '../app/models/action-plan.model';
 import { SurveyCampaign, SurveyResponse } from '../app/models/survey.model';
 import { ApprovalRequest } from '../app/models/approval.model';
+import { CrisisEvent, CrisisScenario } from '../app/models/crisis.model';
 import { EvidenceFile } from '../app/models/evidence.model';
 import { ControlledDocument } from '../app/models/document.model';
 import { AppNotification, NotificationDraft, NotificationPreference } from '../app/models/notification.model';
@@ -38,13 +39,13 @@ type Row = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 /** Entidades que la API permite guardar, en orden de dependencias (claves foráneas). */
 export const ENTITY_ORDER = [
   'areas', 'processes', 'roles', 'users', 'controls', 'risks', 'providers', 'regulatory-milestones',
-  'flaws', 'alerts', 'audits', 'kris', 'bia', 'plans', 'continuity-tests',
+  'flaws', 'alerts', 'audits', 'kris', 'bia', 'plans', 'continuity-tests', 'crisis-scenarios', 'crisis-events',
   'info-assets', 'vulnerabilities', 'security-assessment', 'norms', 'compliance', 'security-tests', 'action-plans', 'survey-campaigns', 'survey-responses', 'documents', 'approvals',
 ] as const;
 export type EntityName = typeof ENTITY_ORDER[number];
 
 export const SETTING_KEYS = ['current_industry', 'global_notification_preferences', 'loss_registration_threshold_usd', 'apr_operational_inputs', 'general_parameters',
-  'risk_scale', 'risk_appetite', 'accounting_accounts', 'provider_catalogs', 'approval_matrix', 'notification_settings', 'uf_values'] as const;
+  'risk_scale', 'risk_appetite', 'accounting_accounts', 'provider_catalogs', 'approval_matrix', 'notification_settings', 'uf_values', 'crisis_committee'] as const;
 export type SettingKey = typeof SETTING_KEYS[number];
 
 export interface BootstrapData {
@@ -74,6 +75,8 @@ export interface BootstrapData {
   surveyResponses: SurveyResponse[];
   approvals: ApprovalRequest[];
   documents: ControlledDocument[];
+  crisisScenarios: CrisisScenario[];
+  crisisEvents: CrisisEvent[];
   /** Metadatos de las evidencias (sin el contenido). */
   evidenceFiles: EvidenceFile[];
   ledger: AuditLogEntry[];
@@ -142,7 +145,7 @@ export async function loadAll(): Promise<BootstrapData> {
   const [
     roles, users, controls, tests, risks, riskControls, providers, milestones, flaws, regReports, regSubs, regUpdates,
     alerts, audits, findings, kris, bia, biaProviders, plans, planProcesses, ctests, ledger, settings,
-    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans, surveyCampaigns, surveyResponses, approvals, evidenceFiles, documents, versionRows,
+    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans, surveyCampaigns, surveyResponses, approvals, evidenceFiles, documents, versionRows, scenarioRows, crisisRows,
   ] = await Promise.all([
     q('SELECT * FROM organizational_roles ORDER BY created_at, id'),
     q('SELECT * FROM user_profiles ORDER BY created_at, id'),
@@ -182,6 +185,8 @@ export async function loadAll(): Promise<BootstrapData> {
     q(`SELECT ${EVIDENCE_COLUMNS} FROM evidence_files ORDER BY uploaded_at`),
     q('SELECT * FROM controlled_documents ORDER BY code'),
     q('SELECT entity, id, version FROM record_versions'),
+    q('SELECT * FROM crisis_scenarios ORDER BY code'),
+    q('SELECT * FROM crisis_events ORDER BY code'),
   ]);
   const versions: Record<string, Record<string, number>> = {};
   for (const v of versionRows) (versions[v.entity] ??= {})[v.id] = Number(v.version);
@@ -233,6 +238,8 @@ export async function loadAll(): Promise<BootstrapData> {
     approvals: approvals.map(approvalFromRow),
     evidenceFiles: evidenceFiles.map(evidenceFromRow),
     documents: documents.map(documentFromRow),
+    crisisScenarios: scenarioRows.map(scenarioFromRow),
+    crisisEvents: crisisRows.map(crisisFromRow),
     versions,
     norms: norms.map((x): ComplianceNorm => ({
       id: x.id, code: x.code, title: x.title, kind: x.kind, issuer: x.issuer ?? '', source: x.source ?? '', url: opt(x.url),
@@ -464,6 +471,33 @@ function documentFromRow(r: Row): ControlledDocument {
     nextReviewDate: r.next_review_date ? String(r.next_review_date instanceof Date ? r.next_review_date.toISOString() : r.next_review_date).slice(0, 10) : undefined,
     acknowledgments: arr(r.acknowledgments), status: r.status, obsoleteReason: opt(r.obsolete_reason), createdBy: r.created_by ?? '', createdAt: r.created_at,
   };
+}
+
+const dayStr = (v: unknown): string | undefined => (v ? String(v instanceof Date ? v.toISOString() : v).slice(0, 10) : undefined);
+
+function scenarioFromRow(r: Row): CrisisScenario {
+  return {
+    id: r.id, code: r.code, name: r.name, category: r.category, description: r.description ?? '', likelihood: Number(r.likelihood), impact: Number(r.impact),
+    activationCriteria: r.activation_criteria ?? '', initialActions: arr(r.initial_actions), communications: r.communications ?? '',
+    affectedProcessIds: arr(r.affected_process_ids), planIds: arr(r.plan_ids), owner: r.owner ?? '', lastReviewDate: dayStr(r.last_review_date) ?? '',
+    active: r.active !== false && r.active !== 0,
+  };
+}
+
+function crisisFromRow(r: Row): CrisisEvent {
+  return {
+    id: r.id, code: r.code, title: r.title, mode: r.mode, level: Number(r.level) as CrisisEvent['level'], status: r.status,
+    scenarioId: opt(r.scenario_id), flawId: opt(r.flaw_id), plannedDate: dayStr(r.planned_date), declaredAt: opt(r.declared_at), declaredBy: opt(r.declared_by),
+    stabilizedAt: opt(r.stabilized_at), closedAt: opt(r.closed_at), closedBy: opt(r.closed_by),
+    affectedProcessIds: arr(r.affected_process_ids), activatedPlanIds: arr(r.activated_plan_ids), log: arr(r.log), tasks: arr(r.tasks),
+    communications: arr(r.communications), closingSummary: opt(r.closing_summary), lessons: opt(r.lessons), testId: opt(r.test_id),
+    createdBy: r.created_by ?? '', createdAt: r.created_at,
+  };
+}
+
+export async function getCrisisEvent(id: string): Promise<CrisisEvent | null> {
+  const r = await getPool()!.query('SELECT * FROM crisis_events WHERE id = $1', [id]);
+  return r.rows[0] ? crisisFromRow(r.rows[0]) : null;
 }
 
 export async function getDocument(id: string): Promise<ControlledDocument | null> {
@@ -783,6 +817,26 @@ const savers: Record<EntityName, (c: DbClient, o: any) => Promise<void>> = {
     });
   },
 
+  async 'crisis-scenarios'(c, o: CrisisScenario) {
+    await upsertRow(c, 'crisis_scenarios', 'id', {
+      id: o.id, code: o.code, name: o.name.slice(0, 255), category: o.category, description: o.description ?? '',
+      likelihood: o.likelihood, impact: o.impact, activation_criteria: o.activationCriteria ?? '', initial_actions: json(o.initialActions ?? []),
+      communications: o.communications ?? '', affected_process_ids: json(o.affectedProcessIds ?? []), plan_ids: json(o.planIds ?? []),
+      owner: o.owner ?? '', last_review_date: dateOrNull(o.lastReviewDate), active: o.active !== false,
+    });
+  },
+
+  async 'crisis-events'(c, o: CrisisEvent) {
+    await upsertRow(c, 'crisis_events', 'id', {
+      id: o.id, code: o.code, title: o.title.slice(0, 255), mode: o.mode, level: o.level, status: o.status, scenario_id: o.scenarioId ?? null,
+      flaw_id: o.flawId ?? null, planned_date: dateOrNull(o.plannedDate), declared_at: o.declaredAt ?? null, declared_by: o.declaredBy ?? null,
+      stabilized_at: o.stabilizedAt ?? null, closed_at: o.closedAt ?? null, closed_by: o.closedBy ?? null,
+      affected_process_ids: json(o.affectedProcessIds ?? []), activated_plan_ids: json(o.activatedPlanIds ?? []), log: json(o.log ?? []),
+      tasks: json(o.tasks ?? []), communications: json(o.communications ?? []), closing_summary: o.closingSummary ?? null, lessons: o.lessons ?? null,
+      test_id: o.testId ?? null, created_by: o.createdBy ?? '', created_at: o.createdAt,
+    });
+  },
+
   async approvals(c, o: ApprovalRequest) {
     await upsertRow(c, 'approval_requests', 'id', {
       id: o.id, code: o.code, kind: o.kind, target_entity: o.targetEntity, target_id: o.targetId, target_label: o.targetLabel.slice(0, 300),
@@ -868,6 +922,8 @@ const TABLE_BY_ENTITY: Record<EntityName, { table: string; pk: string }> = {
   bia: { table: 'bia_processes', pk: 'id' },
   plans: { table: 'continuity_plans', pk: 'id' },
   'continuity-tests': { table: 'continuity_tests', pk: 'id' },
+  'crisis-scenarios': { table: 'crisis_scenarios', pk: 'id' },
+  'crisis-events': { table: 'crisis_events', pk: 'id' },
   'info-assets': { table: 'info_assets', pk: 'id' },
   vulnerabilities: { table: 'vulnerabilities', pk: 'id' },
   'security-assessment': { table: 'security_assessment_items', pk: 'id' },

@@ -10,6 +10,7 @@ import { SurveyService } from './survey.service';
 import { ApprovalService } from './approval.service';
 import { EvidenceService } from './evidence.service';
 import { DocumentService } from './document.service';
+import { CrisisService } from './crisis.service';
 import { EvidenceFile } from '../models/evidence.model';
 import { API_HEADERS, apiFetch } from './api-fetch';
 import { AuditLogEntry, UserProfile } from '../models/risk.model';
@@ -62,6 +63,7 @@ const ENTITY_LABEL: Record<string, string> = {
   'continuity-tests': 'Prueba de continuidad', 'info-assets': 'Activo de información', vulnerabilities: 'Vulnerabilidad', 'security-assessment': 'Autoevaluación de seguridad',
   norms: 'Norma', compliance: 'Requisito normativo', 'security-tests': 'Prueba de seguridad', 'action-plans': 'Plan de acción', 'survey-campaigns': 'Campaña',
   'survey-responses': 'Encuesta', documents: 'Documento', approvals: 'Solicitud de aprobación',
+  'crisis-scenarios': 'Escenario de crisis', 'crisis-events': 'Crisis',
 };
 export const entityLabel = (e: string) => ENTITY_LABEL[e] ?? e;
 
@@ -87,6 +89,7 @@ export class PersistenceService {
   private readonly approvals = inject(ApprovalService);
   private readonly evidence = inject(EvidenceService);
   private readonly docs = inject(DocumentService);
+  private readonly crisis = inject(CrisisService);
 
   readonly mode = signal<DataMode>('loading');
   readonly loadError = signal<string | null>(null);
@@ -123,6 +126,8 @@ export class PersistenceService {
     this.col('bia', 'bia', this.res.biaProcesses),
     this.col('plans', 'plans', this.res.plans),
     this.col('continuity-tests', 'continuityTests', this.res.tests),
+    this.col('crisis-scenarios', 'crisisScenarios', this.crisis.scenarios),
+    this.col('crisis-events', 'crisisEvents', this.crisis.events),
     this.col('info-assets', 'infoAssets', this.sec.assets),
     this.col('vulnerabilities', 'vulnerabilities', this.sec.vulnerabilities),
     this.col('security-assessment', 'securityAssessment', this.sec.assessment),
@@ -149,6 +154,7 @@ export class PersistenceService {
     { key: 'approval_matrix', sig: this.approvals.matrixRaw, last: '' },
     { key: 'notification_settings', sig: this.cat.notificationSettingsRaw, last: '' },
     { key: 'uf_values', sig: this.cat.ufValuesRaw, last: '' },
+    { key: 'crisis_committee', sig: this.crisis.committeeRaw, last: '' },
   ];
 
   constructor() {

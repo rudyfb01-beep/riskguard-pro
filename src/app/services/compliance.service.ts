@@ -1,3 +1,5 @@
+import { CrisisService } from './crisis.service';
+import { committeeGaps } from '../utils/crisis';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { RiskDataService } from './risk-data.service';
 import { DocumentService } from './document.service';
@@ -30,6 +32,7 @@ export class ComplianceService {
   private readonly docs = inject(DocumentService);
   private readonly res = inject(ResilienceService);
   private readonly sec = inject(SecurityService);
+  private readonly crisis = inject(CrisisService);
 
   readonly norms = signal<ComplianceNorm[]>(structuredClone(BASE_NORMS));
   readonly requirements = signal<ComplianceRequirement[]>(structuredClone(BASE_REQUIREMENTS));
@@ -204,7 +207,14 @@ export class ComplianceService {
       // ----- RAN 20-9
       case 'p9.crisisPlan': {
         const ok = plans.some(p => p.type === 'Gestión de Crisis' && p.status === 'Vigente');
-        return { text: ok ? 'Existe un plan de gestión de crisis vigente.' : 'No hay un plan de gestión de crisis vigente.', suggested: ok ? 'Cumple' : 'No cumple' };
+        const gaps = committeeGaps(this.crisis.committee());
+        const drills = this.crisis.coverage().filter(c => c.current).length;
+        const parts = [
+          ok ? 'Existe un plan de gestión de crisis vigente' : 'No hay un plan de gestión de crisis vigente',
+          gaps.length ? `Comité de Crisis incompleto (${gaps.join(', ')})` : `Comité de Crisis definido (${this.crisis.committee().members.length} integrantes)`,
+          `${drills} de ${this.crisis.coverage().length} escenarios ejercitados en los últimos 12 meses`,
+        ];
+        return { text: `${parts.join('. ')}.`, suggested: ok && !gaps.length ? 'Cumple' : ok || !gaps.length ? 'Cumple parcialmente' : 'No cumple' };
       }
       case 'p9.commsPlan': {
         const ok = plans.some(p => p.type === 'Comunicaciones de Crisis' && p.status === 'Vigente');

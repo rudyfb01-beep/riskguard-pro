@@ -1,5 +1,6 @@
 import { getPool } from './db';
 import { autoSyncUf } from './uf-sync';
+import { normalizeCommittee } from '../app/utils/crisis';
 import { isMailConfigured, sendMail } from './mailer';
 import {
   getNotificationPreferences, getSetting, insertNotifications, loadAll, notificationsByEmailStatus, setEmailStatus, setInternalSetting, userFromRow,
@@ -43,8 +44,9 @@ export async function notifyChange(
   try {
     if (!getPool()) return [];
     const kriPreferences = entity === 'alerts' ? ((await getSetting('global_notification_preferences')) as KriNotificationPreferences | undefined) ?? null : null;
+    const committee = entity === 'crisis-events' ? normalizeCommittee(await getSetting('crisis_committee')) : null;
     const drafts = changeNotifications(entity, prev, next, {
-      actorName, users: await activeUsers(), campaign: extra.campaign, kriPreferences, now: new Date().toISOString(),
+      actorName, users: await activeUsers(), campaign: extra.campaign, kriPreferences, committee, now: new Date().toISOString(),
     });
     const created = await insertNotifications(drafts);
     if (created.length) void deliverPending();
@@ -62,7 +64,7 @@ export async function runSchedule(today = localNow().day): Promise<number> {
   const drafts: NotificationDraft[] = scheduledNotifications({
     users: data.users, actionPlans: data.actionPlans, surveyCampaigns: data.surveyCampaigns, surveyResponses: data.surveyResponses,
     approvals: data.approvals, continuityPlans: data.plans, vulnerabilities: data.vulnerabilities, risks: data.risks, providers: data.providers,
-    documents: data.documents,
+    documents: data.documents, crisisEvents: data.crisisEvents, committee: normalizeCommittee(data.settings['crisis_committee']),
   }, settings, today);
   const created = await insertNotifications(drafts);
   return created.length;

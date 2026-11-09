@@ -392,7 +392,8 @@ export interface AuditLogEntry {
     | 'BAJA_EVIDENCIA'
     | 'GESTIÓN_DOCUMENTO'
     | 'LECTURA_DOCUMENTO'
-    | 'CARGA_MASIVA';
+    | 'CARGA_MASIVA'
+    | 'GESTIÓN_CRISIS';
   entityType: 'Riesgo' | 'Control' | 'Incidencia' | 'Falencia' | 'Alerta' | 'Auditoría' | 'Reporte' | 'Sesión' | 'KRI' | 'Puesto' | 'Usuario' | 'Reporte Regulatorio' | 'Proveedor' | 'Continuidad' | 'Seguridad' | 'Mantenedor' | 'Cumplimiento' | 'Plan de Acción' | 'Autoevaluación' | 'Aprobación' | 'Notificación' | 'Evidencia' | 'Documento' | 'Carga masiva';
   entityCode: string;
   details: string;

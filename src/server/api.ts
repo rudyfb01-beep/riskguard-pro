@@ -3,7 +3,7 @@ import { getPool } from './db';
 import { ensureDatabase } from './bootstrap-db';
 import {
   appendLedger, convertCurrency, countReferences, deleteEntity, EntityName, entityExists, getActionPlan, getApproval, getNotificationPreferences, getSetting,
-  getSurveyResponse, getDocument, isEntity, saveBulk, saveEntityChecked, VersionConflictError, BootstrapData, listNotifications, loadAll, markNotificationsRead, notificationOutbox, saveApprovalWithEffect, getVersion,
+  getSurveyResponse, getDocument, getCrisisEvent, isEntity, saveBulk, saveEntityChecked, VersionConflictError, BootstrapData, listNotifications, loadAll, markNotificationsRead, notificationOutbox, saveApprovalWithEffect, getVersion,
   saveNotificationPreference, saveSetting, SETTING_KEYS, SettingKey, getEvidence, getEvidenceContent, insertEvidence, markEvidenceDeleted,
 } from './repository';
 import { DEFAULT_EVIDENCE_MAX_MB, EVIDENCE_ENTITY_LABELS, EvidenceEntity, EvidenceFile } from '../app/models/evidence.model';
@@ -11,6 +11,8 @@ import { canAttachEvidence, canRemoveEvidence, checkEvidenceFile, formatBytes, i
 import { createHash, randomUUID } from 'node:crypto';
 import { ControlledDocument } from '../app/models/document.model';
 import { checkDocumentChange } from '../app/utils/documents';
+import { CrisisEvent } from '../app/models/crisis.model';
+import { checkCrisisChange, normalizeCommittee } from '../app/utils/crisis';
 import { ApprovalRequest } from '../app/models/approval.model';
 import { applyApprovalEffect, checkApprovalChange, normalizeMatrix, targetPrecondition } from '../app/utils/approvals';
 import { appetiteStatus, normalizeRiskAppetite } from '../app/models/catalog.model';
@@ -62,6 +64,9 @@ const WRITE_PERMISSIONS: Record<EntityName, (keyof UserPermissions)[]> = {
   bia: ['canManageContinuity'],
   plans: ['canManageContinuity'],
   'continuity-tests': ['canManageContinuity'],
+  'crisis-scenarios': ['canManageContinuity'],
+  // Guardar: checkCrisisChange (quien administra continuidad o integra el Comité de Crisis). Eliminar: administración.
+  'crisis-events': ['canManageContinuity'],
   'info-assets': ['canManageInfoSecurity'],
   vulnerabilities: ['canManageInfoSecurity'],
   'security-assessment': ['canManageInfoSecurity'],
@@ -80,7 +85,7 @@ const WRITE_PERMISSIONS: Record<EntityName, (keyof UserPermissions)[]> = {
 };
 
 /** Entidades cuyos cambios generan avisos (se lee el estado previo antes de guardar). */
-const NOTIFY_ENTITIES = new Set<EntityName>(['action-plans', 'survey-responses', 'flaws', 'alerts']);
+const NOTIFY_ENTITIES = new Set<EntityName>(['action-plans', 'survey-responses', 'flaws', 'alerts', 'crisis-events']);
 
 const SETTING_PERMISSIONS: Record<SettingKey, (keyof UserPermissions)[]> = {
   current_industry: ['canConfigureKRIs'],
@@ -95,6 +100,7 @@ const SETTING_PERMISSIONS: Record<SettingKey, (keyof UserPermissions)[]> = {
   approval_matrix: ['canManageCatalogs'],
   notification_settings: ['canManageCatalogs'],
   uf_values: ['canManageCatalogs', 'canManageRegulatoryReports'],
+  crisis_committee: ['canManageContinuity'],
 };
 
 /** Mensajes comprensibles para errores frecuentes de PostgreSQL y SQLite. */
@@ -334,6 +340,14 @@ dataApi.put('/data/:entity/:id', async (req, res) => {
       res.status(403).json({ error: err });
       return;
     }
+  } else if (entity === 'crisis-events') {
+    prev = await getCrisisEvent(id);
+    const committee = normalizeCommittee(await getSetting('crisis_committee'));
+    const err = checkCrisisChange(prev as CrisisEvent | null, body as CrisisEvent, currentUser(res)!, committee);
+    if (err) {
+      res.status(403).json({ error: err });
+      return;
+    }
   } else if (entity === 'survey-responses') {
     campaign = await getSurveyResponse(id);
     prev = campaign?.response ?? null;
@@ -389,6 +403,7 @@ const DATA_KEY: Record<EntityName, keyof BootstrapData> = {
   'continuity-tests': 'continuityTests', 'info-assets': 'infoAssets', vulnerabilities: 'vulnerabilities', 'security-assessment': 'securityAssessment',
   norms: 'norms', compliance: 'compliance', 'security-tests': 'securityTests', 'action-plans': 'actionPlans', 'survey-campaigns': 'surveyCampaigns',
   'survey-responses': 'surveyResponses', documents: 'documents', approvals: 'approvals',
+  'crisis-scenarios': 'crisisScenarios', 'crisis-events': 'crisisEvents',
 };
 
 /** 409 con la versión guardada, para que el cliente la muestre y decida. */

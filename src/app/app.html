@@ -26,6 +26,17 @@
     <app-login-screen [overlay]="true" [presetEmail]="persistence.sessionUser()?.email ?? ''" (loggedIn)="persistence.onLoggedIn($event)" />
   }
 
+  <!-- Crisis real en curso: visible en toda la aplicación -->
+  @if (crisis.realOpen().length && activeTab() !== 'gestion-crisis') {
+    <div class="fixed top-3 left-1/2 -translate-x-1/2 z-[55] no-print max-w-[calc(100vw-2rem)]" role="alert">
+      <button type="button" (click)="setTab('gestion-crisis')" class="bg-rose-600 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-lg flex items-center gap-2 cursor-pointer hover:bg-rose-500">
+        <mat-icon class="text-sm animate-pulse">crisis_alert</mat-icon>
+        <span class="truncate">Crisis en curso: {{ crisis.realOpen()[0].code }} · {{ crisis.realOpen()[0].title }}</span>
+        <span class="underline shrink-0">Ir a la sala</span>
+      </button>
+    </div>
+  }
+
   <!-- Ediciones simultáneas -->
   @if (persistence.conflicts().length) {
     <div class="fixed top-20 right-4 left-4 sm:left-auto z-[60] sm:w-[26rem] space-y-2 no-print" role="alert" aria-live="assertive">
@@ -287,6 +298,17 @@
               >
                 <mat-icon class="text-sm text-teal-600">restart_alt</mat-icon>
                 <span>Continuidad</span>
+              </button>
+
+              <button
+                (click)="setTab('gestion-crisis')"
+                [class]="activeTab() === 'gestion-crisis'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-rose-600">crisis_alert</mat-icon>
+                <span>Gestión de Crisis</span>
               </button>
 
               <button
@@ -1259,6 +1281,15 @@
     <!-- TAB: CONTINUIDAD DEL NEGOCIO -->
     @if (activeTab() === 'continuidad') {
       <app-continuity-panel (notify)="showToast($event)" />
+    }
+
+    <!-- TAB: GESTIÓN DE CRISIS -->
+    @if (activeTab() === 'gestion-crisis') {
+      @defer (on immediate) {
+        <app-crisis-panel [focusId]="crisisFocus()" (notify)="showToast($event)" (openModule)="openModule($event)" />
+      } @loading {
+        <p class="text-xs text-slate-500 p-4">Cargando…</p>
+      }
     }
 
     <!-- TAB: REPORTE REGULATORIO CMF / ANCI -->

@@ -829,6 +829,61 @@ CREATE TABLE IF NOT EXISTS record_versions (
     PRIMARY KEY (entity, id)
 );
 
+CREATE TABLE IF NOT EXISTS crisis_scenarios (
+    id TEXT NOT NULL,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    likelihood INTEGER NOT NULL DEFAULT 2,
+    impact INTEGER NOT NULL DEFAULT 2,
+    activation_criteria TEXT NOT NULL DEFAULT '',
+    initial_actions JSONTEXT NOT NULL DEFAULT '[]',
+    communications TEXT NOT NULL DEFAULT '',
+    affected_process_ids JSONTEXT NOT NULL DEFAULT '[]',
+    plan_ids JSONTEXT NOT NULL DEFAULT '[]',
+    owner TEXT NOT NULL DEFAULT '',
+    last_review_date DATE,
+    active BOOLEAN NOT NULL DEFAULT 1,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    CHECK (((impact >= 1) AND (impact <= 4))),
+    CHECK (((likelihood >= 1) AND (likelihood <= 4))),
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS crisis_events (
+    id TEXT NOT NULL,
+    code TEXT NOT NULL,
+    title TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    level INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    scenario_id TEXT,
+    flaw_id TEXT,
+    planned_date DATE,
+    declared_at TEXT,
+    declared_by TEXT,
+    stabilized_at TEXT,
+    closed_at TEXT,
+    closed_by TEXT,
+    affected_process_ids JSONTEXT NOT NULL DEFAULT '[]',
+    activated_plan_ids JSONTEXT NOT NULL DEFAULT '[]',
+    log JSONTEXT NOT NULL DEFAULT '[]',
+    tasks JSONTEXT NOT NULL DEFAULT '[]',
+    communications JSONTEXT NOT NULL DEFAULT '[]',
+    closing_summary TEXT,
+    lessons TEXT,
+    test_id TEXT,
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    CHECK (((level >= 1) AND (level <= 3))),
+    CHECK (((mode) IN ('Real', 'Simulacro'))),
+    CHECK (((status) IN ('Programada', 'Activa', 'Estabilizada', 'Cerrada', 'Cancelada'))),
+    PRIMARY KEY (id)
+);
+
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_org_roles_department ON organizational_roles (department);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_email ON user_profiles (email);
@@ -896,6 +951,9 @@ CREATE INDEX IF NOT EXISTS idx_notifications_email ON notifications (email_statu
 CREATE INDEX IF NOT EXISTS idx_evidence_files_entity ON evidence_files (entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_files_sha ON evidence_files (sha256);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_controlled_documents_code ON controlled_documents (code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crisis_scenarios_code ON crisis_scenarios (code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crisis_events_code ON crisis_events (code);
+CREATE INDEX IF NOT EXISTS idx_crisis_events_status ON crisis_events (status);
 
 -- =============================================================================
 -- Disparadores (mismas reglas que las funciones de PostgreSQL)
