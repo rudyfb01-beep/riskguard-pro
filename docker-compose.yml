@@ -1,109 +1,127 @@
+# ==============================================================================
+# RiskGuard Pro — despliegue de producción (Docker Compose)
+#
+#   1. cp .env.example .env   y complete las variables marcadas como OBLIGATORIAS.
+#   2. docker compose up -d --build                       (proxy HTTPS propio de la cooperativa)
+#      docker compose --profile https up -d --build       (con Caddy como proxy HTTPS incluido)
+#
+# Ver LOCAL_SETUP.md → "Producción" y docs/OPERACION.md.
+# ==============================================================================
+
 services:
-  # ============================================================================
-  # 1. MOTOR DE BASE DE DATOS: PostgreSQL 16
-  # ============================================================================
   postgres:
     image: postgres:16-alpine
-    container_name: custodia-risk-postgres
+    container_name: riskguard-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: custodia_risk
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: ${POSTGRES_DB:-riskguard}
+      POSTGRES_USER: ${POSTGRES_USER:-riskguard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD en .env}
       PGDATA: /var/lib/postgresql/data/pgdata
-    ports:
-      - "5432:5432"
+    # Sin puerto publicado: la base solo es accesible desde la red interna de Docker.
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # El esquema lo aplica (y migra) la aplicación en cada arranque.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d custodia_risk"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 5
-    networks:
-      - custodia-network
+      retries: 10
+    networks: [interna]
 
-  # ============================================================================
-  # 2. APLICACIÓN WEB FULL-STACK: Angular 21 + SSR Express
-  # ============================================================================
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: custodia-risk-app
+      args:
+        APP_VERSION: ${APP_VERSION:-}
+    image: riskguard-pro:${APP_VERSION:-latest}
+    container_name: riskguard-app
     restart: unless-stopped
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgres://postgres:postgrespassword@postgres:5432/custodia_risk
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      # true: carga datos de ejemplo ficticios en una base vacía (para evaluar).
-      # En producción usar false: se crean solo cargos, plazos y un administrador.
-      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+      DATABASE_URL: postgres://${POSTGRES_USER:-riskguard}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-riskguard}
+      # Dirección pública con HTTPS (enlaces de los correos, retorno de Google y cookies seguras).
+      APP_URL: ${APP_URL:?Defina APP_URL en .env (p. ej. https://grc.cooperativa.cl)}
+      AUTH_SECRET: ${AUTH_SECRET:?Defina AUTH_SECRET en .env (openssl rand -hex 32)}
+      # Correo del administrador inicial (solo se usa en una base nueva).
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
-      # Correo para enviar los códigos de acceso (Google Workspace: ver LOCAL_SETUP.md).
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
       SMTP_HELO_NAME: ${SMTP_HELO_NAME:-}
-      # Solo para evaluar sin SMTP: los códigos se muestran en `docker compose logs app`.
-      # En producción debe ser false.
-      AUTH_DEV_LOG_CODES: ${AUTH_DEV_LOG_CODES:-true}
-      AUTH_SECRET: ${AUTH_SECRET:-}
-      # Ingreso con Google (vacío: desactivado).
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_ALLOWED_DOMAINS: ${GOOGLE_ALLOWED_DOMAINS:-}
       AUTH_EMAIL_CODE: ${AUTH_EMAIL_CODE:-true}
-      COOKIE_SECURE: ${COOKIE_SECURE:-}
-      TRUST_PROXY: ${TRUST_PROXY:-}
-      # Avisos: enlaces de los correos, hora del resumen diario y frecuencia de revisión de plazos.
-      APP_URL: ${APP_URL:-http://localhost:3000}
+      SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-60}
+      SESSION_MAX_HOURS: ${SESSION_MAX_HOURS:-10}
+      # La aplicación queda detrás de un proxy HTTPS (un salto): IP real y cookie Secure.
+      TRUST_PROXY: ${TRUST_PROXY:-1}
       TZ: ${TZ:-America/Santiago}
       NOTIFY_INTERVAL_MINUTES: ${NOTIFY_INTERVAL_MINUTES:-15}
-      # Descarga diaria de la UF (false sin salida a internet).
       UF_AUTO_SYNC: ${UF_AUTO_SYNC:-true}
-      # Tamaño máximo por archivo de evidencia (MB).
       EVIDENCE_MAX_MB: ${EVIDENCE_MAX_MB:-15}
-      # Respaldos programados (pg_dump) en el volumen "backups": cada N horas, se guardan los últimos K.
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
       BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-600}
+      SMS_GATEWAY_URL: ${SMS_GATEWAY_URL:-}
+      SMS_GATEWAY_TOKEN: ${SMS_GATEWAY_TOKEN:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     volumes:
       - backups:/app/backups
+    # Solo en el propio servidor: el acceso de los usuarios es por el proxy HTTPS.
     ports:
-      - "3000:3000"
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3000}:3000"
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - custodia-network
+    networks: [interna]
 
-  # ============================================================================
-  # 3. INTERFAZ WEB DE GESTIÓN SQL: Adminer (Opcional en http://localhost:8080)
-  # ============================================================================
+  # Proxy HTTPS opcional (perfil "https"). TLS_MODE=internal usa la CA interna de Caddy;
+  # con un correo en TLS_MODE y un dominio público obtiene un certificado de Let's Encrypt.
+  caddy:
+    image: caddy:2-alpine
+    container_name: riskguard-caddy
+    profiles: [https]
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
+      TLS_MODE: ${TLS_MODE:-internal}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [app]
+    networks: [interna]
+
+  # Consola SQL opcional (perfil "herramientas"), solo en el propio servidor.
   adminer:
-    image: adminer:latest
-    container_name: custodia-risk-adminer
+    image: adminer:5
+    container_name: riskguard-adminer
+    profiles: [herramientas]
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       ADMINER_DEFAULT_SERVER: postgres
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - custodia-network
+    networks: [interna]
 
 volumes:
   pgdata:
-    driver: local
   backups:
-    driver: local
+  caddy_data:
+  caddy_config:
 
 networks:
-  custodia-network:
+  interna:
     driver: bridge

@@ -3,9 +3,9 @@ import { RiskDataService } from './risk-data.service';
 import { ResilienceService } from './resilience.service';
 import {
   CrisisAudience, CrisisCommittee, CrisisEvent, CrisisLevel, CrisisLogKind, CrisisMode, CrisisScenario,
+  EMPTY_COMMITTEE,
 } from '../models/crisis.model';
 import { ContinuityTest } from '../models/resilience.model';
-import { DEMO_COMMITTEE, DEMO_CRISIS_EVENTS, DEMO_SCENARIOS } from '../data/crisis-seed';
 import {
   canActOnCrisis, canManageCrisis, checkCrisisChange, isOpen, levelName, nextCrisisCode, normalizeCommittee, scenarioCoverage, tasksFromScenario,
 } from '../utils/crisis';
@@ -34,9 +34,9 @@ export class CrisisService {
   private readonly rs = inject(RiskDataService);
   private readonly res = inject(ResilienceService);
 
-  readonly scenarios = signal<CrisisScenario[]>(clone(DEMO_SCENARIOS));
-  readonly events = signal<CrisisEvent[]>(clone(DEMO_CRISIS_EVENTS));
-  readonly committeeRaw = signal<unknown>(clone(DEMO_COMMITTEE));
+  readonly scenarios = signal<CrisisScenario[]>([]);
+  readonly events = signal<CrisisEvent[]>([]);
+  readonly committeeRaw = signal<unknown>(clone(EMPTY_COMMITTEE));
   readonly committee = computed<CrisisCommittee>(() => normalizeCommittee(this.committeeRaw()));
 
   private seq = 0;

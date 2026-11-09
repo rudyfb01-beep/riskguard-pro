@@ -21,8 +21,6 @@ export interface DocumentDraft {
   processes: string[];
 }
 
-const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
-const dayAgo = (n: number) => daysAgo(n).slice(0, 10);
 
 /**
  * Gestión documental: registro maestro de políticas, manuales y procedimientos, con versiones
@@ -32,7 +30,7 @@ const dayAgo = (n: number) => daysAgo(n).slice(0, 10);
 export class DocumentService {
   private readonly rs = inject(RiskDataService);
 
-  readonly documents = signal<ControlledDocument[]>(this.demoDocuments());
+  readonly documents = signal<ControlledDocument[]>([]);
 
   /** Pedido de abrir un documento (avisos, cumplimiento, aprobaciones). */
   readonly openRequest = signal<{ id: string; at: number } | null>(null);
@@ -204,68 +202,4 @@ export class DocumentService {
 
   // ---------------------------------------------------------------------------
 
-  /** Documentos de ejemplo (modo demostración; los archivos los crea EvidenceService). */
-  private demoDocuments(): ControlledDocument[] {
-    const v = (id: string, version: string, summary: string, status: DocumentVersion['status'], by: string, approved?: { by: string; day: string; code: string }, replacedAt?: string): DocumentVersion => ({
-      id, version, changeSummary: summary, status, createdBy: by, createdAt: daysAgo(400), fileId: `evd-doc-${id}`, fileName: `${id}.pdf`,
-      ...(approved ? { approvedBy: approved.by, approvedAt: approved.day, approvalCode: approved.code, effectiveDate: approved.day } : {}),
-      ...(replacedAt ? { replacedAt } : {}),
-    });
-    const base = { description: '', classification: 'Interna' as const, processes: [], status: 'Activo' as const, createdBy: 'Dra. Elena Vasconcelos', createdAt: daysAgo(500) };
-    const consejo = 'Sr. Patricio Rojas / Sra. Carmen Soto';
-    const docs: ControlledDocument[] = [
-      {
-        ...base, id: 'doc-pol-001', code: 'POL-001', title: 'Política de Gestión de Riesgo Operacional', type: 'Política', owner: 'Dra. Elena Vasconcelos',
-        description: 'Marco, roles, apetito y metodología de gestión del riesgo operacional (RAN 20-8 y 1-13).', reviewMonths: 12,
-        audienceRoleIds: [], requirementIds: [],
-        versions: [
-          v('pol001-v2', '2.0', 'Versión anterior.', 'Reemplazada', 'Dra. Elena Vasconcelos', { by: consejo, day: dayAgo(420), code: 'ACTA-2025-07' }, dayAgo(90)),
-          v('pol001-v3', '3.0', 'Incorpora apetito por categoría, escala 4×4 y planes de acción con verificación de cierre.', 'Vigente', 'Dra. Elena Vasconcelos', { by: consejo, day: dayAgo(90), code: 'ACTA-2026-08' }),
-        ],
-        currentVersionId: 'pol001-v3', nextReviewDate: new Date(Date.now() + 275 * 86_400_000).toISOString().slice(0, 10),
-        acknowledgments: [
-          { userName: 'Dra. Elena Vasconcelos', versionId: 'pol001-v3', at: daysAgo(88) },
-          { userName: 'Sr. Patricio Rojas', versionId: 'pol001-v3', at: daysAgo(85) },
-          { userName: 'Lic. Roberto Miranda', versionId: 'pol001-v3', at: daysAgo(80) },
-        ],
-      },
-      {
-        ...base, id: 'doc-pol-002', code: 'POL-002', title: 'Política de Continuidad del Negocio', type: 'Política', owner: 'Ing. Alejandro Vega',
-        description: 'Gobierno de la continuidad, BIA, escenarios mínimos y pruebas (RAN 20-9).', reviewMonths: 12, audienceRoleIds: [],
-        requirementIds: ['ran-209-politicas-de-continuidad'],
-        versions: [v('pol002-v1', '1.0', 'Primera versión aprobada.', 'Vigente', 'Ing. Alejandro Vega', { by: consejo, day: dayAgo(410), code: 'ACTA-2025-06' })],
-        currentVersionId: 'pol002-v1', nextReviewDate: dayAgo(45), acknowledgments: [{ userName: 'Ing. Alejandro Vega', versionId: 'pol002-v1', at: daysAgo(400) }],
-      },
-      {
-        ...base, id: 'doc-pol-003', code: 'POL-003', title: 'Política de Seguridad de la Información y Ciberseguridad', type: 'Política', owner: 'Ing. Alejandro Vega',
-        description: 'Alcance, clasificación de activos, niveles mínimos de disponibilidad y tolerancia (RAN 20-10).', reviewMonths: 12, classification: 'Interna',
-        audienceRoleIds: [], requirementIds: ['ran-2010-politicas-de-seguridad', 'ran-2010-conducta-difusion-y-capacitacion'],
-        versions: [v('pol003-v4', '4.0', 'Actualización por Ley 21.663 (ANCI).', 'Vigente', 'Ing. Alejandro Vega', { by: consejo, day: dayAgo(150), code: 'ACTA-2026-05' })],
-        currentVersionId: 'pol003-v4', nextReviewDate: new Date(Date.now() + 215 * 86_400_000).toISOString().slice(0, 10),
-        acknowledgments: [{ userName: 'Ing. Alejandro Vega', versionId: 'pol003-v4', at: daysAgo(149) }, { userName: 'Ing. Carlos Mendoza', versionId: 'pol003-v4', at: daysAgo(140) }],
-      },
-      {
-        ...base, id: 'doc-pol-004', code: 'POL-004', title: 'Política de Externalización de Servicios', type: 'Política', owner: 'Ing. Carlos Mendoza',
-        description: 'Gobierno, tolerancia, criterios de actividades estratégicas y contenido mínimo de contratos (RAN 20-7).', reviewMonths: 12,
-        audienceRoleIds: ['role-gerencia-general', 'role-ops', 'role-riesgo-op', 'role-ciso'], requirementIds: ['ran-207-politica-de-externalizacion'],
-        versions: [{ ...v('pol004-v1', '1.0', 'Primera versión.', 'Borrador', 'Ing. Carlos Mendoza'), createdAt: daysAgo(6) }], acknowledgments: [],
-      },
-      {
-        ...base, id: 'doc-man-001', code: 'MAN-001', title: 'Manual de Prevención de Lavado de Activos y Financiamiento del Terrorismo', type: 'Manual', owner: 'Dra. Sofía Valenzuela',
-        description: 'Procedimientos de debida diligencia, PEP, operaciones inusuales y reporte a la UAF (Ley 19.913, Circular UAF 49).', reviewMonths: 12, classification: 'Confidencial',
-        audienceRoleIds: [], requirementIds: ['ley-19913-manual-de-prevencion-la-ft'],
-        versions: [v('man001-v5', '5.1', 'Ajuste de umbrales de alerta y nuevo formulario de PEP.', 'Vigente', 'Dra. Sofía Valenzuela', { by: consejo, day: dayAgo(30), code: 'ACTA-2026-10' })],
-        currentVersionId: 'man001-v5', nextReviewDate: new Date(Date.now() + 335 * 86_400_000).toISOString().slice(0, 10),
-        acknowledgments: [{ userName: 'Dra. Sofía Valenzuela', versionId: 'man001-v5', at: daysAgo(29) }],
-      },
-      {
-        ...base, id: 'doc-pro-001', code: 'PRO-001', title: 'Procedimiento de Gestión y Reporte de Incidentes', type: 'Procedimiento', owner: 'Dra. Elena Vasconcelos',
-        description: 'Registro, clasificación, escalamiento y reporte a la CMF (RAN 20-8) y a la ANCI.', reviewMonths: 24,
-        audienceRoleIds: [], requirementIds: [],
-        versions: [v('pro001-v2', '2.0', 'Plazos CMF y ANCI y roles de comunicación.', 'Vigente', 'Dra. Elena Vasconcelos', { by: 'Sr. Patricio Rojas', day: dayAgo(200), code: 'SA-2026-000' })],
-        currentVersionId: 'pro001-v2', nextReviewDate: new Date(Date.now() + 530 * 86_400_000).toISOString().slice(0, 10), acknowledgments: [],
-      },
-    ];
-    return docs.map(d => ({ ...d, versions: d.versions.map(x => ({ ...x, fileName: `${d.code}_v${x.version}.pdf` })) }));
-  }
 }

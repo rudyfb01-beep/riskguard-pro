@@ -33,7 +33,7 @@ monitoreo del SIEM.
 | A02 Criptografía | Tokens de sesión de 256 bits guardados como SHA-256; códigos con HMAC-SHA256 (`AUTH_SECRET`); bitácora y evidencias con SHA-256; HSTS con HTTPS. | `auth.ts`, `repository.ts` |
 | A03 Inyección | Consultas parametrizadas en PostgreSQL y SQLite (sin concatenar valores); entidades y ajustes validados contra listas cerradas; Angular escapa el contenido; CSP sin scripts en línea. | `repository.ts`, `security.ts` |
 | A04 Diseño inseguro | Edición simultánea con versión por registro (409 ante conflicto); carga masiva todo o nada en una transacción; bitácora de crisis solo de agregado. | `api.ts`, `repository.ts` |
-| A05 Configuración | CSP, `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP, CORP, sin `X-Powered-By`, `Cache-Control: no-store` en la API; revisión de configuración en Operación y respaldos (códigos en el log, `AUTH_SECRET`, HTTPS, contraseña de PostgreSQL, SSL, respaldos). | `security.ts`, `ops.ts` |
+| A05 Configuración | La aplicación no arranca en producción con una configuración insegura (códigos en el log, datos de ejemplo, `AUTH_SECRET` débil, sin SMTP, contraseña de PostgreSQL de ejemplo); PostgreSQL sin puertos publicados y la app solo en `127.0.0.1` detrás del proxy; CSP, `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP, CORP, sin `X-Powered-By`, `Cache-Control: no-store` en la API; revisión de configuración en Operación y respaldos (códigos en el log, `AUTH_SECRET`, HTTPS, contraseña de PostgreSQL, SSL, respaldos). | `security.ts`, `ops.ts` |
 | A06 Componentes | `bun audit --prod` en CI (falla si hay vulnerabilidades en dependencias de producción); `overrides` para dependencias transitivas. | `.github/workflows/ci.yml`, `package.json` |
 | A07 Autenticación | Sin contraseñas: código de un solo uso por correo o Google (OIDC con PKCE, `state`, `nonce`, verificación de firma, emisor, audiencia y dominio); límites de intentos; sesión con vencimiento por inactividad y máximo; cierre de sesión invalida el token en la base. | `auth.ts`, `google-sso.ts` |
 | A08 Integridad | Bitácora encadenada y verificable; SHA-256 de evidencias y respaldos; `bun install --frozen-lockfile`. | `repository.ts` (`verifyLedgerChain`), `backup.ts` |
@@ -97,8 +97,8 @@ seguridad de la información de la cooperativa.
 
 **Modalidad:** caja gris, con cuentas de distintos cargos de la matriz de permisos (administración,
 jefatura de riesgo, dueño de proceso, cumplimiento, auditoría interna, consejo), en un **ambiente de certificación** idéntico a
-producción (misma imagen Docker, PostgreSQL, proxy HTTPS) con datos ficticios
-(`SEED_DEMO_DATA=true`). No se prueba sobre producción.
+producción (misma imagen Docker, PostgreSQL, proxy HTTPS y `NODE_ENV=production`) con datos
+ficticios cargados por Carga masiva. No se prueba sobre producción.
 
 **En alcance:**
 

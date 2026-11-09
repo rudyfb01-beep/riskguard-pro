@@ -204,8 +204,7 @@ export interface NavGroup {
 
           @if (!isCollapsed()) {
             <div class="mt-2 pt-2 border-t border-slate-800/60">
-              @if (riskService.sessionLocked()) {
-                <button
+              <button
                   type="button"
                   (click)="persistence.logout()"
                   class="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 bg-slate-800 hover:bg-rose-900/60 text-slate-200 hover:text-white rounded-md text-[11px] font-medium border border-slate-700/80 transition-colors cursor-pointer"
@@ -214,23 +213,6 @@ export interface NavGroup {
                   <mat-icon class="text-xs">logout</mat-icon>
                   <span>Cerrar sesión</span>
                 </button>
-              } @else {
-                <label for="sidebar-role-select" class="block text-[9px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
-                  Rol Normativo (RBAC)
-                </label>
-                <select
-                  id="sidebar-role-select"
-                  [value]="riskService.currentProfile().id"
-                  (change)="onRoleChange($event)"
-                  class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-[11px] rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                >
-                  @for (profile of riskService.availableProfiles; track profile.id) {
-                    <option [value]="profile.id">
-                      {{ profile.role }}
-                    </option>
-                  }
-                </select>
-              }
 
               <button
                 type="button"
@@ -428,10 +410,4 @@ export class SidebarNav {
     return name.slice(0, 2).toUpperCase();
   }
 
-  onRoleChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    if (target && target.value) {
-      this.riskService.switchProfile(target.value);
-    }
-  }
 }

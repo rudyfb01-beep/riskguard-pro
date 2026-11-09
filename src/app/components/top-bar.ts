@@ -73,7 +73,6 @@ import { PersistenceService } from '../services/persistence.service';
 
             <!-- Role Selector Dropdown -->
             <div class="relative flex items-center pl-3 border-l border-slate-700 min-w-0">
-              @if (riskService.sessionLocked()) {
               <div class="text-right hidden lg:block mr-2.5 max-w-[220px] whitespace-nowrap">
                 <div class="text-xs font-semibold text-slate-200 leading-tight truncate">
                   {{ riskService.currentProfile().name }}
@@ -82,9 +81,7 @@ import { PersistenceService } from '../services/persistence.service';
                   {{ riskService.currentProfile().role }}
                 </div>
               </div>
-              }
 
-              @if (riskService.sessionLocked()) {
                 <button
                   type="button"
                   (click)="persistence.logout()"
@@ -94,20 +91,6 @@ import { PersistenceService } from '../services/persistence.service';
                   <mat-icon class="text-sm">logout</mat-icon>
                   <span class="hidden lg:inline">Salir</span>
                 </button>
-              } @else {
-                <select
-                  [value]="riskService.currentProfile().id"
-                  (change)="onRoleChange($event)"
-                  class="max-w-[150px] lg:max-w-[260px] truncate bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                  title="Cambiar rol normativo de cumplimiento (RBAC)"
-                >
-                  @for (profile of riskService.availableProfiles; track profile.id) {
-                    <option [value]="profile.id">
-                      {{ profile.role }} - {{ profile.name }}
-                    </option>
-                  }
-                </select>
-              }
 
               <button
                 type="button"
@@ -137,10 +120,4 @@ export class TopBar {
   readonly toggleLayout = output<void>();
   readonly openRolesModal = output<void>();
 
-  onRoleChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    if (target && target.value) {
-      this.riskService.switchProfile(target.value);
-    }
-  }
 }

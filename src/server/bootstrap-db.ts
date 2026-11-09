@@ -262,8 +262,12 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
       demoSeeded = true;
     } else if ((await c.query('SELECT 1 FROM user_profiles LIMIT 1')).rowCount === 0) {
       const role = DEFAULT_ORGANIZATIONAL_ROLES[0];
+      const email = process.env['ADMIN_EMAIL']?.trim();
+      if (!email && process.env['NODE_ENV'] === 'production') {
+        throw new Error('Base nueva sin usuarios: defina ADMIN_EMAIL con el correo del administrador inicial.');
+      }
       await saveEntity('users', {
-        id: 'usr-admin', name: 'Administrador del sistema', email: process.env['ADMIN_EMAIL'] || 'admin@cooperativa.cl',
+        id: 'usr-admin', name: 'Administrador del sistema', email: email || 'admin@cooperativa.cl',
         role: role.title, roleId: role.id, department: role.department, badge: 'Administrador', isSystemUser: true,
         permissions: { ...role.permissions },
       }, c);

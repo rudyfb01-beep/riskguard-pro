@@ -40,7 +40,16 @@ const NAME_RE = /^riskguard-\d{8}-\d{6}\.(db|dump)$/;
 
 export const backupIntervalHours = () => Math.max(0, Number(process.env['BACKUP_INTERVAL_HOURS'] ?? 24));
 export const backupKeep = () => Math.max(1, Math.round(Number(process.env['BACKUP_KEEP'] ?? 14)));
-export const appVersion = () => process.env['APP_VERSION'] || process.env['npm_package_version'] || 'dev';
+let fileVersion: string | null | undefined;
+/** Versión: APP_VERSION, la de npm o el archivo VERSION que deja la imagen Docker junto al build. */
+export const appVersion = () => {
+  if (process.env['APP_VERSION']) return process.env['APP_VERSION'];
+  if (process.env['npm_package_version']) return process.env['npm_package_version'];
+  if (fileVersion === undefined) {
+    try { fileVersion = readFileSync(join(import.meta.dirname, '..', 'VERSION'), 'utf8').trim() || null; } catch { fileVersion = null; }
+  }
+  return fileVersion ?? 'dev';
+};
 
 /** Carpeta de respaldos: BACKUP_DIR o, por defecto, "backups" junto a la base SQLite o a la aplicación. */
 export function backupDir(): string {

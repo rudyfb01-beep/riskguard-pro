@@ -51,7 +51,7 @@ export function getDbConfig(): PoolConfig | null {
       port: Number(process.env['POSTGRES_PORT'] || process.env['PGPORT'] || 5432),
       user: process.env['POSTGRES_USER'] || process.env['PGUSER'] || 'postgres',
       password: process.env['POSTGRES_PASSWORD'] || process.env['PGPASSWORD'] || 'postgres',
-      database: process.env['POSTGRES_DB'] || process.env['PGDATABASE'] || 'custodia_risk',
+      database: process.env['POSTGRES_DB'] || process.env['PGDATABASE'] || 'riskguard',
     };
   }
 

@@ -32,7 +32,7 @@ export class CatalogAdminService {
 
   /**
    * Con base de datos el servidor propaga los renombres (aunque el usuario no tenga permiso sobre
-   * riesgos o controles) y la app recarga; en modo demostración se hace aquí.
+   * riesgos o controles) y la app recarga; aquí solo se aplica si los datos no vienen del servidor.
    */
   private get cascadeLocally(): boolean {
     return this.persistence.mode() !== 'database';
@@ -304,31 +304,12 @@ export class CatalogAdminService {
     if (from === to) return;
     if (!Number.isFinite(rate) || rate < 100 || rate > 5000) throw new CatalogValidationError('Ingresa un tipo de cambio en pesos por dólar entre 100 y 5.000.');
 
-    if (this.persistence.mode() === 'database') {
-      await this.persistence.flush();
-      const resp = await apiFetch('/api/admin/convert-currency', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, rate }),
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) throw new CatalogValidationError(data?.error || `Error ${resp.status} al convertir los montos.`);
-      await this.persistence.reload();
-      return;
-    }
-
-    // Modo demostración: conversión local.
-    const f = to === 'CLP' ? rate : 1 / rate;
-    const r = (v: number | undefined) => (typeof v === 'number' ? (to === 'CLP' ? Math.round(v * f) : Math.round(v * f * 100) / 100) : v);
-    this.rs.risks.update(list => list.map(x => ({
-      ...x, financialExposureUSD: r(x.financialExposureUSD)!, residualExposureUSD: r(x.residualExposureUSD)!,
-      mitigationPlan: { ...x.mitigationPlan, budgetUSD: r(x.mitigationPlan.budgetUSD)! },
-    })));
-    this.rs.flaws.update(list => list.map(x => ({ ...x, realLossAmountUSD: r(x.realLossAmountUSD), recoveredAmountUSD: r(x.recoveredAmountUSD) })));
-    this.res.providers.update(list => list.map(x => ({ ...x, annualCostUSD: r(x.annualCostUSD)! })));
-    this.rs.lossRegistrationThresholdUSD.update(v => r(v)!);
-    const ap = this.cat.riskAppetite();
-    this.cat.riskAppetiteRaw.set({ ...ap, limits: ap.limits.map(l => ({ ...l, annualLossLimit: r(l.annualLossLimit) })) });
-    this.cat.generalParameters.set({ ...this.cat.params(), currency: to });
-    await this.rs.appendAuditLog('CONFIGURACIÓN_PARÁMETROS', 'Mantenedor', 'MONEDA',
-      `Moneda de registro ${from} → ${to} con conversión de montos (tipo de cambio ${rate} CLP/USD).`);
+    await this.persistence.flush();
+    const resp = await apiFetch('/api/admin/convert-currency', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, rate }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new CatalogValidationError(data?.error || `Error ${resp.status} al convertir los montos.`);
+    await this.persistence.reload();
   }
 }

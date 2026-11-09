@@ -174,7 +174,7 @@ export class EvidenceFiles {
 
   async confirmRemove(f: EvidenceFile) {
     try {
-      await this.svc.remove(f, this.reason(), this.label());
+      await this.svc.remove(f, this.reason());
       this.removing.set(null);
     } catch (e) {
       this.errors.set([(e as Error).message]);

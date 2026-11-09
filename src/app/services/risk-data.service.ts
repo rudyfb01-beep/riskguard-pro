@@ -30,7 +30,6 @@ import { computeBlockHash } from '../utils/crypto-ledger';
 import { ImportRow } from '../utils/risk-import';
 import { DEFAULT_ORGANIZATIONAL_ROLES, DEFAULT_REGULATORY_MILESTONES, formatMinutes } from '../data/base-seed';
 import { lossReferenceDay, toUf, ufForLoss, ufStampFor } from '../utils/uf';
-import { DEMO_ALERTS, DEMO_AUDITS, DEMO_CONTROLS, DEMO_FLAWS, DEMO_KRIS, DEMO_LEDGER, DEMO_RISKS, DEMO_USERS } from '../data/demo-seed';
 
 export { DEFAULT_ORGANIZATIONAL_ROLES, DEFAULT_REGULATORY_MILESTONES, formatMinutes };
 
@@ -495,6 +494,12 @@ export const DEFAULT_GLOBAL_NOTIFICATION_PREFERENCES: KriNotificationPreferences
   escalateToRiskOfficer: true
 };
 
+/** Perfil vacío antes de iniciar sesión: sin ningún permiso. */
+export const NO_SESSION_PROFILE: UserProfile = {
+  id: '', name: '', email: '', role: '', department: '', badge: '',
+  permissions: Object.fromEntries(Object.keys(DEFAULT_ORGANIZATIONAL_ROLES[0].permissions).map(k => [k, false])) as unknown as UserPermissions,
+};
+
 /** Acción rechazada porque el cargo actual no tiene el permiso necesario. */
 export class PermissionDeniedError extends Error {}
 
@@ -512,39 +517,39 @@ export class RiskDataService {
   readonly organizationalRoles = signal<OrganizationalRole[]>(clone(DEFAULT_ORGANIZATIONAL_ROLES));
 
   // Usuarios y colaboradores
-  readonly userProfiles = signal<UserProfile[]>(clone(DEMO_USERS));
+  readonly userProfiles = signal<UserProfile[]>([]);
 
   // Backward compatible getter for existing templates
   get availableProfiles(): UserProfile[] {
     return this.userProfiles();
   }
 
-  /** Con sesión iniciada el usuario es fijo: no se puede cambiar de perfil desde la pantalla. */
-  readonly sessionLocked = signal(false);
+  /** La persona es la de la sesión iniciada (no se puede cambiar de perfil desde la pantalla). */
+  readonly sessionLocked = signal(true);
 
-  // Active User Profile
-  readonly currentProfile = signal<UserProfile>(this.userProfiles()[0]);
+  /** Persona de la sesión (vacía y sin permisos hasta que el servidor la informa). */
+  readonly currentProfile = signal<UserProfile>(NO_SESSION_PROFILE);
 
   // Key Risk Indicators (KRIs) with Industry Specific Thresholds
-  readonly kriDefinitions = signal<KriDefinition[]>(clone(DEMO_KRIS));
+  readonly kriDefinitions = signal<KriDefinition[]>([]);
 
   // Controls Catalog with Attached Evidence and Test History
-  readonly controls = signal<Control[]>(clone(DEMO_CONTROLS));
+  readonly controls = signal<Control[]>([]);
 
   // Risks Catalog
-  readonly risks = signal<Risk[]>(clone(DEMO_RISKS));
+  readonly risks = signal<Risk[]>([]);
 
   // Operational Incidents & Loss Events (Incidentes Operacionales y Base de Pérdidas)
-  readonly flaws = signal<OperationalFlaw[]>(clone(DEMO_FLAWS));
+  readonly flaws = signal<OperationalFlaw[]>([]);
 
   // Real-time Anomaly Alerts (KRI breaches & operational anomalies)
-  readonly alerts = signal<AnomalyAlert[]>(clone(DEMO_ALERTS));
+  readonly alerts = signal<AnomalyAlert[]>([]);
 
   // Periodic Audits
-  readonly audits = signal<PeriodicAudit[]>(clone(DEMO_AUDITS));
+  readonly audits = signal<PeriodicAudit[]>([]);
 
   // Inalterable Audit Trail (Blockchain-like immutable chained ledger)
-  readonly auditTrail = signal<AuditLogEntry[]>(clone(DEMO_LEDGER));
+  readonly auditTrail = signal<AuditLogEntry[]>([]);
 
   // Dynamic search and filter signals for the risks catalog
   readonly riskSearchTerm = signal<string>('');
@@ -972,21 +977,6 @@ export class RiskDataService {
     };
   }
 
-  // Switch User Profile (Role-based access)
-  async switchProfile(profileOrId: string | UserProfile) {
-    if (this.sessionLocked()) return;
-    const profileId = typeof profileOrId === 'string' ? profileOrId : profileOrId.id;
-    const profile = this.userProfiles().find(p => p.id === profileId);
-    if (!profile) return;
-    this.currentProfile.set(profile);
-    await this.appendAuditLog(
-      'CAMBIO_SESIÓN',
-      'Sesión',
-      profile.id,
-      `Inicio de sesión con perfil de cumplimiento: ${profile.name} (${profile.role})`
-    );
-  }
-
   // Switch Industry Profile and adapt KRI presets
   /** Proceso del mantenedor equivalente a un nombre (igual, o el que comparte más palabras; si no, el primero). */
   closestProcess(name: string): string {
@@ -1092,7 +1082,7 @@ export class RiskDataService {
     }
   }
 
-  /** Envío de prueba real por un canal de avisos de KRIs (lo hace el servidor; en la demostración no hay envíos). */
+  /** Envío de prueba real por un canal de avisos de KRIs (lo hace el servidor). */
   async testSendNotification(
     channel: 'email' | 'sms' | 'webhook',
     kriCode: string,
@@ -1100,9 +1090,6 @@ export class RiskDataService {
   ): Promise<{ success: boolean; message: string; timestamp: string }> {
     this.ensure(['canConfigureKRIs'], 'probar notificaciones de KRIs');
     const timestamp = new Date().toLocaleTimeString();
-    if (!this.sessionLocked()) {
-      return { success: false, message: 'En el modo demostración no se envían correos, SMS ni webhooks.', timestamp };
-    }
     try {
       const resp = await apiFetch('/api/notifications/kri-test', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel, to: recipient, kriCode }),
@@ -1116,7 +1103,6 @@ export class RiskDataService {
 
   /** Canales disponibles en el servidor (correo, SMS y webhook). */
   async notificationChannels(): Promise<{ email: boolean; sms: boolean; webhook: boolean } | null> {
-    if (!this.sessionLocked()) return null;
     const resp = await apiFetch('/api/notifications/channels').catch(() => null);
     return resp?.ok ? resp.json() : null;
   }
@@ -1345,14 +1331,10 @@ export class RiskDataService {
 
     const userToDelete = list.find(u => u.id === userId);
     if (!userToDelete) return false;
+    if (this.currentProfile().id === userId) throw new Error('No puede eliminar su propio usuario.');
 
     const remaining = list.filter(u => u.id !== userId);
     this.userProfiles.set(remaining);
-
-    // If active session belongs to this deleted user, immediately switch to the first remaining user
-    if (this.currentProfile().id === userId) {
-      this.currentProfile.set(remaining[0]);
-    }
 
     await this.appendAuditLog(
       'BAJA_USUARIO',
@@ -2321,8 +2303,8 @@ export class RiskDataService {
       entityType,
       entityCode,
       details,
-      // Con base de datos el servidor registra el bloque con la IP real; en la demostración queda local.
-      ipAddress: 'local (demostración)',
+      // El servidor registra el bloque definitivo con la IP real y lo devuelve.
+      ipAddress: '',
       previousHash,
       hash
     };

@@ -82,7 +82,7 @@ const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-2.5 py-1.5 t
           </div>
           @if (mailConfigured() === false) {
             <p class="text-[11px] p-2 rounded-lg bg-amber-50 text-amber-900">
-              {{ svc.isDemo() ? 'Modo demostración: los avisos se generan pero no se envían correos.' : 'El servidor no tiene SMTP configurado: los avisos quedan en la campana y los correos figuran como omitidos. Vea la guía de instalación (Google Workspace).' }}
+              El servidor no tiene SMTP configurado: los avisos quedan en la campana y los correos figuran como omitidos. Vea la guía de instalación (Google Workspace).
             </p>
           }
           @if (message()) { <p class="text-[11px] text-slate-700" role="status">{{ message() }}</p> }

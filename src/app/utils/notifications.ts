@@ -86,7 +86,7 @@ export function daysBetween(fromDay: string, toDay: string): number {
 }
 
 // -----------------------------------------------------------------------------
-// Avisos por cambios (los genera el servidor al guardar; en demostración, el cliente)
+// Avisos por cambios (los genera el servidor al guardar)
 // -----------------------------------------------------------------------------
 
 export interface ChangeContext {

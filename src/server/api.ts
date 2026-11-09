@@ -148,7 +148,7 @@ function sendAuthError(res: express.Response, err: unknown) {
 
 dataApi.get('/auth/me', async (req, res) => {
   if (!getPool()) {
-    res.json({ mode: 'demo' });
+    res.status(503).json({ error: 'Base de datos no configurada.' });
     return;
   }
   try {
@@ -269,14 +269,10 @@ dataApi.post('/auth/logout', async (req, res) => {
 // Datos (requieren sesión)
 // -----------------------------------------------------------------------------
 
-/** Sin DATABASE_URL la app funciona en modo demostración: no hay API de datos. */
+/** Rutas de datos: requieren base de datos y sesión. */
 dataApi.use(['/data', '/ledger', '/settings', '/admin', '/notifications', '/evidence', '/import'], async (req, res, next) => {
   if (!getPool()) {
-    if (req.method === 'GET' && req.baseUrl.endsWith('/data') && req.path === '/') {
-      res.json({ mode: 'demo' });
-      return;
-    }
-    res.status(503).json({ error: 'Base de datos no configurada (modo demostración).' });
+    res.status(503).json({ error: 'Base de datos no configurada.' });
     return;
   }
   try {

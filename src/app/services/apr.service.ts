@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { RiskDataService } from './risk-data.service';
-import { AprInputs, computeApr, DEMO_APR_INPUTS, normalizeAprInputs } from '../models/apr.model';
+import { AprInputs, computeApr, EMPTY_APR_INPUTS, normalizeAprInputs } from '../models/apr.model';
 
 export type { AprInputs, AprYear } from '../models/apr.model';
 export { computeApr, DEMO_APR_INPUTS, EMPTY_APR_INPUTS, normalizeAprInputs } from '../models/apr.model';
@@ -22,7 +22,7 @@ export { computeApr, DEMO_APR_INPUTS, EMPTY_APR_INPUTS, normalizeAprInputs } fro
 export class AprService {
   private readonly rs = inject(RiskDataService);
 
-  readonly inputs = signal<AprInputs>(structuredClone(DEMO_APR_INPUTS));
+  readonly inputs = signal<AprInputs>(structuredClone(EMPTY_APR_INPUTS));
 
   /** Pérdidas por año contable (o de ocurrencia si falta), en USD como la base de pérdidas. */
   readonly lossHistory = computed(() => {

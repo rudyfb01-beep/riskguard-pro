@@ -15,7 +15,7 @@ import { EvidenceFile } from '../models/evidence.model';
 import { API_HEADERS, apiFetch } from './api-fetch';
 import { AuditLogEntry, UserProfile } from '../models/risk.model';
 
-export type DataMode = 'loading' | 'login' | 'database' | 'demo' | 'error';
+export type DataMode = 'loading' | 'login' | 'database' | 'error';
 
 interface Identified { id: string }
 
@@ -74,7 +74,7 @@ export const entityLabel = (e: string) => ENTITY_LABEL[e] ?? e;
  * los servicios actualizan los datos de forma inmutable, un objeto con una
  * referencia nueva es un objeto modificado. Los cambios se envían en orden de
  * dependencias (p. ej. controles antes que riesgos) por una cola serial.
- * Sin base de datos configurada la app queda en modo demostración.
+ * Requiere base de datos: sin ella el servidor no arranca.
  */
 @Injectable({ providedIn: 'root' })
 export class PersistenceService {
@@ -191,9 +191,8 @@ export class PersistenceService {
         return;
       }
       if (!me.ok) throw new Error(meData?.error || `HTTP ${me.status}`);
-      if (meData.mode === 'demo') {
-        this.mode.set('demo');
-        return;
+      if (meData.mode === 'demo' || !meData.user) {
+        throw new Error('El servidor no tiene una base de datos configurada. Revise DATABASE_URL o DB_CLIENT.');
       }
       this.sessionUser.set(meData.user);
       await this.loadData();

@@ -400,17 +400,6 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <!-- Switch to this role action -->
                         <td class="py-3 px-4 text-right whitespace-nowrap">
                           <div class="inline-flex items-center gap-1.5 justify-end">
-                            @if (!riskService.sessionLocked()) {
-                              <button
-                                type="button"
-                                (click)="switchToRole(role)"
-                                class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
-                                title="Iniciar sesión inmediatamente con las credenciales de este puesto"
-                              >
-                                <mat-icon class="text-xs">login</mat-icon>
-                                <span>Probar Puesto</span>
-                              </button>
-                            }
 
                             @if (!role.isSystemRole) {
                               <button
@@ -556,39 +545,26 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         <button
                           type="button"
                           (click)="promptDeleteUser(usr.id)"
-                          [disabled]="riskService.userProfiles().length <= 1 || (riskService.sessionLocked() && riskService.currentProfile().id === usr.id)"
+                          [disabled]="riskService.userProfiles().length <= 1 || riskService.currentProfile().id === usr.id"
                           class="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                           [title]="riskService.userProfiles().length <= 1 ? 'No se puede eliminar la única cuenta del sistema' : 'Eliminar cuenta de colaborador'"
                         >
                           <mat-icon class="text-base leading-none">delete_outline</mat-icon>
                         </button>
 
-                        @if (riskService.sessionLocked()) {
-                          @if (riskService.currentProfile().id === usr.id) {
-                            <span class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300">Tu sesión</span>
-                          } @else {
-                            <button
-                              type="button"
-                              [class.perm-hidden]="!canManage()" (click)="toggleUserActive(usr)"
-                              class="px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
-                              [class]="usr.active === false
-                                ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
-                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'"
-                              [title]="usr.active === false ? 'Permitir nuevamente el acceso de este usuario' : 'Impedir el acceso de este usuario (cierra sus sesiones)'"
-                            >
-                              {{ usr.active === false ? 'Inactivo · Reactivar' : 'Desactivar' }}
-                            </button>
-                          }
+                        @if (riskService.currentProfile().id === usr.id) {
+                          <span class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300">Tu sesión</span>
                         } @else {
                           <button
                             type="button"
-                            (click)="riskService.switchProfile(usr.id)"
+                            [class.perm-hidden]="!canManage()" (click)="toggleUserActive(usr)"
                             class="px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
-                            [class]="riskService.currentProfile().id === usr.id
-                              ? 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300'
-                              : 'bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700'"
+                            [class]="usr.active === false
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'"
+                            [title]="usr.active === false ? 'Permitir nuevamente el acceso de este usuario' : 'Impedir el acceso de este usuario (cierra sus sesiones)'"
                           >
-                            {{ riskService.currentProfile().id === usr.id ? 'Sesión Activa ✓' : 'Conectar' }}
+                            {{ usr.active === false ? 'Inactivo · Reactivar' : 'Desactivar' }}
                           </button>
                         }
                       </div>
@@ -991,27 +967,6 @@ export class RolesManagementModal {
     this.riskService.updateUserProfile(usr.id, { active: usr.active === false });
   }
 
-  switchToRole(role: OrganizationalRole) {
-    // Check if there is an existing user with this role, or create a mock session for testing
-    const existing = this.riskService.userProfiles().find(u => u.roleId === role.id || u.role === role.title);
-    if (existing) {
-      this.riskService.switchProfile(existing.id);
-    } else {
-      // Add a simulated user for this new role
-      const newUser = {
-        name: `Responsable ${role.title}`,
-        email: `${role.title.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '.')}@demo.riskguard.cl`,
-        role: role.title,
-        roleId: role.id,
-        department: role.department,
-        badge: role.badge,
-        permissions: role.permissions
-      };
-      this.riskService.addUserProfile(newUser).then(created => {
-        this.riskService.switchProfile(created.id);
-      });
-    }
-  }
 
   onCreateRole() {
     if (!this.riskService.requirePermission(['canManageRoles'], 'administrar puestos y permisos')) return;

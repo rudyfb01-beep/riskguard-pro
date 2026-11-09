@@ -52,12 +52,6 @@ export class SurveyService {
     this.openRequest.set({ id, at: Date.now() });
   }
 
-  constructor() {
-    // Modo demostración: una campaña RCSA en curso con respuestas en distintos estados.
-    // Con base de datos, el servidor reemplaza estas listas al cargar.
-    this.seedDemo();
-  }
-
   private actor() {
     return this.rs.currentProfile();
   }
@@ -341,49 +335,4 @@ export class SurveyService {
   // Datos de ejemplo
   // ---------------------------------------------------------------------------
 
-  private seedDemo() {
-    const procs = [...new Set(this.rs.risks().map(r => r.process))].slice(0, 4);
-    if (!procs.length) return;
-    const now = new Date();
-    const due = new Date(now.getTime() + 20 * 86_400_000).toISOString().slice(0, 10);
-    const campaign: SurveyCampaign = {
-      id: 'ae-demo-1', code: `AE-${now.getFullYear()}-01`, title: `RCSA ${now.getFullYear()} · segundo semestre`, kind: 'RCSA',
-      description: 'Autoevaluación semestral de riesgos y controles por dueño de proceso (datos de ejemplo).',
-      scope: procs, dueDate: due, status: 'En curso', launchedAt: new Date(now.getTime() - 5 * 86_400_000).toISOString(),
-      createdBy: 'Dra. Elena Vasconcelos', createdAt: new Date(now.getTime() - 6 * 86_400_000).toISOString(),
-    };
-    const people = this.rs.userProfiles().map(u => u.name);
-    const responses: SurveyResponse[] = procs.map((name, i) => {
-      const owner = this.cat.processes().find(p => p.name === name)?.owner || people[(i + 3) % people.length] || 'Sin asignar';
-      const items = rcsaItems(name, this.rs.risks(), this.rs.controls(), this.cat.riskScale());
-      return { id: `ar-demo-${i + 1}`, campaignId: campaign.id, subject: name, respondent: owner, items, answers: {}, status: 'Pendiente', dueDate: due, applied: [] };
-    });
-    // Una respuesta enviada con un cambio de probabilidad y un control no ejecutado, otra a medias.
-    if (responses[0]) {
-      const r = responses[0];
-      const a: Record<string, SurveyAnswer> = {};
-      let bumped = false;
-      let failed = false;
-      for (const it of r.items) {
-        if (it.type === 'probabilidad' || it.type === 'impacto') {
-          a[it.id] = !bumped && it.type === 'probabilidad' ? Math.min(4, Number(it.current) + 1) : Number(it.current);
-          if (it.type === 'probabilidad') bumped = true;
-        } else if (it.type === 'si-parcial-no') { a[it.id] = failed ? 'Sí' : 'Parcial'; failed = true; }
-        else if (it.id === 'general:incidents') a[it.id] = 'No';
-        else if (it.ref?.kind === 'control' && !a[it.id]) a[it.id] = failed ? 'Bitácora mensual firmada por el jefe de área.' : '';
-      }
-      const firstControlEv = r.items.find(it => it.id.startsWith('control:') && it.id.endsWith(':evidence'));
-      if (firstControlEv) a[firstControlEv.id] = 'En septiembre no se ejecutó por ausencia del responsable; se retomó en octubre.';
-      const firstComment = r.items.find(it => it.id.endsWith(':comment'));
-      if (firstComment) a[firstComment.id] = 'Aumentó el volumen de transacciones por la nueva app móvil.';
-      responses[0] = { ...r, answers: a, status: 'Enviada', startedAt: new Date(now.getTime() - 3 * 86_400_000).toISOString(), submittedAt: new Date(now.getTime() - 86_400_000).toISOString() };
-    }
-    if (responses[1]) {
-      const r = responses[1];
-      const first = r.items.find(it => it.type === 'probabilidad');
-      responses[1] = { ...r, answers: first ? { [first.id]: Number(first.current) } : {}, status: 'En progreso', startedAt: new Date(now.getTime() - 2 * 86_400_000).toISOString() };
-    }
-    this.campaigns.set([campaign]);
-    this.responses.set(responses);
-  }
 }

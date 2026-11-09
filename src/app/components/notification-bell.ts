@@ -68,9 +68,7 @@ const CATEGORY_ICON: Record<NotificationCategory, string> = {
             </ul>
           } @else {
             <div class="p-4 space-y-3 text-xs">
-              @if (svc.isDemo()) {
-                <p class="p-2 rounded-lg bg-amber-50 text-amber-900">En modo demostración los avisos solo aparecen aquí; no se envían correos.</p>
-              } @else if (svc.mailConfigured() === false) {
+              @if (svc.mailConfigured() === false) {
                 <p class="p-2 rounded-lg bg-amber-50 text-amber-900">El servidor aún no tiene correo configurado: por ahora los avisos solo aparecen aquí.</p>
               }
               <fieldset class="space-y-1.5">
