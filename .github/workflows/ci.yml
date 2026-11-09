@@ -171,8 +171,8 @@ jobs:
         run: node tests/produccion/smoke.mjs
       - name: Puertos expuestos y restauración del respaldo
         run: |
-          if docker compose port postgres 5432 2>/dev/null | grep -q ':'; then echo 'PostgreSQL publicado'; exit 1; fi
-          docker compose port app 3000 | grep -q '^127.0.0.1:'
+          docker port riskguard-postgres; test -z "$(docker port riskguard-postgres)"
+          docker port riskguard-app; test "$(docker port riskguard-app 3000/tcp)" = "127.0.0.1:3000"
           curl -sI http://localhost/ | grep -qi '^location: https://'
           file=$(docker compose exec -T app sh -c 'ls -t /app/backups/*.dump | head -1')
           docker compose exec -T app node scripts/restaurar.mjs "$file" --verificar
