@@ -59,3 +59,12 @@ Un pull request se fusiona solo con todos los pasos en verde.
 - Usuarios de ejemplo para las pruebas: `elena.vasconcelos` (administración), `carlos.mendoza`
   (dueño de proceso), `sofia.valenzuela` (cumplimiento), `andres.fuentes` (comité de riesgos),
   todos `@demo.riskguard.cl`.
+
+## Demostración sin servidor
+
+`npx ng build && npm run demo:build` genera `release/demo/`: la aplicación compilada más
+`demo/demo-api.ts`, que reemplaza la API dentro del navegador con datos ficticios obtenidos del
+propio servidor (`SEED_DEMO_DATA`). Sirve para mostrar el producto como página estática: entra
+como la Jefa de Riesgo Operacional, permite cambiar de persona y registrar datos (duran mientras
+la pestaña esté abierta). No envía correos ni hace respaldos. La aplicación de producción y la
+imagen Docker no incluyen este código.

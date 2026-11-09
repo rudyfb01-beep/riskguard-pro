@@ -14,7 +14,8 @@
     "test:api": "node --test --test-concurrency=2 \"tests/api/*.test.mjs\"",
     "test:e2e": "node --test \"tests/e2e/*.test.mjs\"",
     "test:all": "ng test --watch=false && ng build && node --test --test-concurrency=2 \"tests/api/*.test.mjs\" && node --test \"tests/e2e/*.test.mjs\"",
-    "audit:prod": "bun audit --prod"
+    "audit:prod": "bun audit --prod",
+    "demo:build": "node scripts/build-demo.mjs"
   },
   "private": true,
   "dependencies": {
