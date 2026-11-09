@@ -1121,6 +1121,28 @@ export async function appendLedger(input: LedgerInput, ipAddress: string, client
   return client ? run(client) : withTransaction(run);
 }
 
+/**
+ * Verifica la bitácora completa en el servidor: cada bloque apunta al hash del anterior y su
+ * hash coincide con el SHA-256 recalculado de su contenido.
+ */
+export async function verifyLedgerChain(): Promise<{ ok: boolean; blocks: number; brokenAt?: number; reason?: string }> {
+  const r = await getPool()!.query('SELECT * FROM crypto_audit_ledger ORDER BY block_number');
+  let prev = GENESIS_HASH;
+  let expectedBlock = 1;
+  for (const row of r.rows) {
+    const e = ledgerFromRow(row);
+    const n = Number(e.blockNumber);
+    if (n !== expectedBlock) return { ok: false, blocks: r.rows.length, brokenAt: n, reason: `falta el bloque ${expectedBlock}` };
+    if (e.previousHash !== prev) return { ok: false, blocks: r.rows.length, brokenAt: n, reason: 'no apunta al hash del bloque anterior' };
+    if (computeLedgerHash(n, e.timestamp, e.userName, e.action, e.entityCode, e.details, e.previousHash) !== e.hash) {
+      return { ok: false, blocks: r.rows.length, brokenAt: n, reason: 'su contenido no coincide con su hash' };
+    }
+    prev = e.hash;
+    expectedBlock++;
+  }
+  return { ok: true, blocks: r.rows.length };
+}
+
 /** Inserta bloques ya formados (solo para cargar datos de ejemplo). */
 export async function importLedgerBlock(c: DbClient, e: AuditLogEntry): Promise<void> {
   await c.query(

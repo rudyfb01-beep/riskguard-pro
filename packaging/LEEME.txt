@@ -32,10 +32,15 @@ Con datos de ejemplo, los usuarios de prueba usan correos @demo.riskguard.cl
 
 RESPALDOS
 ---------
-- Windows: doble clic en respaldar.bat · macOS / Linux: ./respaldar.sh
-- Crea una copia en la carpeta respaldos/ (se puede hacer con la aplicación abierta).
-- Para restaurar: detén la aplicación, copia el respaldo a data/riskguard.db y borra
-  data/riskguard.db-wal y data/riskguard.db-shm si existen.
+- La aplicación hace un respaldo automático cada día en la carpeta respaldos/ y
+  conserva los últimos 14 (BACKUP_INTERVAL_HOURS y BACKUP_KEEP en configuracion.env).
+  También se puede respaldar, verificar y descargar desde Operación y respaldos.
+- Respaldo manual: Windows: doble clic en respaldar.bat · macOS / Linux: ./respaldar.sh
+  (se puede hacer con la aplicación abierta).
+- Para restaurar: detén la aplicación y, en una terminal en esta carpeta, ejecuta
+    node restaurar.mjs respaldos/riskguard-AAAAMMDD-HHMMSS.db --destino data/riskguard.db
+  El script comprueba el respaldo (SHA-256 e integridad) y guarda la base anterior
+  como data/riskguard.db.antes-de-restaurar-<fecha>.
 
 Guarda copias de respaldos/ fuera del equipo (unidad de red o nube institucional).
 

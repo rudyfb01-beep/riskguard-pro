@@ -6,6 +6,8 @@ incidentes a la CMF y la ANCI, proveedores y externalización, continuidad del n
 auditorías, mantenedores (procesos, áreas y parámetros) y bitácora inalterable.
 
 **Instalación y configuración:** ver [LOCAL_SETUP.md](LOCAL_SETUP.md).
+**Operación y respaldos:** [docs/OPERACION.md](docs/OPERACION.md) · **Seguridad:** [SECURITY.md](SECURITY.md) ·
+**Pruebas:** [docs/PRUEBAS.md](docs/PRUEBAS.md) · **Validación de usuario:** [docs/VALIDACION-UAT.md](docs/VALIDACION-UAT.md)
 
 Base de datos: PostgreSQL (instalación institucional) o SQLite (paquete descargable para un equipo:
 `npm run package:sqlite`).

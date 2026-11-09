@@ -219,6 +219,26 @@ Detrás de un proxy inverso con HTTPS (IIS, nginx, balanceador), define `TRUST_P
 cookie se marque como segura y se registre la IP real del usuario. Define también `AUTH_SECRET`
 con una cadena aleatoria larga.
 
+Con HTTPS la aplicación envía HSTS. Las cabeceras de seguridad (CSP y otras), el límite de
+solicitudes y el alcance para un pentest externo están en [SECURITY.md](SECURITY.md).
+
+## Operación, respaldos y monitoreo
+
+- **Respaldo automático** diario de la base (SQLite: copia `.db`; PostgreSQL: `pg_dump`), con
+  manifiesto y SHA-256, en `BACKUP_DIR` (volumen `backups` en Docker); se conservan los últimos
+  `BACKUP_KEEP`. Copie esa carpeta fuera del servidor.
+- **Restaurar:** con la aplicación detenida, `node scripts/restaurar.mjs <respaldo>` (verifica el
+  SHA-256 antes de restaurar).
+- **Monitoreo:** `GET /api/health` (vivo) y `GET /api/ready` (base disponible; lo usa el
+  `HEALTHCHECK` de Docker).
+- **Panel Operación y respaldos** (Configuración): estado del servicio y la base, respaldos
+  (respaldar, verificar, descargar), integridad de la bitácora, correo y una revisión de la
+  configuración con lo que conviene corregir antes de producción.
+
+Detalle, objetivos de recuperación y respuesta ante fallas: [docs/OPERACION.md](docs/OPERACION.md).
+Pruebas automatizadas e integración continua: [docs/PRUEBAS.md](docs/PRUEBAS.md). Plan de
+validación de usuario y acta: [docs/VALIDACION-UAT.md](docs/VALIDACION-UAT.md).
+
 ## Módulos regulatorios: referencias y supuestos
 
 - **Reporte de incidentes a la CMF:** la RAN CACs (NCG 567, Capítulo CAC-3, numeral 5.2) remite
@@ -652,11 +672,18 @@ En **Supervisión & Auditoría → Gestión Documental** se lleva el listado mae
 | `PORT` | Puerto HTTP (por defecto 4000; Docker y el paquete SQLite usan 3000). |
 | `NG_ALLOWED_HOSTS` | Nombres o IP con que se accede a la app además de `localhost` y `APP_URL` (separados por coma). |
 | `GEMINI_API_KEY` | Opcional: habilita el análisis de incidentes con IA. |
+| `BACKUP_INTERVAL_HOURS`, `BACKUP_KEEP`, `BACKUP_DIR` | Respaldo automático: cada 24 h, se conservan 14, carpeta `backups/` (ver docs/OPERACION.md). `BACKUP_INTERVAL_HOURS=0` lo desactiva. |
+| `BACKUP_FIRST_DELAY_SECONDS`, `PG_DUMP_PATH`, `PG_RESTORE_PATH` | Espera inicial del respaldo (120 s) y ejecutables de PostgreSQL. |
+| `APP_VERSION` | Versión informada en `/api/health`, el panel y los manifiestos de respaldo. |
+| `RATE_LIMIT_PER_MINUTE` | Solicitudes a la API por IP y minuto (600; `0` lo desactiva). |
+| `JSON_LIMIT`, `ALLOWED_ORIGINS`, `HSTS_MAX_AGE`, `CSP` | Tamaño máximo de JSON (15mb), orígenes adicionales para escrituras, duración de HSTS y `CSP=off` para diagnóstico (ver SECURITY.md). |
 
 ## API
 
-Todas las rutas (salvo `/api/auth/*` y `/api/db/health`) requieren sesión. Las escrituras deben
-enviar la cabecera `X-Requested-With: RiskGuard` (protección CSRF).
+Todas las rutas (salvo `/api/auth/*`, `/api/health`, `/api/ready` y `/api/db/health`) requieren
+sesión. Las escrituras deben enviar la cabecera `X-Requested-With: RiskGuard` y, si traen `Origin`,
+venir del propio sitio (protección CSRF). Cada respuesta lleva `X-Request-Id`; los errores 500 no
+muestran detalles internos.
 
 | Método y ruta | Uso |
 | :--- | :--- |
@@ -674,6 +701,9 @@ enviar la cabecera `X-Requested-With: RiskGuard` (protección CSRF).
 | `GET/PUT /api/notifications/preferences` | Preferencia de correo de la persona (`inmediato`, `resumen`, `ninguno` y categorías). |
 | `POST /api/notifications/test` | Envía un correo de prueba a la persona de la sesión. |
 | `GET /api/notifications/outbox` · `POST /api/notifications/run` | Registro de envíos / revisar plazos ahora (Mantenedores). |
+| `GET /api/health` · `GET /api/ready` | Vivo / listo (públicas, para monitoreo). |
+| `GET /api/admin/ops` | Estado para el panel Operación y respaldos. |
+| `POST /api/admin/backups` · `POST /api/admin/backups/:archivo/verify` · `GET /api/admin/backups/:archivo` | Respaldar ahora / verificar / descargar (administración de cargos). |
 | `POST /api/admin/uf-sync` | Descarga los valores de la UF (`{years}`) y los agrega a la tabla. |
 | `POST /api/import/:tipo` | Carga masiva `{records, fileName}` (`areas`, `processes`, `users`, `controls`, `providers`, `info-assets`, `flaws`): valida y guarda todo en una transacción. |
 | `POST /api/evidence?entityType=&entityId=&context=&description=` | Carga un archivo (cuerpo binario, nombre en `X-File-Name`). |

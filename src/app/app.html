@@ -421,6 +421,17 @@
                 <span>Carga masiva</span>
               </button>
 
+              <button
+                (click)="setTab('operacion')" [class.perm-hidden]="!can('canManageRoles', 'canManageCatalogs')"
+                [class]="activeTab() === 'operacion'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'"
+                class="px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <mat-icon class="text-sm text-slate-600">monitor_heart</mat-icon>
+                <span>Operación</span>
+              </button>
+
             </div>
 
             <!-- Quick Live Simulation Action -->
@@ -1257,6 +1268,15 @@
     <!-- TAB: MANTENEDORES -->
     @if (activeTab() === 'mantenedores') {
       <app-catalogs-panel (notify)="showToast($event)" />
+    }
+
+    <!-- TAB: OPERACIÓN Y RESPALDOS -->
+    @if (activeTab() === 'operacion') {
+      @defer (on immediate) {
+        <app-ops-panel (notify)="showToast($event)" />
+      } @loading {
+        <p class="text-xs text-slate-500 p-4">Cargando…</p>
+      }
     }
 
     <!-- TAB: CARGA MASIVA -->

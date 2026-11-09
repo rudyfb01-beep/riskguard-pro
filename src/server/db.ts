@@ -344,6 +344,23 @@ class SqlitePool implements DbPool {
   version(): string {
     return String((this.db.prepare('SELECT sqlite_version() AS v').get() as { v: string }).v);
   }
+
+  /** Copia consistente de la base en un archivo (API de respaldo de SQLite, sin detener la aplicación). */
+  async backupTo(file: string): Promise<void> {
+    const { backup } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
+    const release = await this.acquire();
+    try {
+      await backup(this.db, file);
+    } finally {
+      release();
+    }
+  }
+}
+
+/** La base SQLite activa (para respaldos), o null si es PostgreSQL o no hay base. */
+export function getSqlitePool(): { backupTo(file: string): Promise<void> } | null {
+  const p = getPool();
+  return p instanceof SqlitePool ? p : null;
 }
 
 /** Tablas a reconstruir cuando su definición guardada coincide con la versión antigua. */

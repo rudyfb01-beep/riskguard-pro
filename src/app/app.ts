@@ -12,6 +12,7 @@ import { RiskModal } from './components/risk-modal';
 import { RiskImportModal } from './components/risk-import-modal';
 import { BulkImportPanel } from './components/bulk-import-panel';
 import { CrisisPanel } from './components/crisis-panel';
+import { OpsPanel } from './components/ops-panel';
 import { CrisisService } from './services/crisis.service';
 import { canOpenBulkImport } from './utils/bulk-access';
 import { FlawModal } from './components/flaw-modal';
@@ -64,6 +65,7 @@ export type ActiveTab =
   | 'apr-operacional'
   | 'mantenedores'
   | 'gestion-crisis'
+  | 'operacion'
   | 'carga-masiva'
   | 'cumplimiento-ran'
   | 'planes-accion'
@@ -93,6 +95,7 @@ export type ActiveTab =
     RiskImportModal,
     BulkImportPanel,
     CrisisPanel,
+    OpsPanel,
     FlawModal,
     ControlModal,
     ExecutiveReportModal,
@@ -212,7 +215,7 @@ export class App {
 
   private isTab(t: string): t is ActiveTab {
     return ['tablero', 'tableros-departamento', 'graficos-analitica', 'matriz-riesgos', 'controles', 'incidentes-perdidas', 'falencias',
-      'reportes-regulatorios', 'proveedores', 'continuidad', 'gestion-crisis', 'seguridad-informacion', 'apr-operacional', 'mantenedores', 'carga-masiva', 'cumplimiento-ran',
+      'reportes-regulatorios', 'proveedores', 'continuidad', 'gestion-crisis', 'seguridad-informacion', 'apr-operacional', 'mantenedores', 'carga-masiva', 'operacion', 'cumplimiento-ran',
       'planes-accion', 'autoevaluaciones', 'aprobaciones', 'documentos', 'alertas-kri', 'auditorias', 'bitacora', 'reportes-pdf'].includes(t);
   }
 
@@ -323,6 +326,8 @@ export class App {
         return { title: 'Mantenedores', section: 'Configuración', icon: 'tune' };
       case 'carga-masiva':
         return { title: 'Carga masiva', section: 'Configuración', icon: 'upload_file' };
+      case 'operacion':
+        return { title: 'Operación y respaldos', section: 'Configuración', icon: 'monitor_heart' };
     }
   });
 
@@ -421,6 +426,11 @@ export class App {
   readonly highlightedRiskId = signal<string | null>(null);
 
   setTab(tab: ActiveTab) {
+    // Operación y respaldos: solo quien administra cargos o mantenedores (p. ej. al abrir un enlace ?tab=operacion).
+    if (tab === 'operacion' && !this.riskService.canAny('canManageRoles', 'canManageCatalogs')) {
+      this.showToast('Operación y respaldos requiere permiso para administrar cargos o mantenedores.');
+      tab = 'tablero';
+    }
     this.activeTab.set(tab);
   }
 
