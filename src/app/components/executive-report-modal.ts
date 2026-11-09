@@ -30,7 +30,7 @@ import { MoneyPipe } from '../utils/money.pipe';
           <div class="flex items-center gap-2">
             <!-- Excel Export Button -->
             <button
-              [class.perm-locked]="!riskService.canAny('canExportReports')" (click)="riskService.exportToExcel('complete')"
+              [class.perm-hidden]="!riskService.canAny('canExportReports')" (click)="riskService.exportToExcel('complete')"
               class="px-3 py-1.5 text-xs font-semibold text-slate-900 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
               title="Descargar matriz y bitácora completa en formato Excel / CSV con UTF-8"
             >
@@ -40,7 +40,7 @@ import { MoneyPipe } from '../utils/money.pipe';
 
             <!-- PDF Print Button -->
             <button
-              [class.perm-locked]="!riskService.canAny('canExportReports')" (click)="printPdf()"
+              [class.perm-hidden]="!riskService.canAny('canExportReports')" (click)="printPdf()"
               class="px-3 py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors flex items-center gap-1.5"
               title="Imprimir o Guardar en PDF de alta fidelidad"
             >
@@ -335,7 +335,7 @@ import { MoneyPipe } from '../utils/money.pipe';
             </button>
 
             <button
-              [class.perm-locked]="!riskService.canAny('canExportReports')" (click)="printPdf()"
+              [class.perm-hidden]="!riskService.canAny('canExportReports')" (click)="printPdf()"
               class="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
             >
               <mat-icon class="text-sm">print</mat-icon>

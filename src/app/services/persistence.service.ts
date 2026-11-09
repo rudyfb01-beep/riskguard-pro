@@ -33,6 +33,38 @@ interface Setting {
 
 export { API_HEADERS, apiFetch };
 
+/** Guardado rechazado porque otra persona cambió el registro antes. */
+export interface EditConflict {
+  key: string;
+  entity: string;
+  id: string;
+  label: string;
+  /** Lo que esta persona intentó guardar (null si intentó eliminarlo). */
+  mine: Identified | null;
+  /** Versión guardada por la otra persona (null si lo eliminó). */
+  theirs: Identified | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+}
+
+/** Nombre corto de un registro para los avisos. */
+export function recordLabel(o: unknown, fallback = ''): string {
+  const r = (o ?? {}) as Record<string, unknown>;
+  const code = typeof r['code'] === 'string' ? r['code'] : '';
+  const name = [r['title'], r['name'], r['subject'], r['requirement']].find(v => typeof v === 'string' && v) as string | undefined;
+  return [code, name].filter(Boolean).join(' · ').slice(0, 120) || fallback;
+}
+
+/** Nombre de cada entidad para los avisos de conflicto. */
+const ENTITY_LABEL: Record<string, string> = {
+  areas: 'Área', processes: 'Proceso', roles: 'Puesto', users: 'Usuario', controls: 'Control', risks: 'Riesgo', providers: 'Proveedor',
+  'regulatory-milestones': 'Plazo regulatorio', flaws: 'Incidente', alerts: 'Alerta', audits: 'Auditoría', kris: 'KRI', bia: 'BIA', plans: 'Plan de continuidad',
+  'continuity-tests': 'Prueba de continuidad', 'info-assets': 'Activo de información', vulnerabilities: 'Vulnerabilidad', 'security-assessment': 'Autoevaluación de seguridad',
+  norms: 'Norma', compliance: 'Requisito normativo', 'security-tests': 'Prueba de seguridad', 'action-plans': 'Plan de acción', 'survey-campaigns': 'Campaña',
+  'survey-responses': 'Encuesta', documents: 'Documento', approvals: 'Solicitud de aprobación',
+};
+export const entityLabel = (e: string) => ENTITY_LABEL[e] ?? e;
+
 /**
  * Sincroniza el estado de la aplicación con la base de datos del servidor (PostgreSQL o SQLite).
  *
@@ -64,6 +96,10 @@ export class PersistenceService {
   /** La sesión venció mientras se trabajaba: se pide iniciar sesión sin perder cambios. */
   readonly sessionExpired = signal(false);
   readonly sessionUser = signal<UserProfile | null>(null);
+  /** Ediciones simultáneas detectadas: se cargó la versión de la otra persona. */
+  readonly conflicts = signal<EditConflict[]>([]);
+  /** Versión conocida de cada registro (entidad → id → versión del servidor). */
+  private versions = new Map<string, Map<string, number>>();
 
   private enabled = false;
   private queue: Promise<void> = Promise.resolve();
@@ -112,6 +148,7 @@ export class PersistenceService {
     { key: 'provider_catalogs', sig: this.cat.providerCatalogsRaw, last: '' },
     { key: 'approval_matrix', sig: this.approvals.matrixRaw, last: '' },
     { key: 'notification_settings', sig: this.cat.notificationSettingsRaw, last: '' },
+    { key: 'uf_values', sig: this.cat.ufValuesRaw, last: '' },
   ];
 
   constructor() {
@@ -227,6 +264,8 @@ export class PersistenceService {
       c.sig.set(list);
       c.snapshot = new Map(list.map(o => [o.id, o]));
     }
+    this.versions = new Map(Object.entries((data['versions'] as Record<string, Record<string, number>>) ?? {})
+      .map(([e, ids]) => [e, new Map(Object.entries(ids))]));
     this.evidence.hydrate((data['evidenceFiles'] as EvidenceFile[]) ?? []);
     const ledger = (data['ledger'] as AuditLogEntry[]) ?? [];
     this.rs.auditTrail.set(ledger);
@@ -270,8 +309,8 @@ export class PersistenceService {
       c.snapshot = next;
     });
 
-    for (const u of upserts) this.enqueue(() => this.send('PUT', `/api/data/${u.entity}/${encodeURIComponent(u.obj.id)}`, u.obj), u.entity, u.obj.id);
-    for (const d of deletes.reverse()) this.enqueue(() => this.send('DELETE', `/api/data/${d.entity}/${encodeURIComponent(d.id)}`), d.entity, d.id);
+    for (const u of upserts) this.enqueue(() => this.sendRecord('PUT', u.entity, u.obj.id, u.obj), u.entity, u.obj.id);
+    for (const d of deletes.reverse()) this.enqueue(() => this.sendRecord('DELETE', d.entity, d.id), d.entity, d.id);
     if (renamedCatalog) this.enqueue(() => this.reloadAll(), 'reload', 'catalog-rename');
 
     this.settings.forEach((s, i) => {
@@ -319,6 +358,103 @@ export class PersistenceService {
     const data = await resp.json();
     if (!resp.ok) throw new Error(data?.error || `Error ${resp.status} al recargar`);
     this.hydrate(data);
+  }
+
+  private versionOf(entity: string, id: string): number {
+    return this.versions.get(entity)?.get(id) ?? 0;
+  }
+
+  private setVersion(entity: string, id: string, v: number | undefined) {
+    if (typeof v !== 'number') return;
+    if (!this.versions.has(entity)) this.versions.set(entity, new Map());
+    this.versions.get(entity)!.set(id, v);
+  }
+
+  /**
+   * Guarda o elimina un registro indicando la versión sobre la que se editó. Si otra persona lo
+   * cambió antes, el servidor responde 409: se carga su versión y se avisa (no se pisa su trabajo).
+   */
+  private async sendRecord(method: 'PUT' | 'DELETE', entity: string, id: string, body?: Identified): Promise<void> {
+    // Cambios en cola hechos antes del conflicto: no deben pisar la versión de la otra persona.
+    // Si se sigue editando, lo último queda como "mis cambios" hasta que se decida en el aviso.
+    const open = this.conflicts().find(k => k.key === `${entity}:${id}`);
+    if (open) {
+      this.conflicts.update(list => list.map(k => (k === open ? { ...k, mine: body ?? null } : k)));
+      return;
+    }
+    const url = `/api/data/${entity}/${encodeURIComponent(id)}`;
+    const resp = await apiFetch(url, {
+      method,
+      headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), 'X-Base-Version': String(this.versionOf(entity, id)) },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.status === 409 && data?.conflict) {
+      this.acceptConflict(entity, id, body ?? null, data.conflict);
+      return;
+    }
+    if (!resp.ok) {
+      if (resp.status === 401) this.sessionExpired.set(true);
+      throw new Error(data?.error || `Error ${resp.status} al guardar`);
+    }
+    if (method === 'DELETE') this.versions.get(entity)?.delete(id);
+    else this.setVersion(entity, id, data?.version);
+    if (data?.applied?.record?.id) this.setVersion(data.applied.entity, data.applied.record.id, data.applied.version);
+  }
+
+  /** Reemplaza lo local por la versión guardada por la otra persona y registra el conflicto. */
+  private acceptConflict(entity: string, id: string, mine: Identified | null,
+    info: { version: number; updatedBy: string | null; updatedAt: string | null; current: Identified | null }) {
+    const c = this.collections.find(x => x.entity === entity);
+    this.setVersion(entity, id, info.version);
+    if (c) {
+      const theirs = info.current;
+      // La instantánea se fija primero: el cambio de la lista no se reenvía al servidor.
+      if (theirs) c.snapshot.set(id, theirs); else c.snapshot.delete(id);
+      c.sig.update(list => {
+        const exists = list.some(x => x.id === id);
+        if (!theirs) return list.filter(x => x.id !== id);
+        return exists ? list.map(x => (x.id === id ? theirs : x)) : [...list, theirs];
+      });
+      if (entity === 'users' && theirs && theirs.id === this.rs.currentProfile().id) {
+        this.rs.currentProfile.update(cp => ({ ...cp, ...(theirs as unknown as UserProfile) }));
+      }
+    }
+    const key = `${entity}:${id}`;
+    const conflict: EditConflict = {
+      key, entity, id, label: recordLabel(info.current ?? mine, id), mine, theirs: info.current,
+      updatedBy: info.updatedBy, updatedAt: info.updatedAt,
+    };
+    this.conflicts.update(list => [...list.filter(x => x.key !== key), conflict]);
+  }
+
+  /** Mantener la versión de la otra persona (ya está cargada): solo se cierra el aviso. */
+  dismissConflict(key: string) {
+    const k = this.conflicts().find(x => x.key === key);
+    this.conflicts.update(list => list.filter(x => x.key !== key));
+    const c = k && this.collections.find(x => x.entity === k.entity);
+    if (!k || !c) return;
+    // Si se editó después del aviso, se vuelve a la versión guardada por la otra persona.
+    const local = c.sig().find(x => x.id === k.id) ?? null;
+    if (local === k.theirs) return;
+    if (k.theirs) c.snapshot.set(k.id, k.theirs); else c.snapshot.delete(k.id);
+    c.sig.update(list => (k.theirs
+      ? (list.some(x => x.id === k.id) ? list.map(x => (x.id === k.id ? k.theirs! : x)) : [...list, k.theirs])
+      : list.filter(x => x.id !== k.id)));
+  }
+
+  /** Volver a aplicar lo propio sobre la versión actual (reemplaza el cambio de la otra persona). */
+  overwriteConflict(key: string) {
+    const k = this.conflicts().find(x => x.key === key);
+    if (!k) return;
+    this.conflicts.update(list => list.filter(x => x.key !== key));
+    const c = this.collections.find(x => x.entity === k.entity);
+    if (!c) return;
+    const mine = k.mine;
+    // La versión conocida ya es la actual: el próximo guardado no choca (salvo un cambio nuevo).
+    c.sig.update(list => (mine
+      ? (list.some(x => x.id === k.id) ? list.map(x => (x.id === k.id ? { ...mine } : x)) : [...list, { ...mine }])
+      : list.filter(x => x.id !== k.id)));
   }
 
   private async send(method: 'PUT' | 'DELETE', url: string, body?: unknown): Promise<void> {
@@ -402,10 +538,7 @@ export class PersistenceService {
       if (!c) continue;
       for (const id of ids) {
         const obj = c.sig().find(o => o.id === id);
-        this.enqueue(
-          () => (obj ? this.send('PUT', `/api/data/${entity}/${encodeURIComponent(id)}`, obj) : this.send('DELETE', `/api/data/${entity}/${encodeURIComponent(id)}`)),
-          entity, id
-        );
+        this.enqueue(() => (obj ? this.sendRecord('PUT', entity, id, obj) : this.sendRecord('DELETE', entity, id)), entity, id);
       }
     }
   }

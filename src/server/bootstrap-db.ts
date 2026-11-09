@@ -199,8 +199,9 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
       await c.query(`UPDATE regulatory_milestone_templates SET basis = 'conocimiento' WHERE authority = 'ANCI'`);
       await c.query(`INSERT INTO system_settings (key, value) VALUES ('migration_ran208_v1', 'true') ON CONFLICT (key) DO NOTHING`);
     }
-    // Instalación nueva sin datos de ejemplo: montos en pesos chilenos (las existentes siguen en USD).
-    const freshCLP = baseSeeded && !wantDemo;
+    // Instalación nueva (con o sin datos de ejemplo): montos en pesos chilenos con referencia en UF.
+    // Las bases existentes conservan su moneda (se puede convertir en Mantenedores → Parámetros).
+    const freshCLP = baseSeeded;
     for (const [key, value] of [
       ['current_industry', 'Banca & Servicios Financieros'],
       ['loss_registration_threshold_usd', freshCLP ? 1_000_000 : 1000],

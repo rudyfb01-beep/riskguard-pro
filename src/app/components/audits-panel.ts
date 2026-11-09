@@ -34,7 +34,7 @@ const FINDING_STATUSES: AuditFinding['status'][] = ['Abierto', 'En Subsanación'
             de sus hallazgos (−15 por no conformidad mayor, −8 por menor, −3 por observación).
           </p>
         </div>
-        <button type="button" (click)="newAudit()" [class.perm-locked]="!canManage()"
+        <button type="button" (click)="newAudit()" [class.perm-hidden]="!canManage()"
           class="px-3.5 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-xl flex items-center gap-1.5 cursor-pointer shrink-0">
           <mat-icon class="text-sm">add</mat-icon>Nueva auditoría
         </button>
@@ -88,7 +88,7 @@ const FINDING_STATUSES: AuditFinding['status'][] = ['Abierto', 'En Subsanación'
             <div class="space-y-2 pt-2 border-t border-slate-100">
               <div class="flex items-center justify-between">
                 <span class="text-xs font-bold text-slate-900">Hallazgos ({{ audit.findings.length }})</span>
-                <button type="button" (click)="newFinding(audit)" [class.perm-locked]="!canManage()" class="text-[11px] font-semibold text-indigo-700 hover:underline cursor-pointer flex items-center gap-0.5"><mat-icon class="text-sm">add</mat-icon>Agregar hallazgo</button>
+                <button type="button" (click)="newFinding(audit)" [class.perm-hidden]="!canManage()" class="text-[11px] font-semibold text-indigo-700 hover:underline cursor-pointer flex items-center gap-0.5"><mat-icon class="text-sm">add</mat-icon>Agregar hallazgo</button>
               </div>
               @for (f of audit.findings; track f.id) {
                 <button type="button" (click)="editFinding(audit, f)" class="w-full text-left p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs space-y-1 cursor-pointer">

@@ -256,6 +256,9 @@ export interface OperationalFlaw {
   accountingAccount?: string;
   /** Pérdida operacional en frontera con riesgo de crédito. */
   creditRiskBoundary?: boolean;
+  /** Valor de la UF (en pesos) con que se expresa el evento en UF, y la fecha de ese valor. */
+  ufValueClp?: number;
+  ufDate?: string;           // YYYY-MM-DD
 
   // ---- Reporte regulatorio CMF / ANCI ----
   regulatoryReport?: RegulatoryReport;

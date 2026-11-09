@@ -64,6 +64,8 @@ services:
       APP_URL: ${APP_URL:-http://localhost:3000}
       TZ: ${TZ:-America/Santiago}
       NOTIFY_INTERVAL_MINUTES: ${NOTIFY_INTERVAL_MINUTES:-15}
+      # Descarga diaria de la UF (false sin salida a internet).
+      UF_AUTO_SYNC: ${UF_AUTO_SYNC:-true}
       # Tamaño máximo por archivo de evidencia (MB).
       EVIDENCE_MAX_MB: ${EVIDENCE_MAX_MB:-15}
     ports:

@@ -44,7 +44,7 @@ export const ENTITY_ORDER = [
 export type EntityName = typeof ENTITY_ORDER[number];
 
 export const SETTING_KEYS = ['current_industry', 'global_notification_preferences', 'loss_registration_threshold_usd', 'apr_operational_inputs', 'general_parameters',
-  'risk_scale', 'risk_appetite', 'accounting_accounts', 'provider_catalogs', 'approval_matrix', 'notification_settings'] as const;
+  'risk_scale', 'risk_appetite', 'accounting_accounts', 'provider_catalogs', 'approval_matrix', 'notification_settings', 'uf_values'] as const;
 export type SettingKey = typeof SETTING_KEYS[number];
 
 export interface BootstrapData {
@@ -78,6 +78,8 @@ export interface BootstrapData {
   evidenceFiles: EvidenceFile[];
   ledger: AuditLogEntry[];
   settings: Partial<Record<SettingKey, unknown>>;
+  /** Versión de cada registro (entidad → id → número), para detectar ediciones simultáneas. */
+  versions: Record<string, Record<string, number>>;
 }
 
 // -----------------------------------------------------------------------------
@@ -140,7 +142,7 @@ export async function loadAll(): Promise<BootstrapData> {
   const [
     roles, users, controls, tests, risks, riskControls, providers, milestones, flaws, regReports, regSubs, regUpdates,
     alerts, audits, findings, kris, bia, biaProviders, plans, planProcesses, ctests, ledger, settings,
-    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans, surveyCampaigns, surveyResponses, approvals, evidenceFiles, documents,
+    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans, surveyCampaigns, surveyResponses, approvals, evidenceFiles, documents, versionRows,
   ] = await Promise.all([
     q('SELECT * FROM organizational_roles ORDER BY created_at, id'),
     q('SELECT * FROM user_profiles ORDER BY created_at, id'),
@@ -179,7 +181,10 @@ export async function loadAll(): Promise<BootstrapData> {
     q('SELECT * FROM approval_requests ORDER BY code'),
     q(`SELECT ${EVIDENCE_COLUMNS} FROM evidence_files ORDER BY uploaded_at`),
     q('SELECT * FROM controlled_documents ORDER BY code'),
+    q('SELECT entity, id, version FROM record_versions'),
   ]);
+  const versions: Record<string, Record<string, number>> = {};
+  for (const v of versionRows) (versions[v.entity] ??= {})[v.id] = Number(v.version);
 
   const testsBy = groupBy(tests, 'control_id');
   const rcBy = groupBy(riskControls, 'risk_id');
@@ -228,6 +233,7 @@ export async function loadAll(): Promise<BootstrapData> {
     approvals: approvals.map(approvalFromRow),
     evidenceFiles: evidenceFiles.map(evidenceFromRow),
     documents: documents.map(documentFromRow),
+    versions,
     norms: norms.map((x): ComplianceNorm => ({
       id: x.id, code: x.code, title: x.title, kind: x.kind, issuer: x.issuer ?? '', source: x.source ?? '', url: opt(x.url),
       version: x.version, effectiveDate: opt(x.effective_date), status: x.status, applicability: x.applicability,
@@ -326,6 +332,7 @@ function flawFromRow(r: Row, rep: Row | undefined, subs: Row[], upds: Row[]): Op
     occurrenceDate: opt(r.occurrence_date), discoveryDate: opt(r.discovery_date), accountingDate: opt(r.accounting_date),
     accountingAccount: opt(r.accounting_account), creditRiskBoundary: r.credit_risk_boundary,
     regulatoryReport: report, providerId: opt(r.provider_id), affectedAssetIds: r.affected_asset_ids ?? [], cyber: opt(r.cyber),
+    ufValueClp: r.uf_value_clp === null || r.uf_value_clp === undefined ? undefined : Number(r.uf_value_clp), ufDate: opt(r.uf_date),
   };
 }
 
@@ -508,6 +515,8 @@ const savers: Record<EntityName, (c: DbClient, o: any) => Promise<void>> = {
       // Los puestos y usuarios guardan el nombre del área.
       await c.query('UPDATE organizational_roles SET department = $2 WHERE department = $1', [oldName, o.name.trim()]);
       await c.query('UPDATE user_profiles SET department = $2 WHERE department = $1', [oldName, o.name.trim()]);
+      await bumpAllVersions(c, 'roles', null);
+      await bumpAllVersions(c, 'users', null);
     }
   },
 
@@ -519,7 +528,10 @@ const savers: Record<EntityName, (c: DbClient, o: any) => Promise<void>> = {
       criticality: o.criticality, description: o.description || null, active: o.active !== false,
     });
     const oldName: string | undefined = prev.rows[0]?.name;
-    if (oldName && oldName !== name) await renameProcessReferences(c, oldName, name);
+    if (oldName && oldName !== name) {
+      await renameProcessReferences(c, oldName, name);
+      for (const e of ['risks', 'controls', 'flaws', 'alerts', 'kris', 'audits', 'providers'] as const) await bumpAllVersions(c, e, null);
+    }
   },
 
   async roles(c, o: OrganizationalRole) {
@@ -605,6 +617,7 @@ const savers: Record<EntityName, (c: DbClient, o: any) => Promise<void>> = {
       accounting_date: dateOrNull(o.accountingDate), accounting_account: o.accountingAccount ?? null,
       credit_risk_boundary: !!o.creditRiskBoundary, provider_id: o.providerId ?? null,
       affected_asset_ids: o.affectedAssetIds ?? [], cyber: o.cyber ? json(o.cyber) : null,
+      uf_value_clp: typeof o.ufValueClp === 'number' && o.ufValueClp > 0 ? o.ufValueClp : null, uf_date: dateOrNull(o.ufDate),
     });
     const r = o.regulatoryReport;
     if (!r) {
@@ -872,9 +885,78 @@ export function isEntity(name: string): name is EntityName {
   return (ENTITY_ORDER as readonly string[]).includes(name);
 }
 
-export async function saveEntity<T extends { id: string }>(entity: EntityName, obj: T, client?: DbClient): Promise<void> {
-  if (client) return savers[entity](client, obj);
-  await withTransaction(c => savers[entity](c, obj));
+// -----------------------------------------------------------------------------
+// Versiones de registros (edición simultánea)
+// -----------------------------------------------------------------------------
+
+/** Otra persona guardó el registro después de la versión que se editó. */
+export class VersionConflictError extends Error {
+  constructor(public current: number, public updatedBy: string | null, public updatedAt: string | null) {
+    super('Conflicto de versión');
+  }
+}
+
+/** Sube la versión de un registro y devuelve la nueva. */
+async function bumpVersion(c: DbClient, entity: string, id: string, by: string | null): Promise<number> {
+  await c.query(
+    `INSERT INTO record_versions (entity, id, version, updated_at, updated_by) VALUES ($1, $2, 1, $3, $4)
+     ON CONFLICT (entity, id) DO UPDATE SET version = record_versions.version + 1, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by`,
+    [entity, id, new Date().toISOString(), by]);
+  const r = await c.query('SELECT version FROM record_versions WHERE entity = $1 AND id = $2', [entity, id]);
+  return Number(r.rows[0]?.version ?? 1);
+}
+
+/** Sube la versión de todos los registros de una entidad (cambios masivos hechos en el servidor). */
+export async function bumpAllVersions(c: DbClient, entity: EntityName, by: string | null): Promise<void> {
+  const { table, pk } = TABLE_BY_ENTITY[entity];
+  await c.query(
+    `INSERT INTO record_versions (entity, id, version, updated_at, updated_by) SELECT $1, ${pk}, 1, $2, $3 FROM ${table} WHERE TRUE
+     ON CONFLICT (entity, id) DO UPDATE SET version = record_versions.version + 1, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by`,
+    [entity, new Date().toISOString(), by]);
+}
+
+/**
+ * Comprueba que nadie haya guardado el registro desde la versión `base` y la reserva
+ * (compara y sube en la misma operación, dentro de la transacción). Sin `base` no compara.
+ */
+async function claimVersion(c: DbClient, entity: string, id: string, base: number | null, by: string | null): Promise<number> {
+  if (base === null) return bumpVersion(c, entity, id, by);
+  const now = new Date().toISOString();
+  const r = base === 0
+    ? await c.query(
+      `INSERT INTO record_versions (entity, id, version, updated_at, updated_by) VALUES ($1, $2, 1, $3, $4) ON CONFLICT (entity, id) DO NOTHING`,
+      [entity, id, now, by])
+    : await c.query(
+      `UPDATE record_versions SET version = version + 1, updated_at = $4, updated_by = $5 WHERE entity = $1 AND id = $2 AND version = $3`,
+      [entity, id, base, now, by]);
+  if (!r.rowCount) {
+    const cur = await c.query('SELECT version, updated_at, updated_by FROM record_versions WHERE entity = $1 AND id = $2', [entity, id]);
+    const row = cur.rows[0];
+    throw new VersionConflictError(Number(row?.version ?? 0), row?.updated_by ?? null, row ? isoOpt(row.updated_at) ?? null : null);
+  }
+  return base + 1;
+}
+
+export async function getVersion(entity: string, id: string): Promise<number> {
+  const r = await getPool()!.query('SELECT version FROM record_versions WHERE entity = $1 AND id = $2', [entity, id]);
+  return Number(r.rows[0]?.version ?? 0);
+}
+
+export async function saveEntity<T extends { id: string }>(entity: EntityName, obj: T, client?: DbClient, by: string | null = null): Promise<number> {
+  const run = async (c: DbClient) => {
+    await savers[entity](c, obj);
+    return bumpVersion(c, entity, obj.id, by);
+  };
+  return client ? run(client) : withTransaction(run);
+}
+
+/** Guarda si nadie lo cambió desde `base` (si no, VersionConflictError). Devuelve la nueva versión. */
+export async function saveEntityChecked<T extends { id: string }>(entity: EntityName, obj: T, base: number | null, by: string | null): Promise<number> {
+  return withTransaction(async c => {
+    const v = await claimVersion(c, entity, obj.id, base, by);
+    await savers[entity](c, obj);
+    return v;
+  });
 }
 
 export async function entityExists(entity: EntityName, id: string): Promise<boolean> {
@@ -888,6 +970,7 @@ export async function deleteEntity(entity: EntityName, id: string): Promise<void
   await withTransaction(async c => {
     // Una norma se elimina junto con sus requisitos (no hay clave foránea: "chapter" es texto).
     if (entity === 'norms') await c.query('DELETE FROM compliance_requirements WHERE chapter = $1', [id]);
+    await c.query('DELETE FROM record_versions WHERE entity = $1 AND id = $2', [entity, id]);
     return c.query(`DELETE FROM ${table} WHERE ${pk} = $1`, [id]);
   });
 }
@@ -896,10 +979,15 @@ export async function deleteEntity(entity: EntityName, id: string): Promise<void
  * Guarda una solicitud de aprobación y, si quedó aprobada, el registro de origen con el
  * cambio ya aplicado, en una sola transacción.
  */
-export async function saveApprovalWithEffect(req: ApprovalRequest, effect: { entity: EntityName; obj: { id: string } } | null): Promise<void> {
-  await withTransaction(async c => {
+export async function saveApprovalWithEffect(
+  req: ApprovalRequest, effect: { entity: EntityName; obj: { id: string } } | null, base: number | null = null, by: string | null = null,
+): Promise<{ version: number; effectVersion?: number }> {
+  return withTransaction(async c => {
+    const version = await claimVersion(c, 'approvals', req.id, base, by);
     await savers.approvals(c, req);
-    if (effect) await savers[effect.entity](c, effect.obj);
+    if (!effect) return { version };
+    await savers[effect.entity](c, effect.obj);
+    return { version, effectVersion: await bumpVersion(c, effect.entity, effect.obj.id, by) };
   });
 }
 
@@ -913,12 +1001,14 @@ export async function saveBulk(
   check?: (c: DbClient) => Promise<string | null>,
 ): Promise<{ created: number; updated: number; entry: AuditLogEntry }> {
   const { table, pk } = TABLE_BY_ENTITY[entity];
+  const ledgerBy = ledger(0, 0).userName;
   return withTransaction(async c => {
     let created = 0;
     for (const r of records) {
       const exists = await c.query(`SELECT 1 AS x FROM ${table} WHERE ${pk} = $1`, [r.id]);
       if (!exists.rows.length) created++;
       await savers[entity](c, r);
+      await bumpVersion(c, entity, r.id, ledgerBy);
     }
     const problem = check ? await check(c) : null;
     if (problem) throw Object.assign(new Error(problem), { status: 409 });
@@ -1037,6 +1127,7 @@ export async function convertCurrency(to: 'CLP' | 'USD', rate: number, actor: { 
       await saveSetting('risk_appetite', v, c);
     }
     await saveSetting('general_parameters', { ...params, currency: to }, c);
+    for (const e of ['risks', 'flaws', 'providers'] as const) await bumpAllVersions(c, e, actor.name);
 
     await appendLedger({
       id: `log-currency-${Date.now()}`, userName: actor.name, userRole: actor.role, action: 'CONFIGURACIÓN_PARÁMETROS',

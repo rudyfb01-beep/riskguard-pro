@@ -77,6 +77,11 @@
 
 
 /* Acción no permitida para el cargo actual: visible pero atenuada. Al pulsarla se explica el motivo. */
+/* Acciones que el cargo no puede usar: no se muestran (el servidor igual las rechaza). */
+.perm-hidden {
+  display: none !important;
+}
+
 .perm-locked {
   opacity: 0.45;
   cursor: not-allowed !important;

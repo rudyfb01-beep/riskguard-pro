@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { PermissionDeniedError, RiskDataService } from './services/risk-data.service';
 import { UserPermissions } from './models/risk.model';
-import { PersistenceService } from './services/persistence.service';
+import { PersistenceService, entityLabel } from './services/persistence.service';
 import { LoginScreen } from './components/login-screen';
 import { TopBar } from './components/top-bar';
 import { ExecutiveKpis } from './components/executive-kpis';
@@ -11,6 +11,7 @@ import { HeatmapMatrix } from './components/heatmap-matrix';
 import { RiskModal } from './components/risk-modal';
 import { RiskImportModal } from './components/risk-import-modal';
 import { BulkImportPanel } from './components/bulk-import-panel';
+import { canOpenBulkImport } from './utils/bulk-access';
 import { FlawModal } from './components/flaw-modal';
 import { ControlModal } from './components/control-modal';
 import { ExecutiveReportModal } from './components/executive-report-modal';
@@ -215,6 +216,26 @@ export class App {
     if (!this.riskService.requirePermission(['canConfigureKRIs'], 'configurar umbrales de KRIs')) return;
     this.isKriThresholdModalOpen.set(true);
   }
+
+  readonly entityLabel = entityLabel;
+
+  /** Total de pérdida neta en UF (eventos con valor UF). */
+  readonly lossNetUfTotal = computed(() => this.riskService.lossDatabase()
+    .reduce((sum, f) => sum + (this.riskService.amountInUf(f, this.riskService.netLoss(f)) ?? 0), 0));
+
+  /** Umbral de registro expresado en UF (último valor conocido). */
+  readonly thresholdUf = computed(() => {
+    if (this.riskService.currencyCode() !== 'CLP') return null;
+    const t = this.riskService.catalog.ufTable();
+    const days = Object.keys(t).sort();
+    const last = days[days.length - 1];
+    return last ? this.riskService.lossRegistrationThresholdUSD() / t[last] : null;
+  });
+
+  /** Hay algo que este cargo pueda cargar en Carga masiva. */
+  readonly canBulk = computed(() => {
+    return canOpenBulkImport(this.riskService.currentProfile().permissions);
+  });
 
   can(...permissions: (keyof UserPermissions)[]): boolean {
     return this.riskService.canAny(...permissions);

@@ -299,6 +299,23 @@ Cumplimiento normativo); la pantalla los enlaza.
 - Las filas con errores no se cargan. El resto se guarda **en una sola transacción** (si algo falla,
   no se guarda nada) junto con un bloque `CARGA_MASIVA` en la bitácora con el archivo y los totales.
 
+## Edición simultánea y permisos en pantalla
+
+**Edición simultánea:** cada registro tiene un número de versión. La aplicación guarda indicando la
+versión que estaba editando; si otra persona lo guardó (o eliminó) antes, el servidor rechaza el
+cambio (409) en vez de pisarlo y la pantalla avisa quién lo cambió y a qué hora, con su versión ya
+cargada. Se puede **mantener su versión** (lo propio se descarta) o **guardar la mía encima**
+(reemplaza su cambio de forma consciente). La comparación y el aumento de versión ocurren en la misma
+operación de base de datos, así que de varios guardados simultáneos sobre la misma versión solo
+uno gana. Las cargas masivas, las aprobaciones (que actualizan el registro de origen), los cambios de
+nombre de procesos y áreas y la conversión de moneda también suben la versión de lo que modifican.
+Las integraciones que llaman a la API sin la cabecera `X-Base-Version` siguen funcionando sin control.
+
+**Permisos en pantalla:** las acciones que el cargo no puede usar no se muestran (crear, editar,
+importar, configurar, resolver alertas, simular, Puestos & Permisos, Carga masiva…). Quien solo
+consulta ve los registros con "Ver" en lugar de "Editar" y los formularios sin botón de guardar. El
+servidor sigue validando cada permiso.
+
 ## Mantenedores
 
 En **Configuración → Mantenedores** (permiso "Administrar mantenedores", que por defecto tiene el
@@ -339,9 +356,24 @@ costos de proveedores, umbral de la base de pérdidas y límites del apetito. La
 el servidor en una sola transacción y queda en la bitácora. También se puede cambiar sin convertir,
 si los montos ya estaban expresados en la nueva moneda.
 
-Una instalación nueva parte con 10 áreas y 14 procesos de referencia para una cooperativa y con
-la moneda en CLP; las instalaciones existentes conservan USD y se cargan con los procesos que ya
-usan sus datos.
+Una instalación nueva (con o sin datos de ejemplo) parte con 10 áreas y 14 procesos de referencia
+para una cooperativa y con la moneda en CLP; las instalaciones existentes conservan su moneda (si
+están en USD, la base de pérdidas lo advierte y se convierten desde Parámetros generales).
+
+**Unidad de Fomento (UF):** con montos en pesos, la base de pérdidas también se expresa en UF.
+Cada evento guarda el valor de la UF de su fecha de referencia (contable; si falta, de
+descubrimiento, de ocurrencia o de registro; si ese día no tiene valor, el último anterior hasta 45
+días), así la pérdida de un año se compara con la de otro sin el efecto de la inflación. Se ve en la
+columna *Neta UF* y el total de la base de pérdidas, en el umbral de registro, en el formulario del
+incidente y en la exportación (valor y fecha UF, y montos bruto, recuperado y neto en UF).
+
+- **Valores de la UF** (Mantenedores → Parámetros generales): con base de datos el servidor los
+  descarga una vez al día desde [mindicador.cl](https://mindicador.cl) (serie del Banco Central) y
+  también se pueden descargar a pedido por año. Sin salida a internet se pegan desde una planilla
+  (una fecha y un valor por línea) o se apunta `UF_SOURCE_URL` a otra fuente con el mismo formato.
+- **Asignar la UF a eventos sin valor:** los eventos registrados antes de tener la tabla, o
+  convertidos desde USD, se completan con un botón (permiso "Reportes regulatorios").
+- Al cambiar las fechas de un evento se toma el valor UF de la nueva fecha de referencia.
 
 Las **auditorías** (plan, alcance, hallazgos y su subsanación) se registran en Auditorías
 Periódicas con el permiso "Ejecutar auditorías". El puntaje de cada auditoría se calcula de sus
@@ -577,6 +609,8 @@ En **Supervisión & Auditoría → Gestión Documental** se lleva el listado mae
 | `GOOGLE_ALLOWED_DOMAINS` | Dominios de Google Workspace permitidos, separados por coma (recomendado). |
 | `AUTH_EMAIL_CODE` | Con Google activo: `true` (código también disponible), `false` (solo Google) o `admins` (código solo como acceso de emergencia de administradores). |
 | `GOOGLE_REDIRECT_URI` | Opcional: dirección de retorno si no es `APP_URL` + `/api/auth/google/callback`. |
+| `UF_AUTO_SYNC` | `false` desactiva la descarga diaria de la UF (servidores sin salida a internet). |
+| `UF_SOURCE_URL` | Fuente de la UF con el formato de mindicador.cl (por defecto `https://mindicador.cl/api/uf`; se agrega `/AAAA`). |
 | `EVIDENCE_MAX_MB` | Tamaño máximo por archivo de evidencia (15 por defecto). Detrás de un proxy, ajuste también su límite de carga (p. ej. `client_max_body_size` en nginx). |
 | `TZ` | Zona horaria del servidor (p. ej. `America/Santiago`): define la hora del resumen diario y el día de los plazos. |
 | `AUTH_SECRET` | Clave para firmar los códigos. Recomendada; obligatoria con varias instancias. |
@@ -599,7 +633,7 @@ enviar la cabecera `X-Requested-With: RiskGuard` (protección CSRF).
 | `GET /api/auth/google/start` · `GET /api/auth/google/callback` | Ingreso con Google (redirección y retorno). |
 | `POST /api/admin/users/:id/google-unlink` | Desvincula la cuenta de Google de una persona (administradores). |
 | `GET /api/data` | Carga completa de la aplicación (o `{"mode":"demo"}` sin base de datos). |
-| `PUT /api/data/:entidad/:id` | Guarda un objeto completo (riesgo, control, incidente, proveedor…). |
+| `PUT /api/data/:entidad/:id` | Guarda un objeto completo (riesgo, control, incidente, proveedor…). Con `X-Base-Version` responde 409 si otra persona lo cambió; devuelve la nueva `version`. |
 | `DELETE /api/data/:entidad/:id` | Elimina un objeto. |
 | `POST /api/ledger` · `GET /api/ledger` | Agrega un bloque a la bitácora / lee la cadena completa. |
 | `PUT /api/settings/:clave` | Guarda un ajuste (industria, umbral de pérdidas, notificaciones, matriz de aprobación). |
@@ -607,6 +641,7 @@ enviar la cabecera `X-Requested-With: RiskGuard` (protección CSRF).
 | `GET/PUT /api/notifications/preferences` | Preferencia de correo de la persona (`inmediato`, `resumen`, `ninguno` y categorías). |
 | `POST /api/notifications/test` | Envía un correo de prueba a la persona de la sesión. |
 | `GET /api/notifications/outbox` · `POST /api/notifications/run` | Registro de envíos / revisar plazos ahora (Mantenedores). |
+| `POST /api/admin/uf-sync` | Descarga los valores de la UF (`{years}`) y los agrega a la tabla. |
 | `POST /api/import/:tipo` | Carga masiva `{records, fileName}` (`areas`, `processes`, `users`, `controls`, `providers`, `info-assets`, `flaws`): valida y guarda todo en una transacción. |
 | `POST /api/evidence?entityType=&entityId=&context=&description=` | Carga un archivo (cuerpo binario, nombre en `X-File-Name`). |
 | `GET /api/evidence/:id` · `GET /api/evidence/:id/verify` · `DELETE /api/evidence/:id` | Descarga (`?inline=1` para ver PDF/imágenes) / verifica el SHA-256 / baja con `{reason}`. |
@@ -620,7 +655,8 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 
 ## Limitaciones conocidas
 
-- Si dos personas editan **el mismo** registro a la vez, prevalece el último guardado.
+- La edición simultánea se controla por registro (ver "Edición simultánea"); los ajustes generales
+  (escala, apetito, parámetros) se guardan completos y prevalece el último guardado.
 - SQLite usa `node:sqlite`, incluido en Node.js (en Node 22 se marca como experimental; los scripts
   de inicio ocultan ese aviso). Las escrituras se procesan de a una, lo que basta para un equipo o
   un grupo pequeño. Las vistas SQL de reportes (`v_*`) solo existen en PostgreSQL; la aplicación no
@@ -646,7 +682,8 @@ Entidades: `roles`, `users`, `controls`, `risks`, `providers`, `regulatory-miles
 | Aprobaciones y avisos | `approval_requests`, `notifications`, `notification_preferences` (y la columna `acceptance` en `risks`) |
 | Evidencias | `evidence_files` (contenido y SHA-256) |
 | Gestión documental | `controlled_documents` (versiones y lecturas) |
-| Ajustes | `system_settings` |
+| Edición simultánea | `record_versions` (versión, fecha y autor del último guardado de cada registro) |
+| Ajustes | `system_settings` (incluye `uf_values`, la tabla de la UF) |
 
 Vistas de apoyo a reportes: `v_loss_database`, `v_regulatory_deadlines`, `v_provider_rto_gaps`,
 `v_provider_contract_expiry`, `v_overdue_vulnerabilities`, `v_process_risk_summary`, `v_kri_breaches`.

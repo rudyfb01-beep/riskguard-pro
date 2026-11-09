@@ -17,6 +17,7 @@ import { ServiceProvider } from '../models/resilience.model';
 import { ASSET_TYPES, InformationAsset } from '../models/security.model';
 import { BASEL_CATEGORIES, Cell, matchProcess, norm, parseAmount, parseCategory, SheetRows } from './risk-import';
 import { colName, XlsxSheet } from './xlsx-writer';
+import { UfTable, ufStampFor } from './uf';
 
 export type BulkEntity = 'areas' | 'processes' | 'users' | 'controls' | 'providers' | 'info-assets' | 'flaws';
 
@@ -68,6 +69,8 @@ export interface BulkContext {
   allProcesses?: Pick<BusinessProcess, 'id' | 'code' | 'name'>[];
   updateExisting: boolean;
   newId: (prefix: string) => string;
+  /** Con montos en pesos: tabla UF para fijar el valor UF de cada evento de pérdida. */
+  ufTable?: UfTable;
 }
 
 export type Values = Record<string, unknown>;
@@ -746,6 +749,10 @@ const FLAW_SPEC: BulkSpec = {
       accountingAccount: v['accountingAccount'] as string | undefined,
       providerId: prov ? ctx.providers.find(x => `${x.code} ${x.name}` === prov || x.name === prov || x.code === prov)?.id : undefined,
     };
+    if (ctx.ufTable && (loss || recovered)) {
+      Object.assign(flaw, ufStampFor(flaw, ctx.ufTable));
+      if (!flaw.ufValueClp && Object.keys(ctx.ufTable).length) warnings.push('Sin valor UF para la fecha del evento (se puede asignar después en Mantenedores).');
+    }
     const dup = (ctx.existing as OperationalFlaw[]).find(f => norm(f.title) === norm(flaw.title) && (f.occurrenceDate ?? '') === (occ ?? '') && (f.realLossAmountUSD ?? 0) === loss);
     if (dup) warnings.push('Parece duplicado de un incidente ya registrado (mismo título, fecha y monto).');
     return { record: flaw, errors, warnings };
