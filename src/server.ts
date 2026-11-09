@@ -16,7 +16,9 @@ import {
 } from './server/db';
 import { dataApi, getDbReady } from './server/api';
 import { startNotifier } from './server/notifier';
+import { startBackupScheduler } from './server/backup';
 import { currentUser, hasAny, requireAuth, requireCsrfHeader } from './server/auth';
+import { apiRateLimit, checkOrigin, errorHandler, requestId, securityHeaders, serverError } from './server/security';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
@@ -37,16 +39,13 @@ if (process.env['TRUST_PROXY']) {
 }
 app.disable('x-powered-by');
 
-// Cabeceras de seguridad básicas.
-app.use((_req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Referrer-Policy', 'same-origin');
-  next();
-});
+// Identificador por solicitud, cabeceras de seguridad (CSP, HSTS…), origen de las escrituras y
+// límite de solicitudes a la API (ver src/server/security.ts y SECURITY.md).
+app.use(requestId, securityHeaders);
+app.use('/api', checkOrigin, apiRateLimit);
 
 // Límite amplio: las evidencias de controles pueden incluir archivos adjuntos.
-app.use(express.json({ limit: '15mb' }));
+app.use(express.json({ limit: process.env['JSON_LIMIT'] || '15mb' }));
 
 // Las funciones de IA y el diagnóstico de la base requieren sesión.
 app.use('/api/ai', requireCsrfHeader, requireAuth);
@@ -183,9 +182,7 @@ Devuelve un JSON estrictamente válido con la siguiente estructura:
       }
     });
   } catch (error: unknown) {
-    console.error('Error in /api/ai/analyze-incidencia:', error);
-    const message = error instanceof Error ? error.message : 'Error procesando análisis de riesgo';
-    res.status(500).json({ error: message });
+    serverError(res, error, req);
   }
 };
 
@@ -247,7 +244,7 @@ app.get('/api/db/stats', async (req, res): Promise<void> => {
     const stats = await getDbStats();
     res.json({ success: true, stats });
   } catch (err) {
-    res.status(500).json({ success: false, error: (err as Error).message });
+    serverError(res, err, req);
   }
 });
 
@@ -266,6 +263,8 @@ app.post('/api/db/init', async (req, res): Promise<void> => {
 
 // API de datos: carga inicial, guardado por entidad, bitácora y ajustes.
 app.use('/api', dataApi);
+// Rutas de la API inexistentes: 404 en JSON (no se renderiza la aplicación).
+app.use('/api', (_req, res) => { res.status(404).json({ error: 'Recurso no encontrado.' }); });
 
 /**
  * Serve static files from /browser
@@ -290,6 +289,9 @@ app.use((req, res, next) => {
     .catch(next);
 });
 
+// Errores no controlados, sin detalles internos.
+app.use(errorHandler);
+
 /**
  * Start the server if this module is the main entry point, or it is ran via PM2.
  * The server listens on the port defined by the `PORT` environment variable, or defaults to 4000.
@@ -312,6 +314,7 @@ if (isMainModule(import.meta.url) || process.env['pm_id']) {
     }
     // Avisos por plazos y envío de correos (cada NOTIFY_INTERVAL_MINUTES).
     startNotifier(() => getDbReady());
+    startBackupScheduler(() => getDbReady());
     if (getPool() && !process.env['SMTP_HOST']) {
       console.warn(process.env['AUTH_DEV_LOG_CODES'] === 'true'
         ? '[Auth] ATENCIÓN: SMTP no configurado; los códigos de acceso se escriben en este log. Usar solo para evaluación.'

@@ -1,0 +1,127 @@
+# Integración continua: lint, pruebas unitarias, build, pruebas de API (SQLite y PostgreSQL),
+# prueba de humo en el navegador y auditoría de dependencias de producción.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: America/Santiago
+
+jobs:
+  build:
+    name: Lint, unitarias y build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: npx ng lint
+      - run: npx ng test --watch=false
+      - run: npx ng build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 3
+
+  audit:
+    name: Auditoría de dependencias
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      # Falla si hay vulnerabilidades en las dependencias que van a producción.
+      - run: bun audit --prod
+      # Herramientas de desarrollo: solo informativo.
+      - run: bun audit || true
+
+  api-sqlite:
+    name: API (SQLite)
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - run: node --test --test-concurrency=2 "tests/api/*.test.mjs"
+
+  api-postgres:
+    name: API (PostgreSQL 16)
+    needs: build
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://postgres:ci-password@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-16
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      # Esquema idempotente: se aplica dos veces.
+      - run: |
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE esquema'
+          for i in 1 2; do psql "${TEST_DATABASE_URL%/postgres}/esquema" -v ON_ERROR_STOP=1 -q -f database/schema.sql; done
+      - run: node --test --test-concurrency=2 "tests/api/*.test.mjs"
+
+  e2e:
+    name: Navegador (Playwright)
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: npx playwright install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - run: node --test "tests/e2e/*.test.mjs"

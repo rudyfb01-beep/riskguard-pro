@@ -413,6 +413,7 @@ export class SidebarNav {
         items: [
           { id: 'mantenedores', label: 'Mantenedores', icon: 'tune' },
           ...(this.canBulk() ? [{ id: 'carga-masiva' as ActiveTab, label: 'Carga masiva', icon: 'upload_file' }] : []),
+          ...(this.riskService.canAny('canManageRoles', 'canManageCatalogs') ? [{ id: 'operacion' as ActiveTab, label: 'Operación y respaldos', icon: 'monitor_heart' }] : []),
         ]
       }
     ];

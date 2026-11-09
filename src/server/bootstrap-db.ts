@@ -1,5 +1,5 @@
 import { getPool, applySchema } from './db';
-import { appendLedger, importLedgerBlock, loadAll, saveEntity, saveSetting, withTransaction } from './repository';
+import { appendLedger, computeLedgerHash, importLedgerBlock, loadAll, saveEntity, saveSetting, withTransaction } from './repository';
 import { plansFromExisting } from '../app/utils/action-plans';
 import { COOPERATIVE_PROCESSES, DEFAULT_AREAS, DEFAULT_ORGANIZATIONAL_ROLES, DEFAULT_REGULATORY_MILESTONES } from '../app/data/base-seed';
 import {
@@ -251,7 +251,13 @@ export async function ensureDatabase(): Promise<{ migrated: boolean; baseSeeded:
         if (demo) await saveEntity('security-assessment', { ...i, ...demo }, c);
       }
       if ((await c.query('SELECT 1 FROM crypto_audit_ledger LIMIT 1')).rowCount === 0) {
-        for (const e of [...DEMO_LEDGER].sort((a, b) => a.blockNumber - b.blockNumber)) await importLedgerBlock(c, e);
+        // Los bloques de ejemplo se encadenan con hashes reales para que la verificación del servidor los valide.
+        let prev = '0'.repeat(64);
+        for (const e of [...DEMO_LEDGER].sort((a, b) => a.blockNumber - b.blockNumber)) {
+          const hash = computeLedgerHash(e.blockNumber, e.timestamp, e.userName, e.action, e.entityCode, e.details, prev);
+          await importLedgerBlock(c, { ...e, previousHash: prev, hash });
+          prev = hash;
+        }
       }
       demoSeeded = true;
     } else if ((await c.query('SELECT 1 FROM user_profiles LIMIT 1')).rowCount === 0) {

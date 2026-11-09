@@ -20,6 +20,7 @@ mkdirSync(out, { recursive: true });
 cpSync(dist, join(out, 'app'), { recursive: true });
 mkdirSync(join(out, 'database'));
 for (const f of ['schema.sqlite.sql', 'schema.sql']) cpSync(join(root, 'database', f), join(out, 'database', f));
+cpSync(join(root, 'scripts', 'restaurar.mjs'), join(out, 'restaurar.mjs'));
 mkdirSync(join(out, 'data'));
 writeFileSync(join(out, 'data', 'LEEME.txt'), 'Aquí se guarda la base de datos (riskguard.db). No borres esta carpeta al actualizar.\r\n');
 

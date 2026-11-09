@@ -158,6 +158,7 @@ export async function runDigest(now = new Date(), force = false): Promise<number
 
 /** Una vuelta completa: plazos, correos inmediatos y resumen diario. */
 export async function runNotifierCycle(): Promise<{ created: number }> {
+  await setInternalSetting('notifier_last_run', new Date().toISOString()).catch(() => undefined);
   await autoSyncUf(localNow().day).catch(err => console.warn('[UF]', (err as Error).message));
   const created = await runSchedule();
   await deliverPending();

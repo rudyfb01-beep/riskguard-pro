@@ -20,6 +20,7 @@ import { DEFAULT_NOTIFICATION_PREFERENCE, EmailMode, NOTIFICATION_CATEGORIES, No
 import { deliverPending, normalizeNotificationSettings, notifyChange, runDigest, runNotifierCycle } from './notifier';
 import { isMailConfigured, sendMail } from './mailer';
 import { syncUf } from './uf-sync';
+import { opsRouter } from './ops';
 import { notificationEmail } from '../app/utils/notifications';
 import { ActionPlan } from '../app/models/action-plan.model';
 import { checkPlanChange } from '../app/utils/action-plans';
@@ -34,6 +35,7 @@ import {
 } from './google-sso';
 import { UserPermissions, UserProfile } from '../app/models/risk.model';
 import { bulkLedgerDetails, bulkSpec, canBulkImport, MAX_BULK_ROWS, validateBulkRecord } from '../app/utils/bulk-import';
+import { serverError } from './security';
 
 let ready: ReturnType<typeof ensureDatabase> | null = null;
 
@@ -157,7 +159,8 @@ dataApi.get('/auth/me', async (req, res) => {
     }
     res.json({ mode: 'database', user });
   } catch (err) {
-    res.status(503).json({ error: `Base de datos no disponible: ${(err as Error).message}` });
+    console.error('[Auth] /auth/me:', (err as Error).message);
+    res.status(503).json({ error: 'Base de datos no disponible.' });
   }
 });
 
@@ -279,7 +282,8 @@ dataApi.use(['/data', '/ledger', '/settings', '/admin', '/notifications', '/evid
     await getDbReady();
     next();
   } catch (err) {
-    res.status(503).json({ error: `Base de datos no disponible: ${(err as Error).message}` });
+    console.error('[Auth] /auth/me:', (err as Error).message);
+    res.status(503).json({ error: 'Base de datos no disponible.' });
   }
 }, requireAuth);
 
@@ -304,7 +308,7 @@ dataApi.get('/data', async (_req, res) => {
   try {
     res.json({ mode: 'database', ...(await loadAll()) });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    serverError(res, err);
   }
 });
 
@@ -582,7 +586,7 @@ dataApi.get('/evidence/:id', async (req, res) => {
     res.setHeader('X-Content-SHA256', file.sha256);
     res.end(content);
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    serverError(res, err);
   }
 });
 
@@ -597,7 +601,7 @@ dataApi.get('/evidence/:id/verify', async (req, res) => {
     const actual = createHash('sha256').update(found.content).digest('hex');
     res.json({ ok: actual === found.file.sha256, expected: found.file.sha256, actual, sizeBytes: found.content.length });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    serverError(res, err);
   }
 });
 
@@ -712,7 +716,7 @@ dataApi.get('/notifications', async (req, res) => {
     const user = currentUser(res)!;
     res.json(await listNotifications(user.email, Number(req.query['limit'] ?? 100)));
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    serverError(res, err);
   }
 });
 
@@ -733,7 +737,7 @@ dataApi.get('/notifications/preferences', async (_req, res) => {
     const prefs = await getNotificationPreferences();
     res.json({ preference: prefs.get(user.email.toLowerCase()) ?? DEFAULT_NOTIFICATION_PREFERENCE, mailConfigured: isMailConfigured() });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    serverError(res, err);
   }
 });
 
@@ -777,7 +781,7 @@ dataApi.get('/notifications/outbox', async (_req, res) => {
   try {
     res.json({ items: await notificationOutbox(200), mailConfigured: isMailConfigured(), settings: normalizeNotificationSettings(await getSetting('notification_settings')) });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    serverError(res, err);
   }
 });
 
@@ -790,7 +794,7 @@ dataApi.post('/notifications/run', async (req, res) => {
     await deliverPending();
     res.json({ ok: true, created, digests });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    serverError(res, err);
   }
 });
 
@@ -860,7 +864,7 @@ dataApi.get('/ledger', async (_req, res) => {
     const all = await loadAll();
     res.json(all.ledger);
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    serverError(res, err);
   }
 });
 
@@ -940,3 +944,6 @@ dataApi.post('/admin/convert-currency', async (req, res) => {
     res.status(status).json({ error: status === 422 ? friendlyDbError(err) : (err as Error).message });
   }
 });
+
+// Operación: salud, listo, panel de operación y respaldos (rutas /admin protegidas arriba).
+dataApi.use(opsRouter);

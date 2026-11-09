@@ -68,6 +68,11 @@ services:
       UF_AUTO_SYNC: ${UF_AUTO_SYNC:-true}
       # Tamaño máximo por archivo de evidencia (MB).
       EVIDENCE_MAX_MB: ${EVIDENCE_MAX_MB:-15}
+      # Respaldos programados (pg_dump) en el volumen "backups": cada N horas, se guardan los últimos K.
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - backups:/app/backups
     ports:
       - "3000:3000"
     depends_on:
@@ -95,6 +100,8 @@ services:
 
 volumes:
   pgdata:
+    driver: local
+  backups:
     driver: local
 
 networks:
