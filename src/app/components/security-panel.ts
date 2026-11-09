@@ -393,7 +393,7 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion' | 'pruebas' | 'i
             <h2 class="text-base font-bold text-slate-900 flex items-center gap-2"><mat-icon class="text-violet-700">inventory_2</mat-icon>{{ d.name || 'Nuevo activo' }} <span class="font-mono text-xs text-slate-400">{{ d.code }}</span></h2>
             <button type="button" (click)="assetDraft.set(null)" class="text-slate-400 hover:text-slate-600 p-1.5 cursor-pointer"><mat-icon>close</mat-icon></button>
           </div>
-          <div class="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div class="flex-1 min-h-0 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
             <fieldset class="lg:col-span-2 space-y-4" [disabled]="!canManage()">
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Nombre *</span><input [class]="inputCls" [value]="d.name" (input)="setAsset('name', $any($event.target).value)" /></label>
@@ -488,7 +488,7 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion' | 'pruebas' | 'i
             <h2 class="text-base font-bold text-slate-900 flex items-center gap-2"><mat-icon class="text-violet-700">bug_report</mat-icon>Vulnerabilidad <span class="font-mono text-xs text-slate-400">{{ d.code }}</span></h2>
             <button type="button" (click)="vulnDraft.set(null)" class="text-slate-400 hover:text-slate-600 p-1.5 cursor-pointer"><mat-icon>close</mat-icon></button>
           </div>
-          <fieldset class="flex-1 overflow-y-auto p-6 space-y-3" [disabled]="!canManage()">
+          <div class="flex-1 min-h-0 overflow-y-auto"><fieldset class="p-6 space-y-3" [disabled]="!canManage()">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Título *</span><input [class]="inputCls" [value]="d.title" (input)="setVuln('title', $any($event.target).value)" /></label>
               <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Descripción</span><textarea rows="2" [class]="inputCls" [value]="d.description" (input)="setVuln('description', $any($event.target).value)"></textarea></label>
@@ -531,7 +531,7 @@ type SubTab = 'activos' | 'vulnerabilidades' | 'autoevaluacion' | 'pruebas' | 'i
                 hint="Si la vulnerabilidad no se remediará en plazo, solicite la aceptación formal: al aprobarse pasa a Riesgo aceptado."
                 (notify)="notify.emit($event); vulnDraft.set(null)" />
             }
-          </fieldset>
+          </fieldset></div>
           @if (isSaved(d)) {
             <div class="px-6 pb-4">
               <app-evidence-files entity="vulnerabilities" [entityId]="d.id" [label]="d.code" [parent]="d"

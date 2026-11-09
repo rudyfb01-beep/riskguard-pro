@@ -58,7 +58,7 @@ import { MoneyPipe } from '../utils/money.pipe';
         </div>
 
         <!-- Printable Document Body -->
-        <div id="printable-report" class="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 bg-white text-slate-900">
+        <div id="printable-report" class="flex-1 min-h-0 overflow-y-auto p-6 sm:p-8 space-y-6 bg-white text-slate-900">
           
           <!-- Corporate Document Letterhead -->
           <div class="border-b-2 border-slate-900 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">

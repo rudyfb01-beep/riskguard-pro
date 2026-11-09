@@ -70,7 +70,7 @@ export interface NavGroup {
       </div>
 
       <!-- Navigation Links (Scrollable) -->
-      <div class="flex-1 overflow-y-auto px-3 py-4 space-y-6 scrollbar-thin scrollbar-thumb-slate-800">
+      <div class="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-6 scrollbar-thin scrollbar-thumb-slate-800">
         
         @for (group of navGroups(); track group.title) {
           <div>
@@ -154,11 +154,11 @@ export interface NavGroup {
 
               <button
                 type="button"
-                (click)="simulateAnomaly.emit()" [class.perm-hidden]="!riskService.canAny('canConfigureKRIs')"
+                (click)="registerKriReading.emit()" [class.perm-hidden]="!riskService.canAny('canConfigureKRIs')"
                 class="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-rose-300 rounded-lg text-[11px] font-medium border border-slate-800 transition-colors cursor-pointer"
               >
-                <mat-icon class="text-sm text-rose-500">flash_on</mat-icon>
-                <span>Simular Desviación KRI</span>
+                <mat-icon class="text-sm text-rose-500">edit_note</mat-icon>
+                <span>Registrar lectura de KRI</span>
               </button>
             </div>
           </div>
@@ -277,7 +277,7 @@ export class SidebarNav {
   readonly toggleLayout = output<void>();
   readonly openRiskModal = output<void>();
   readonly openFlawModal = output<void>();
-  readonly simulateAnomaly = output<void>();
+  readonly registerKriReading = output<void>();
   readonly openRolesModal = output<void>();
 
   /** Hay algo que este cargo pueda cargar en Carga masiva. */

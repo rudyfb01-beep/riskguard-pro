@@ -3,10 +3,11 @@ import { autoSyncUf } from './uf-sync';
 import { normalizeCommittee } from '../app/utils/crisis';
 import { isMailConfigured, sendMail } from './mailer';
 import {
-  getNotificationPreferences, getSetting, insertNotifications, loadAll, notificationsByEmailStatus, setEmailStatus, setInternalSetting, userFromRow,
+  getKriByName, getNotificationPreferences, getSetting, insertNotifications, loadAll, notificationsByEmailStatus, setEmailStatus, setInternalSetting, userFromRow,
 } from './repository';
 import { AppNotification, DEFAULT_NOTIFICATION_PREFERENCE, NotificationDraft } from '../app/models/notification.model';
-import { KriNotificationPreferences } from '../app/models/risk.model';
+import { AnomalyAlert, KriNotificationPreferences } from '../app/models/risk.model';
+import { dispatchAlertChannels } from './kri-channels';
 import { SurveyCampaign } from '../app/models/survey.model';
 import {
   changeNotifications, digestEmail, normalizeNotificationSettings, notificationEmail, NotifyUser, scheduledNotifications,
@@ -43,7 +44,13 @@ export async function notifyChange(
 ): Promise<AppNotification[]> {
   try {
     if (!getPool()) return [];
-    const kriPreferences = entity === 'alerts' ? ((await getSetting('global_notification_preferences')) as KriNotificationPreferences | undefined) ?? null : null;
+    // Alertas: preferencias del KRI de la alerta o, si no tiene, las globales.
+    let kriPreferences: KriNotificationPreferences | null = null;
+    if (entity === 'alerts') {
+      const kri = await getKriByName((next as AnomalyAlert).kriMetric).catch(() => null);
+      kriPreferences = kri?.notificationPreferences ?? ((await getSetting('global_notification_preferences')) as KriNotificationPreferences | undefined) ?? null;
+      if (!prev) void dispatchAlertChannels(next as AnomalyAlert, kriPreferences).catch(() => undefined);
+    }
     const committee = entity === 'crisis-events' ? normalizeCommittee(await getSetting('crisis_committee')) : null;
     const drafts = changeNotifications(entity, prev, next, {
       actorName, users: await activeUsers(), campaign: extra.campaign, kriPreferences, committee, now: new Date().toISOString(),

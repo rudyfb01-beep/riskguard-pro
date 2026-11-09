@@ -672,6 +672,9 @@ En **Supervisión & Auditoría → Gestión Documental** se lleva el listado mae
 | `PORT` | Puerto HTTP (por defecto 4000; Docker y el paquete SQLite usan 3000). |
 | `NG_ALLOWED_HOSTS` | Nombres o IP con que se accede a la app además de `localhost` y `APP_URL` (separados por coma). |
 | `GEMINI_API_KEY` | Opcional: habilita el análisis de incidentes con IA. |
+| `GEMINI_MODEL` | Modelo de Gemini (por defecto `gemini-3.8-flash`). Si el servicio falla se usa el análisis calculado. |
+| `SMS_GATEWAY_URL`, `SMS_GATEWAY_TOKEN`, `SMS_FROM` | Pasarela HTTP de SMS para las alertas de KRI: recibe `POST {to, message, from}` con `Authorization: Bearer <token>`. Sin ella no se envían SMS. |
+| `WEBHOOK_ALLOW_HTTP`, `WEBHOOK_ALLOW_PRIVATE` | `true` permite webhooks de alertas por http o hacia direcciones internas (por defecto solo https públicas). |
 | `BACKUP_INTERVAL_HOURS`, `BACKUP_KEEP`, `BACKUP_DIR` | Respaldo automático: cada 24 h, se conservan 14, carpeta `backups/` (ver docs/OPERACION.md). `BACKUP_INTERVAL_HOURS=0` lo desactiva. |
 | `BACKUP_FIRST_DELAY_SECONDS`, `PG_DUMP_PATH`, `PG_RESTORE_PATH` | Espera inicial del respaldo (120 s) y ejecutables de PostgreSQL. |
 | `APP_VERSION` | Versión informada en `/api/health`, el panel y los manifiestos de respaldo. |
@@ -704,6 +707,7 @@ muestran detalles internos.
 | `GET /api/health` · `GET /api/ready` | Vivo / listo (públicas, para monitoreo). |
 | `GET /api/admin/ops` | Estado para el panel Operación y respaldos. |
 | `POST /api/admin/backups` · `POST /api/admin/backups/:archivo/verify` · `GET /api/admin/backups/:archivo` | Respaldar ahora / verificar / descargar (administración de cargos). |
+| `GET /api/notifications/channels` · `POST /api/notifications/kri-test` | Canales de aviso de KRIs disponibles / envío de prueba real `{channel: email\|sms\|webhook, to, kriCode}`. |
 | `POST /api/admin/uf-sync` | Descarga los valores de la UF (`{years}`) y los agrega a la tabla. |
 | `POST /api/import/:tipo` | Carga masiva `{records, fileName}` (`areas`, `processes`, `users`, `controls`, `providers`, `info-assets`, `flaws`): valida y guarda todo en una transacción. |
 | `POST /api/evidence?entityType=&entityId=&context=&description=` | Carga un archivo (cuerpo binario, nombre en `X-File-Name`). |

@@ -1284,6 +1284,12 @@ export async function setEmailStatus(ids: string[], status: 'enviado' | 'resumen
 }
 
 /** Últimos avisos de todas las personas (registro de envíos para administradores). */
+/** KRI por su nombre (las alertas guardan el nombre del KRI en kriMetric). */
+export async function getKriByName(name: string): Promise<KriDefinition | null> {
+  const r = await getPool()!.query('SELECT * FROM kri_definitions WHERE name = $1 LIMIT 1', [name]);
+  return r.rows[0] ? kriFromRow(r.rows[0]) : null;
+}
+
 export async function notificationOutbox(limit = 200): Promise<AppNotification[]> {
   const r = await getPool()!.query(`SELECT * FROM notifications ORDER BY created_at DESC, id DESC LIMIT ${Math.max(1, Math.min(1000, limit))}`);
   return r.rows.map(notificationFromRow);

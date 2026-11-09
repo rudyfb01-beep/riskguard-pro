@@ -43,7 +43,7 @@ import { LinkedPlans } from './linked-plans';
         </div>
 
         <!-- Body -->
-        <form [formGroup]="form" (ngSubmit)="onSubmit()" class="flex-1 overflow-y-auto p-6 space-y-5">
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" class="flex-1 min-h-0 overflow-y-auto p-6 space-y-5">
           
           <!-- Section 1: Control Identification -->
           <div class="space-y-3">

@@ -43,7 +43,7 @@ import { LinkedPlans } from './linked-plans';
         </div>
 
         <!-- Body -->
-        <div class="flex-1 overflow-y-auto p-6 space-y-4">
+        <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
           
           <form [formGroup]="form" class="space-y-4">
             

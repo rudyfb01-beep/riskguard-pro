@@ -197,7 +197,7 @@ import { LinkedPlans, PlanChips } from './linked-plans';
             <button type="button" (click)="draft.set(null)" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer"><mat-icon>close</mat-icon></button>
           </div>
 
-          <div class="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div class="flex-1 min-h-0 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
             <fieldset class="lg:col-span-2 space-y-4" [disabled]="!canManage()">
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Razón social *</span><input [class]="inputCls" [value]="d.name" (input)="set('name', $any($event.target).value)" /></label>

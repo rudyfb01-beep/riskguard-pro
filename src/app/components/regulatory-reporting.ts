@@ -332,7 +332,7 @@ interface EditableMilestone extends RegulatoryMilestoneTemplate { amount: number
             </div>
             <button type="button" (click)="detailsDraft.set(null)" class="text-slate-400 hover:text-slate-600 p-1.5 cursor-pointer"><mat-icon>close</mat-icon></button>
           </div>
-          <div class="flex-1 overflow-y-auto p-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="flex-1 min-h-0 overflow-y-auto p-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Inicio del incidente (fecha y hora)</span><input type="datetime-local" [class]="inputCls" [value]="detailsOccurred()" (input)="detailsOccurred.set($any($event.target).value)" /></label>
             <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Identificador asignado por la CMF</span><input [class]="inputCls" [value]="d.cmfIncidentId ?? ''" (input)="setDetail('cmfIncidentId', $any($event.target).value)" /></label>
             <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Causas posibles (reporte inicial)</span><textarea rows="2" [class]="inputCls" [value]="d.possibleCauses ?? ''" (input)="setDetail('possibleCauses', $any($event.target).value)"></textarea></label>
@@ -386,7 +386,7 @@ interface EditableMilestone extends RegulatoryMilestoneTemplate { amount: number
             </div>
             <button type="button" (click)="reportText.set(null)" class="text-slate-400 hover:text-slate-600 p-1.5 cursor-pointer"><mat-icon>close</mat-icon></button>
           </div>
-          <pre class="flex-1 overflow-y-auto p-6 text-xs leading-relaxed whitespace-pre-wrap font-sans text-slate-800">{{ t.text }}</pre>
+          <pre class="flex-1 min-h-0 overflow-y-auto p-6 text-xs leading-relaxed whitespace-pre-wrap font-sans text-slate-800">{{ t.text }}</pre>
           <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center gap-2 no-print">
             <span class="text-[11px] text-slate-500">Copie el texto en el canal de reporte de la CMF.</span>
             <div class="flex gap-2">

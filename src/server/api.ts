@@ -36,6 +36,7 @@ import {
 import { UserPermissions, UserProfile } from '../app/models/risk.model';
 import { bulkLedgerDetails, bulkSpec, canBulkImport, MAX_BULK_ROWS, validateBulkRecord } from '../app/utils/bulk-import';
 import { serverError } from './security';
+import { channelStatus, testChannel } from './kri-channels';
 
 let ready: ReturnType<typeof ensureDatabase> | null = null;
 
@@ -772,6 +773,39 @@ dataApi.post('/notifications/test', async (_req, res) => {
     res.json({ ok: true, message: `Correo de prueba enviado a ${user.email}.` });
   } catch (err) {
     res.status(502).json({ error: `El servidor de correo rechazó el envío: ${(err as Error).message}` });
+  }
+});
+
+/** Canales disponibles para los avisos de KRIs (correo, SMS y webhook). */
+dataApi.get('/notifications/channels', (_req, res) => {
+  res.json(channelStatus());
+});
+
+/** Envío de prueba real por un canal de avisos de KRIs. */
+dataApi.post('/notifications/kri-test', async (req, res) => {
+  if (!authorize(res, ['canConfigureKRIs'], 'los avisos de KRIs')) return;
+  const channel = req.body?.channel;
+  const to = String(req.body?.to ?? '').trim().slice(0, 500);
+  const kriCode = String(req.body?.kriCode ?? '').slice(0, 60);
+  if (!['email', 'sms', 'webhook'].includes(channel) || !to) {
+    res.status(400).json({ error: 'Indique el canal (email, sms o webhook) y el destinatario.' });
+    return;
+  }
+  const user = currentUser(res)!;
+  try {
+    const appName = process.env['APP_NAME'] || 'RiskGuard Pro';
+    const message = await testChannel(channel, to, kriCode, async email => sendMail(email, notificationEmail({
+      id: 'kri-test', recipient: email, recipientName: email, category: 'Alertas KRI', severity: 'info', title: `Prueba de avisos de KRI ${kriCode}`,
+      body: `Prueba enviada por ${user.name}. Si recibe este correo, los avisos de alertas de KRI llegarán a esta dirección.`, tab: 'alertas-kri',
+      createdAt: new Date().toISOString(), dedupeKey: 'kri-test',
+    }, appName, (process.env['APP_URL'] || '').trim())));
+    await appendLedger({
+      id: `log-kri-test-${Date.now()}`, userName: user.name, userRole: user.role, action: 'CONFIGURACIÓN_NOTIFICACIONES', entityType: 'KRI',
+      entityCode: kriCode || 'GLOBAL', details: `Envío de prueba por ${channel.toUpperCase()}: ${message}`,
+    }, clientIp(req)).catch(() => undefined);
+    res.json({ ok: true, message });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
   }
 });
 

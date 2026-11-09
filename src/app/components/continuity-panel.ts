@@ -287,7 +287,7 @@ import { ActionPlanService } from '../services/action-plan.service';
             <h2 class="text-base font-bold text-slate-900">Análisis de impacto (BIA)</h2>
             <button type="button" (click)="biaDraft.set(null)" class="text-slate-400 hover:text-slate-600 p-1.5 cursor-pointer"><mat-icon>close</mat-icon></button>
           </div>
-          <fieldset class="flex-1 overflow-y-auto p-6 space-y-4" [disabled]="!canManage()">
+          <div class="flex-1 min-h-0 overflow-y-auto"><fieldset class="p-6 space-y-4" [disabled]="!canManage()">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Proceso *</span><input [class]="inputCls" list="bia-process-names" [value]="d.name" (input)="setBia('name', $any($event.target).value)" />
                 <datalist id="bia-process-names">@for (p of rs.catalog.processNames(); track p) { <option [value]="p"></option> }</datalist></label>
@@ -363,7 +363,7 @@ import { ActionPlanService } from '../services/action-plan.service';
                 }
               </div>
             </div>
-          </fieldset>
+          </fieldset></div>
           <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
             <span class="text-[11px] text-rose-700">{{ formError() }}</span>
             <div class="flex gap-2">
@@ -383,7 +383,7 @@ import { ActionPlanService } from '../services/action-plan.service';
             <h2 class="text-base font-bold text-slate-900">Plan {{ d.code }}</h2>
             <button type="button" (click)="planDraft.set(null)" class="text-slate-400 hover:text-slate-600 p-1.5 cursor-pointer"><mat-icon>close</mat-icon></button>
           </div>
-          <fieldset class="flex-1 overflow-y-auto p-6 space-y-4" [disabled]="!canManage()">
+          <div class="flex-1 min-h-0 overflow-y-auto"><fieldset class="p-6 space-y-4" [disabled]="!canManage()">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Nombre *</span><input [class]="inputCls" [value]="d.name" (input)="setPlan('name', $any($event.target).value)" /></label>
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Código</span><input [class]="inputCls" [value]="d.code" (input)="setPlan('code', $any($event.target).value)" /></label>
@@ -431,7 +431,7 @@ import { ActionPlanService } from '../services/action-plan.service';
                 }
               </div>
             </div>
-          </fieldset>
+          </fieldset></div>
           <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
             <span class="text-[11px] text-rose-700">{{ formError() }}</span>
             <div class="flex gap-2">
@@ -451,7 +451,7 @@ import { ActionPlanService } from '../services/action-plan.service';
             <h2 class="text-base font-bold text-slate-900">Registrar prueba de continuidad</h2>
             <button type="button" (click)="testDraft.set(null)" class="text-slate-400 hover:text-slate-600 p-1.5 cursor-pointer"><mat-icon>close</mat-icon></button>
           </div>
-          <div class="flex-1 overflow-y-auto p-6 space-y-3">
+          <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-3">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Plan probado</span>
                 <select [class]="inputCls" (change)="setTest('planId', $any($event.target).value)">

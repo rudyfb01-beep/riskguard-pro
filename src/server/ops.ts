@@ -45,6 +45,7 @@ export function configFindings(req?: express.Request): ConfigFinding[] {
   }
   if (!(backupIntervalHours() > 0)) out.push({ level: 'alta', text: 'Respaldos programados desactivados (BACKUP_INTERVAL_HOURS=0).' });
   if (!env['BACKUP_DIR']) out.push({ level: 'baja', text: `Respaldos en ${backupDir()}: conviene que BACKUP_DIR apunte a un disco o volumen distinto del de la base, y copiarlos fuera del servidor.` });
+  if (env['WEBHOOK_ALLOW_PRIVATE'] === 'true') out.push({ level: 'media', text: 'WEBHOOK_ALLOW_PRIVATE=true: los webhooks de alertas pueden apuntar a la red interna. Úselo solo con destinos de confianza.' });
   const g = googleConfig();
   if (g.enabled && !g.domains.length) out.push({ level: 'media', text: 'Ingreso con Google sin GOOGLE_ALLOWED_DOMAINS: se acepta cualquier cuenta de Google registrada como usuario.' });
   return out;

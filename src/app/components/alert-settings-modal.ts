@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskDataService } from '../services/risk-data.service';
 import { KriDefinition, KriNotificationPreferences } from '../models/risk.model';
@@ -185,12 +185,15 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
                         id="email-recipients-input"
                         formControlName="emailRecipients"
                         rows="2"
-                        placeholder="ej: oficial.riesgo@empresa.com, soc@empresa.com, tesoreria@empresa.com"
+                        placeholder="ej: oficial.riesgo@cooperativa.cl, soc@cooperativa.cl"
                         class="w-full text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       ></textarea>
                       <span class="text-[11px] text-slate-400">
-                        Los destinatarios recibirán un expediente con el score de impacto y opciones de respuesta rápida.
+                        Además de estas direcciones, el aviso llega siempre a quienes atienden alertas en la aplicación (bandeja y correo).
                       </span>
+                      @if (channels() && !channels()!.email) {
+                        <p class="mt-1 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">El servidor no tiene SMTP configurado: los avisos quedan solo en la bandeja.</p>
+                      }
                     </div>
 
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1">
@@ -201,8 +204,8 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
                           formControlName="emailTemplate"
                           class="text-xs bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         >
-                          <option value="completa">Ficha Técnica Completa (Con auditoría y sugerencias IA)</option>
-                          <option value="ejecutiva">Resumen Ejecutivo (Para Directores y Comités)</option>
+                          <option value="completa">Completo (incluye la descripción de la alerta)</option>
+                          <option value="ejecutiva">Resumen (solo indicador, valor y umbral)</option>
                         </select>
                       </div>
 
@@ -238,8 +241,11 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
                         </span>
                       </div>
                       <p class="text-xs text-slate-500">
-                        Despacho inmediato de SMS a teléfonos corporativos de guardia para atención de incidentes críticos 24/7
+                        SMS a teléfonos de guardia mediante la pasarela de SMS de la cooperativa
                       </p>
+                      @if (channels() && !channels()!.sms) {
+                        <p class="mt-1 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">Requiere configurar una pasarela de SMS en el servidor (SMS_GATEWAY_URL). Mientras tanto no se envían SMS.</p>
+                      }
                     </div>
                   </div>
 
@@ -269,7 +275,7 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
                         id="sms-recipients-input"
                         type="text"
                         formControlName="smsRecipients"
-                        placeholder="ej: +54 9 11 4589-2044, +52 55 8421-9930, +1 415 555-2671"
+                        placeholder="ej: +56 9 1234 5678, +56 9 8765 4321"
                         class="w-full text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                       <div class="flex items-center justify-between text-[11px] text-slate-400 mt-1">
@@ -342,9 +348,21 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
                         id="webhook-url-input"
                         type="url"
                         formControlName="webhookUrl"
-                        placeholder="https://siem.empresa.com/api/v1/kri-events"
+                        placeholder="https://siem.cooperativa.cl/api/kri-events"
                         class="w-full text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-slate-900"
                       />
+                      <span class="text-[11px] text-slate-400">Se envía un POST con JSON (código, severidad, KRI, valor, umbral, proceso y texto). Solo direcciones https públicas.</span>
+                    </div>
+                    <div class="flex items-center justify-end pt-1">
+                      <button
+                        type="button"
+                        (click)="onTestDispatch('webhook')"
+                        [disabled]="isTestingChannel()"
+                        class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <mat-icon class="text-sm">send</mat-icon>
+                        <span>Probar webhook</span>
+                      </button>
                     </div>
                   </div>
                 }
@@ -375,7 +393,7 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
                         Disparar en Umbral Crítico (Brecha Roja)
                       </span>
                       <span class="text-[11px] text-slate-500 block">
-                        Envía alerta de máxima prioridad a través de Correo y SMS a todos los destinatarios configurados.
+                        Avisa por los canales activos cuando el KRI supera el umbral crítico.
                       </span>
                     </div>
                   </label>
@@ -391,7 +409,7 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
                         Disparar en Umbral Preventivo / Advertencia (Zona Amarilla)
                       </span>
                       <span class="text-[11px] text-slate-500 block">
-                        Envía notificación temprana vía Correo Electrónico para intervención antes de llegar a estado crítico.
+                        Avisa también cuando el KRI entra en la zona de advertencia.
                       </span>
                     </div>
                   </label>
@@ -404,10 +422,10 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
                     />
                     <div>
                       <span class="text-xs font-bold text-slate-900 block">
-                        Copia Obligatoria al Jefe de Riesgo Operacional y Auditoría
+                        Copia a quienes gestionan riesgos
                       </span>
                       <span class="text-[11px] text-slate-500 block">
-                        Añade automáticamente al Oficial Principal de Cumplimiento a la cadena de notificación institucional.
+                        Agrega como destinatarios a los usuarios con permiso para editar riesgos.
                       </span>
                     </div>
                   </label>
@@ -460,7 +478,7 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
                   <div class="flex items-center justify-between text-xs font-bold text-slate-800">
                     <span class="flex items-center gap-1.5">
                       <mat-icon class="text-sm text-indigo-600">email</mat-icon>
-                      <span>Simulación de Correo Saliente</span>
+                      <span>Vista previa del correo</span>
                     </span>
                     <span class="font-mono text-[10px] text-slate-400">HTML / UTF-8</span>
                   </div>
@@ -479,7 +497,7 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
                         <div>Responsable: {{ targetKriResponsible() }}</div>
                       </div>
                       <p class="text-[10px] text-slate-500 italic">
-                        Esta alerta fue generada por el motor de supervisión continua. Para registrar acciones correctivas ingrese a la consola institucional.
+                        Enviado por RiskGuard Pro al registrar una lectura fuera de umbral. Ingrese a Alertas & KRIs para gestionarla.
                       </p>
                     </div>
                   </div>
@@ -500,7 +518,7 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
                   <div class="flex items-center justify-between text-xs font-bold text-slate-800">
                     <span class="flex items-center gap-1.5">
                       <mat-icon class="text-sm text-emerald-600">phone_android</mat-icon>
-                      <span>Simulación de Mensaje SMS Móvil</span>
+                      <span>Vista previa del SMS</span>
                     </span>
                     <span class="font-mono text-[10px] text-slate-400">{{ smsPreviewLength() }}/160 caracteres</span>
                   </div>
@@ -516,7 +534,7 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
                     </div>
 
                     <div class="text-[9px] text-slate-400 text-right font-mono">
-                      Enviado vía SMS Gateway Corporativo
+                      Pasarela de SMS configurada en el servidor
                     </div>
                   </div>
 
@@ -533,21 +551,21 @@ import { KriDefinition, KriNotificationPreferences } from '../models/risk.model'
 
               </div>
 
-              <!-- Test Result Notification Banner -->
-              @if (testFeedback(); as fb) {
-                <div class="p-3.5 rounded-xl border flex items-center justify-between gap-3 text-xs animate-in fade-in duration-200"
-                  [class]="fb.success ? 'bg-emerald-50 text-emerald-900 border-emerald-200' : 'bg-rose-50 text-rose-900 border-rose-200'"
-                >
-                  <div class="flex items-center gap-2">
-                    <mat-icon class="text-base" [class.text-emerald-600]="fb.success" [class.text-rose-600]="!fb.success">
-                      {{ fb.success ? 'check_circle' : 'error' }}
-                    </mat-icon>
-                    <span>{{ fb.message }}</span>
-                  </div>
-                  <span class="text-[10px] font-mono text-slate-500">{{ fb.timestamp }}</span>
-                </div>
-              }
+            </div>
+          }
 
+              <!-- Test Result Notification Banner -->
+          @if (testFeedback(); as fb) {
+            <div class="p-3.5 rounded-xl border flex items-center justify-between gap-3 text-xs animate-in fade-in duration-200"
+              [class]="fb.success ? 'bg-emerald-50 text-emerald-900 border-emerald-200' : 'bg-rose-50 text-rose-900 border-rose-200'"
+            >
+              <div class="flex items-center gap-2">
+                <mat-icon class="text-base" [class.text-emerald-600]="fb.success" [class.text-rose-600]="!fb.success">
+                  {{ fb.success ? 'check_circle' : 'error' }}
+                </mat-icon>
+                <span>{{ fb.message }}</span>
+              </div>
+              <span class="text-[10px] font-mono text-slate-500">{{ fb.timestamp }}</span>
             </div>
           }
 
@@ -621,12 +639,12 @@ export class AlertSettingsModal implements OnInit {
   // Form Group
   readonly settingsForm = this.fb.group({
     emailEnabled: [true],
-    emailRecipients: ['oficial.riesgo@demo.riskguard.cl, alertas-kri@demo.riskguard.cl', [Validators.required]],
+    emailRecipients: [''],
     emailTemplate: ['completa'],
-    smsEnabled: [true],
-    smsRecipients: ['+54 9 11 4589-2044, +52 55 8421-9930', [Validators.required]],
+    smsEnabled: [false],
+    smsRecipients: [''],
     webhookEnabled: [false],
-    webhookUrl: ['https://api.demo.riskguard.cl/v1/webhooks/kri-alerts'],
+    webhookUrl: [''],
     notifyOnWarning: [true],
     notifyOnCritical: [true],
     cooldownMinutes: [30],
@@ -636,23 +654,27 @@ export class AlertSettingsModal implements OnInit {
   // Selected KRI computed
   readonly selectedKri = computed(() => {
     const scope = this.selectedScope();
-    if (scope === 'GLOBAL') return null;
+    // Global: la vista previa usa el primer KRI como ejemplo.
+    if (scope === 'GLOBAL') return this.riskService.kriDefinitions()[0] ?? null;
     return this.riskService.kriDefinitions().find(k => k.id === scope) || null;
   });
 
+  /** Canales disponibles en el servidor (null en la demostración). */
+  readonly channels = signal<{ email: boolean; sms: boolean; webhook: boolean } | null>(null);
+
   // Preview properties
-  readonly targetKriCode = computed(() => this.selectedKri()?.code || 'KRI-FIN-02');
-  readonly targetKriName = computed(() => this.selectedKri()?.name || 'Latencia P99 de Autorización Transaccional');
-  readonly targetKriProcess = computed(() => this.selectedKri()?.process || 'Operaciones de Pago');
+  readonly targetKriCode = computed(() => this.selectedKri()?.code || 'KRI');
+  readonly targetKriName = computed(() => this.selectedKri()?.name || 'Indicador');
+  readonly targetKriProcess = computed(() => this.selectedKri()?.process || '—');
   readonly targetKriValue = computed(() => {
     const k = this.selectedKri();
-    return k ? `${k.currentValue} ${k.unit}` : '820 ms';
+    return k ? `${k.currentValue} ${k.unit}` : '—';
   });
   readonly targetKriThreshold = computed(() => {
     const k = this.selectedKri();
-    return k ? `>= ${k.criticalThreshold} ${k.unit}` : '>= 750 ms';
+    return k ? `${k.direction === 'superior' ? '>=' : '<='} ${k.criticalThreshold} ${k.unit}` : '—';
   });
-  readonly targetKriResponsible = computed(() => this.selectedKri()?.responsible || 'DevOps / SRE Lead');
+  readonly targetKriResponsible = computed(() => this.selectedKri()?.responsible || '—');
 
   readonly emailSubjectPreview = computed(() => {
     return `[ALERTA CRÍTICA] Desviación en ${this.targetKriCode()} - ${this.targetKriName()}`;
@@ -666,19 +688,16 @@ export class AlertSettingsModal implements OnInit {
 
   readonly firstSmsRecipient = computed(() => {
     const raw = this.settingsForm.get('smsRecipients')?.value;
-    if (!raw) return '+54 9 11 4589-2044';
-    const parts = raw.split(',');
-    return parts[0]?.trim() || '+54 9 11 4589-2044';
+    return raw?.split(/[,\n]/)[0]?.trim() || '(sin teléfonos)';
   });
 
   readonly firstEmailRecipient = computed(() => {
     const raw = this.settingsForm.get('emailRecipients')?.value;
-    if (!raw) return 'oficial.riesgo@demo.riskguard.cl';
-    const parts = raw.split(',');
-    return parts[0]?.trim() || 'oficial.riesgo@demo.riskguard.cl';
+    return raw?.split(/[,\n]/)[0]?.trim() || 'Quienes atienden alertas';
   });
 
   ngOnInit() {
+    void this.riskService.notificationChannels().then(c => this.channels.set(c));
     const initKri = this.initialKri();
     if (initKri) {
       this.selectedScope.set(initKri.id);
@@ -745,29 +764,22 @@ export class AlertSettingsModal implements OnInit {
   }
 
   async onTestDispatch(channel: 'email' | 'sms' | 'webhook') {
-    this.isTestingChannel.set(true);
-    const code = this.targetKriCode();
-    let recipient = '';
-
-    if (channel === 'email') {
-      const emails = this.settingsForm.get('emailRecipients')?.value || '';
-      recipient = emails.split(',')[0]?.trim() || 'oficial.riesgo@demo.riskguard.cl';
-    } else if (channel === 'sms') {
-      const phones = this.settingsForm.get('smsRecipients')?.value || '';
-      recipient = phones.split(',')[0]?.trim() || '+54 9 11 4589-2044';
-    } else {
-      recipient = this.settingsForm.get('webhookUrl')?.value || 'https://api.demo.riskguard.cl/webhook';
-    }
-
-    try {
-      const res = await this.riskService.testSendNotification(channel, code, recipient, channel === 'sms' ? this.smsMessagePreview() : this.emailSubjectPreview());
-      this.testFeedback.set(res);
-    } catch {
+    const first = (v: string | null | undefined) => (v || '').split(/[,\n]/).map(x => x.trim()).find(Boolean) || '';
+    const recipient = channel === 'email' ? first(this.settingsForm.get('emailRecipients')?.value)
+      : channel === 'sms' ? first(this.settingsForm.get('smsRecipients')?.value)
+      : (this.settingsForm.get('webhookUrl')?.value || '').trim();
+    if (!recipient) {
       this.testFeedback.set({
-        success: false,
-        message: `Error al despachar prueba en canal ${channel.toUpperCase()}`,
-        timestamp: new Date().toLocaleTimeString()
+        success: false, timestamp: new Date().toLocaleTimeString(),
+        message: channel === 'email' ? 'Escriba al menos un correo destinatario para la prueba.' : channel === 'sms' ? 'Escriba al menos un teléfono para la prueba.' : 'Escriba la URL del webhook.',
       });
+      return;
+    }
+    this.isTestingChannel.set(true);
+    try {
+      this.testFeedback.set(await this.riskService.testSendNotification(channel, this.targetKriCode(), recipient));
+    } catch (err) {
+      this.testFeedback.set({ success: false, message: (err as Error).message || `Error al enviar la prueba por ${channel}`, timestamp: new Date().toLocaleTimeString() });
     } finally {
       this.isTestingChannel.set(false);
     }
@@ -792,14 +804,26 @@ export class AlertSettingsModal implements OnInit {
       .map((s: string) => s.trim())
       .filter((s: string) => s.length > 0);
 
+    const bad = emailRecipientsArray.find((e: string) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    const webhook = (formVal.webhookUrl || '').trim();
+    const error = bad ? `Correo no válido: ${bad}`
+      : formVal.smsEnabled && !smsRecipientsArray.length ? 'Escriba al menos un teléfono o desactive el SMS.'
+      : formVal.webhookEnabled && !/^https:\/\/\S+$/.test(webhook) ? 'El webhook debe ser una dirección https://.'
+      : null;
+    if (error) {
+      this.isSaving.set(false);
+      this.testFeedback.set({ success: false, message: error, timestamp: new Date().toLocaleTimeString() });
+      return;
+    }
+
     const preferences: KriNotificationPreferences = {
       emailEnabled: !!formVal.emailEnabled,
-      emailRecipients: emailRecipientsArray.length > 0 ? emailRecipientsArray : ['oficial.riesgo@demo.riskguard.cl'],
+      emailRecipients: emailRecipientsArray,
       emailTemplate: (formVal.emailTemplate as 'completa' | 'ejecutiva') || 'completa',
       smsEnabled: !!formVal.smsEnabled,
-      smsRecipients: smsRecipientsArray.length > 0 ? smsRecipientsArray : ['+54 9 11 4589-2044'],
+      smsRecipients: smsRecipientsArray,
       webhookEnabled: !!formVal.webhookEnabled,
-      webhookUrl: formVal.webhookUrl || '',
+      webhookUrl: webhook,
       notifyOnWarning: !!formVal.notifyOnWarning,
       notifyOnCritical: !!formVal.notifyOnCritical,
       cooldownMinutes: Number(formVal.cooldownMinutes ?? 30),

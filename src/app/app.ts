@@ -554,62 +554,19 @@ export class App {
   }
 
   // Simulate an anomaly alert in real time
-  async simulateRealTimeAnomaly() {
-    if (!this.riskService.requirePermission(['canConfigureKRIs'], 'probar disparos de alertas KRI')) return;
-    const examples = [
-      {
-        title: 'Desvío de KRI: Tasa inusual de transacciones rechazadas en switch bancario (> 15%)',
-        process: 'Operaciones de Pago',
-        kriMetric: 'Tasa de Rechazos en Switch',
-        threshold: '<= 3.0%',
-        currentValue: '17.8%',
-        severity: 'Crítico' as const,
-        description: 'Pico anómalo detectado por el motor de transacciones. 84 operaciones declinadas en 10 minutos.'
-      },
-      {
-        title: 'Anomalía de Ciberseguridad: 42 intentos de fuerza bruta en servicio SSO',
-        process: 'Ciberseguridad & TI',
-        kriMetric: 'Tasa de Reintentos Fallidos SSO',
-        threshold: '<= 5 / min',
-        currentValue: '42 / min',
-        severity: 'Alto' as const,
-        description: 'Dirección IP externa intentando acceso con diccionario de contraseñas contra portal corporativo.'
-      },
-      {
-        title: `Falla operativa: desfase de conciliación superior a ${this.riskService.catalog.formatMoney(this.riskService.currencyCode() === 'CLP' ? 70_000_000 : 75_000)} en caja corresponsal`,
-        process: 'Tesorería',
-        kriMetric: 'Descuadre Diario No Conciliado',
-        threshold: `<= ${this.riskService.catalog.formatMoney(this.riskService.currencyCode() === 'CLP' ? 5_000_000 : 5_000)}`,
-        currentValue: this.riskService.catalog.formatMoney(this.riskService.currencyCode() === 'CLP' ? 74_500_000 : 78_420),
-        severity: 'Crítico' as const,
-        description: 'La conciliación automática nocturna identificó tres lotes pendientes de liquidación sin acuse de recibo.'
-      }
-    ];
-
-    const raw = examples[Math.floor(Math.random() * examples.length)];
-    // La alerta de prueba se asigna al proceso equivalente del mantenedor.
-    const pick = { ...raw, process: this.riskService.closestProcess(raw.process) };
-    const alert = await this.riskService.triggerAlert(pick);
-    this.showToast(`¡Alerta generada en tiempo real! ${alert.code} registrada en la bitácora inalterable.`);
-    this.setTab('alertas-kri');
+  /** Registrar la lectura de un KRI: abre los KRIs, donde cada uno tiene "Registrar lectura" (dispara la alerta si supera el umbral). */
+  registerKriReading() {
+    this.openKriThresholds();
   }
 
   // Verify Audit Trail Integrity
   async verifyChainIntegrity() {
     this.integrityStatus.set({ verified: false, verifying: true });
     const result = await this.riskService.verifyAuditTrailIntegrity();
-    setTimeout(() => {
-      this.integrityStatus.set({
-        verified: true,
-        valid: result.isValid,
-        totalBlocks: result.totalBlocks,
-        verifying: false
-      });
-      this.showToast(result.isValid
-        ? `Integridad criptográfica verificada: ${result.totalBlocks} bloques inalterables válidos.`
-        : '¡Alerta de inconsistencia en la cadena de bloques!'
-      );
-    }, 600);
+    this.integrityStatus.set({ verified: true, valid: result.isValid, totalBlocks: result.totalBlocks, verifying: false });
+    this.showToast(result.isValid
+      ? `Integridad verificada: ${result.totalBlocks} bloques con su hash SHA-256 y encadenamiento correctos.`
+      : `La cadena está alterada a partir del bloque ${result.brokenBlockNumber}: su contenido o encadenamiento no coincide con el hash.`);
   }
 
   // Helper for level badge colors

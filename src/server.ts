@@ -51,6 +51,9 @@ app.use(express.json({ limit: process.env['JSON_LIMIT'] || '15mb' }));
 app.use('/api/ai', requireCsrfHeader, requireAuth);
 app.use(['/api/db/stats', '/api/db/init'], requireCsrfHeader, requireAuth);
 
+/** Modelo de Gemini (GEMINI_MODEL). */
+const geminiModel = () => process.env['GEMINI_MODEL'] || 'gemini-3.8-flash';
+
 // Initialize Gemini Client on demand
 let aiClient: GoogleGenAI | null = null;
 function getAiClient(): GoogleGenAI | null {
@@ -117,20 +120,23 @@ Devuelve un JSON estrictamente válido con la siguiente estructura:
   }
 }`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0.2,
-        },
-      });
-
-      const responseText = response.text;
-      if (responseText) {
-        const parsed = JSON.parse(responseText);
-        res.json({ success: true, data: parsed });
-        return;
+      try {
+        const response = await ai.models.generateContent({
+          model: geminiModel(),
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            temperature: 0.2,
+          },
+        });
+        const responseText = response.text;
+        if (responseText) {
+          res.json({ success: true, data: JSON.parse(responseText) });
+          return;
+        }
+      } catch (err) {
+        // Si el servicio de IA falla, se usa el análisis heurístico de abajo.
+        console.warn('[IA] Análisis no disponible, se usa el heurístico:', (err as Error).message);
       }
     }
 
@@ -203,13 +209,15 @@ Los montos están expresados en ${currency}.
 
 Escribe un resumen en español de 2 párrafos concisos y de alto nivel gerencial destacando el apetito de riesgo, la efectividad global de los controles y 3 recomendaciones clave.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: prompt,
-      });
-
-      res.json({ success: true, summary: response.text });
-      return;
+      try {
+        const response = await ai.models.generateContent({ model: geminiModel(), contents: prompt });
+        if (response.text) {
+          res.json({ success: true, summary: response.text });
+          return;
+        }
+      } catch (err) {
+        console.warn('[IA] Resumen no disponible, se usa el calculado:', (err as Error).message);
+      }
     }
 
     res.json({
