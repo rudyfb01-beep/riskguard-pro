@@ -6,23 +6,78 @@ o **SQLite** (un archivo local, sin servidor de base de datos).
 
 ## Cómo se guardan los datos
 
-- Todo lo que se registra en pantalla se guarda en la base de datos (**PostgreSQL** o **SQLite**) a través de la API del
-  servidor. El indicador de la esquina inferior izquierda muestra "Guardando…", "Guardado" o un
-  error con el botón **Reintentar**.
+- Todo lo que se registra en pantalla se guarda en la base de datos (**PostgreSQL** o **SQLite**) a
+  través de la API del servidor. No hay modo demostración: sin base de datos el servidor no arranca.
+  El indicador de la esquina inferior izquierda muestra "Guardando…", "Guardado" o un error con
+  el botón **Reintentar**.
 - Al arrancar, el servidor **aplica el esquema automáticamente** (`database/schema.sql` en
   PostgreSQL, `database/schema.sqlite.sql` en SQLite). Los scripts son idempotentes, así que
   también actualizan bases creadas con versiones anteriores.
-- En una base vacía se cargan los **datos base**: los cargos de gobierno cooperativo, los plazos
-  regulatorios CMF/ANCI y un usuario administrador.
-- Con `SEED_DEMO_DATA=true` se cargan además los **datos de ejemplo ficticios** (riesgos,
-  incidentes, proveedores, etc.), útiles para evaluar la aplicación.
+- En una base vacía se cargan solo los **datos base**: cargos de gobierno cooperativo, mapa de
+  procesos de referencia, plazos regulatorios CMF/ANCI, normas de referencia y escenarios de
+  crisis, más el **administrador inicial** (`ADMIN_EMAIL`).
+- `SEED_DEMO_DATA=true` carga datos ficticios (riesgos, incidentes, proveedores…) para un ambiente
+  de **capacitación o pruebas**. En producción (`NODE_ENV=production`) está bloqueado.
 - **Motor de base de datos** (`DB_CLIENT`): con `DATABASE_URL` o `POSTGRES_HOST` se usa
   PostgreSQL; sin ellos, **SQLite** en `data/riskguard.db` (ruta configurable con `SQLITE_PATH`).
-  `DB_CLIENT=none` deja la aplicación en **modo demostración** (datos de ejemplo que se pierden al recargar).
 - La bitácora inalterable la encadena el **servidor**: asigna el número de bloque, la hora y el
   hash SHA-256, y serializa las escrituras simultáneas para que la cadena no se bifurque.
 
-## Opción 0: paquete descargable con SQLite (un equipo)
+## Producción (recomendada): Docker Compose con PostgreSQL y HTTPS
+
+Requisitos: un servidor Linux (o Windows con Docker) con Docker Engine 24+ y Docker Compose v2,
+2 vCPU, 4 GB de RAM y 20 GB de disco; un nombre DNS (p. ej. `grc.cooperativa.cl`); una cuenta de
+correo SMTP (o Google Workspace) para enviar los códigos de acceso.
+
+```bash
+git clone https://github.com/rudyfb01-beep/riskguard-pro
+cd riskguard-pro
+cp .env.example .env && chmod 600 .env      # complete APP_URL, POSTGRES_PASSWORD, AUTH_SECRET,
+                                              # ADMIN_EMAIL y SMTP_* (ver comentarios del archivo)
+docker compose --profile https up -d --build # con el proxy HTTPS incluido (Caddy)
+# o, si la cooperativa ya tiene un proxy (nginx, IIS, balanceador) que apunte a 127.0.0.1:3000:
+docker compose up -d --build
+```
+
+Luego abra `APP_URL`, escriba el correo de `ADMIN_EMAIL` y use el código que le llega. Desde
+**Puestos & Permisos** cree a las demás personas; desde **Mantenedores** ajuste procesos, áreas,
+escala y apetito; con **Carga masiva** importe la matriz de riesgos y controles actual.
+
+**Qué protege la configuración de producción** (`NODE_ENV=production`, fija en la imagen): la
+aplicación **no arranca** e indica qué corregir si falta `APP_URL`, `AUTH_SECRET` (32+ caracteres),
+SMTP (salvo ingreso solo con Google), si la contraseña de PostgreSQL es la de ejemplo, si
+`AUTH_DEV_LOG_CODES`/`NOTIFY_DEV_LOG` están activos, si `SEED_DEMO_DATA=true`, o si la base es nueva
+y falta `ADMIN_EMAIL`. Además:
+
+- PostgreSQL no publica puertos: solo la aplicación lo alcanza por la red interna de Docker.
+- La aplicación escucha solo en `127.0.0.1:3000`; los usuarios entran por el proxy HTTPS
+  (`TRUST_PROXY=1`: cookie `Secure`, IP real y HSTS).
+- Proxy incluido (`--profile https`): `TLS_MODE=internal` usa la CA interna de Caddy (instale su
+  raíz, `docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt .`, en los equipos o
+  en la GPO del dominio); con un correo en `TLS_MODE` y un dominio público obtiene un certificado
+  de Let's Encrypt. Para un certificado propio de la cooperativa, use su proxy existente.
+- Respaldos diarios con `pg_dump` en el volumen `backups` (ver [docs/OPERACION.md](docs/OPERACION.md)).
+- Adminer (consola SQL) solo con `--profile herramientas` y en `127.0.0.1:8080`.
+
+**Verificación de la instalación** (desde el servidor, con Node 22):
+
+```bash
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt   # si usa TLS_MODE=internal
+PROD_URL=https://grc.cooperativa.cl ADMIN_EMAIL=... NODE_EXTRA_CA_CERTS=./caddy-root.crt \
+  node tests/produccion/smoke.mjs     # lee el código desde Mailpit (MAILPIT_URL) o un JSONL (MAIL_JSONL)
+```
+
+La misma verificación corre en cada cambio en GitHub Actions (job "Producción"): construye la
+imagen, levanta PostgreSQL + aplicación + Caddy, comprueba que una configuración insegura no
+arranque, ingresa como administrador, confirma que la base no trae datos de ejemplo, registra datos,
+respalda, verifica la restauración y reinicia.
+
+Actualizar: `git pull && docker compose --profile https up -d --build` (respalde antes; el
+esquema se migra solo). Las instalaciones de prueba anteriores usaban la base `custodia_risk`;
+la nueva configuración usa `riskguard` (defina `POSTGRES_DB=custodia_risk` y `POSTGRES_USER=postgres`
+para conservar un volumen existente).
+
+## Paquete con SQLite (un equipo)
 
 Para usar la aplicación en un solo equipo, sin Docker ni servidor de base de datos:
 
@@ -31,59 +86,25 @@ npm run package:sqlite        # genera release/riskguard-pro-sqlite.zip
 ```
 
 El .zip trae la aplicación compilada (no necesita `npm install`), `iniciar.bat` / `iniciar.sh`,
-`respaldar.bat` / `respaldar.sh`, `configuracion.env` y un `LEEME.txt` con los pasos. Solo requiere
-Node.js 24 LTS (o 22.16 o superior). SQLite está pensado para un equipo o un grupo pequeño; para
-uso institucional con varios usuarios simultáneos se recomienda PostgreSQL (opciones 1 y 2).
+`respaldar.bat` / `respaldar.sh`, `restaurar.mjs`, `configuracion.env` y un `LEEME.txt` con los
+pasos. Solo requiere Node.js 24 LTS (o 22.16 o superior). Está pensado para un equipo o un grupo
+pequeño; para uso institucional use la instalación de producción.
 
-## Opción 1: Docker Compose (recomendada)
+## Instalación nativa (sin Docker)
 
-Requisito: Docker Desktop 20+.
-
-```bash
-git clone https://github.com/rudyfb01-beep/riskguard-pro
-cd riskguard-pro
-docker compose up -d --build
-```
-
-- Aplicación: http://localhost:3000
-- Adminer (consultas SQL): http://localhost:8080 — servidor `postgres`, usuario `postgres`,
-  contraseña `postgrespassword`, base `custodia_risk`.
-
-Para entrar con los datos de ejemplo, escribe `elena.vasconcelos@demo.riskguard.cl` y busca el
-código en `docker compose logs app` (sin SMTP configurado, los códigos se escriben ahí; ver
-[Inicio de sesión](#inicio-de-sesión)). Las bases creadas antes del 22-10-2026 conservan los correos de ejemplo
-anteriores, terminados en `@custodia-risk.com`.
-
-Por defecto, Docker Compose carga los datos de ejemplo (`SEED_DEMO_DATA=true`). Para empezar sin
-ellos:
-
-```bash
-SEED_DEMO_DATA=false docker compose up -d --build
-```
-
-Para borrar todos los datos y empezar de cero: `docker compose down -v`.
-
-> Si la base se creó con una versión anterior (que usaba `database/seed.sql`), conviene
-> recrearla con `docker compose down -v`, porque los datos de ejemplo antiguos no coinciden con
-> los actuales.
-
-## Opción 2: Instalación nativa
-
-Requisitos: Node.js 22, PostgreSQL 14 o superior y [bun](https://bun.sh) (el proyecto usa
-`bun.lock`; `npm install` falla con este árbol de dependencias).
+Requisitos: Node.js 22.16+, PostgreSQL 14 o superior (cliente `pg_dump` de la misma versión para
+los respaldos) y [bun](https://bun.sh) (el proyecto usa `bun.lock`).
 
 ```bash
 bun install
-createdb -U postgres custodia_risk     # solo crea la base vacía
-cp .env.example .env                   # ajustar DATABASE_URL y SEED_DEMO_DATA
-npm run build
-npm run serve:ssr:app                  # lee .env automáticamente
+createdb -U postgres riskguard           # solo crea la base vacía
+cp .env.example .env                     # complete las variables; agregue DATABASE_URL
+npx ng build
+NODE_ENV=production npm run serve:ssr:app   # lee .env; ponga un proxy HTTPS delante
 ```
 
-La aplicación queda en http://localhost:3000 (o el `PORT` definido en `.env`). No es necesario
-ejecutar ningún script SQL a mano: el servidor crea las tablas al arrancar.
-
-Para desarrollo con recarga en vivo, exporta las variables antes de `npm run dev`:
+Para desarrollo con recarga en vivo (sin `NODE_ENV=production`, con una base de pruebas y, si se
+quiere, `SEED_DEMO_DATA=true` y `AUTH_DEV_LOG_CODES=true`):
 
 ```bash
 set -a; source .env; set +a
@@ -207,11 +228,10 @@ Operacional). Ese usuario se crea al iniciar una base vacía sin datos de ejempl
 actualiza si cambia la variable. Desde ahí se dan de alta los demás usuarios en "Puestos &
 Permisos".
 
-**Para evaluar sin SMTP**, `AUTH_DEV_LOG_CODES=true` escribe los códigos en el log del servidor
-(`docker compose logs app`). Docker Compose lo trae activado por defecto junto con los datos de
-ejemplo; **en producción debe ser `false`**. Con los datos de ejemplo se puede entrar, por ejemplo,
-como `elena.vasconcelos@demo.riskguard.cl` (Jefa de Riesgo Operacional) o
-`carmen.soto@demo.riskguard.cl` (Consejo, solo lectura).
+**Solo en desarrollo o capacitación** (sin `NODE_ENV=production`), `AUTH_DEV_LOG_CODES=true` escribe
+los códigos en el log del servidor; en producción la aplicación no arranca con esa opción. Con
+`SEED_DEMO_DATA=true` se puede entrar, por ejemplo, como `elena.vasconcelos@demo.riskguard.cl`
+(Jefa de Riesgo Operacional) o `carmen.soto@demo.riskguard.cl` (Consejo, solo lectura).
 
 ### Publicar con HTTPS
 
@@ -646,15 +666,16 @@ En **Supervisión & Auditoría → Gestión Documental** se lleva el listado mae
 
 | Variable | Descripción |
 | :--- | :--- |
-| `DB_CLIENT` | `postgres`, `sqlite` o `none` (modo demostración). Sin definir: PostgreSQL si hay `DATABASE_URL`/`POSTGRES_HOST`; si no, SQLite. |
+| `NODE_ENV` | `production` (fijo en la imagen Docker) activa la validación de la configuración al arrancar. |
+| `DB_CLIENT` | `postgres` o `sqlite`. Sin definir: PostgreSQL si hay `DATABASE_URL`/`POSTGRES_HOST`; si no, SQLite. |
 | `DATABASE_URL` | Cadena de conexión PostgreSQL. |
 | `SQLITE_PATH` | Archivo de la base SQLite (por defecto `data/riskguard.db` en la carpeta desde donde se inicia). |
-| `SEED_DEMO_DATA` | `true` carga datos de ejemplo ficticios en una base vacía. Usar `false` en producción. |
-| `ADMIN_EMAIL` | Correo del administrador inicial cuando no se cargan datos de ejemplo. |
+| `SEED_DEMO_DATA` | `true` carga datos de ejemplo ficticios en una base vacía (capacitación o pruebas; bloqueado en producción). |
+| `ADMIN_EMAIL` | Correo del administrador inicial (obligatorio en una base nueva de producción). |
 | `DATABASE_SSL` | `true` para conectarse con SSL (bases administradas en la nube). |
 | `DATABASE_SSL_REJECT_UNAUTHORIZED` | `false` solo si el certificado del servidor no es verificable. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_HELO_NAME` | Servidor de correo para los códigos de acceso y los avisos (ver Google Workspace). |
-| `AUTH_DEV_LOG_CODES` | `true` muestra los códigos en el log (solo para evaluar sin SMTP). |
+| `AUTH_DEV_LOG_CODES` | `true` muestra los códigos en el log (solo desarrollo; bloqueado en producción). |
 | `APP_URL` | Dirección pública de la aplicación (p. ej. `https://grc.tucooperativa.cl`) para los enlaces de los correos. |
 | `NOTIFY_INTERVAL_MINUTES` | Cada cuántos minutos se revisan los plazos y se envían correos (15 por defecto; `0` lo desactiva). |
 | `NOTIFY_DEV_LOG` | `true` escribe en el log los correos de aviso cuando no hay SMTP (solo para evaluar). |
@@ -670,6 +691,8 @@ En **Supervisión & Auditoría → Gestión Documental** se lleva el listado mae
 | `SESSION_IDLE_MINUTES`, `SESSION_MAX_HOURS` | Vigencia de la sesión (60 minutos de inactividad y 10 horas en total por defecto). |
 | `TRUST_PROXY`, `COOKIE_SECURE` | Configuración detrás de un proxy HTTPS. |
 | `PORT` | Puerto HTTP (por defecto 4000; Docker y el paquete SQLite usan 3000). |
+| `APP_BIND`, `APP_PORT` | Docker Compose: interfaz y puerto del servidor donde se publica la aplicación (por defecto `127.0.0.1:3000`, detrás del proxy). |
+| `APP_DOMAIN`, `TLS_MODE` | Docker Compose con `--profile https`: nombre del servidor y certificado (`internal` o un correo para Let's Encrypt). |
 | `NG_ALLOWED_HOSTS` | Nombres o IP con que se accede a la app además de `localhost` y `APP_URL` (separados por coma). |
 | `GEMINI_API_KEY` | Opcional: habilita el análisis de incidentes con IA. |
 | `GEMINI_MODEL` | Modelo de Gemini (por defecto `gemini-3.8-flash`). Si el servicio falla se usa el análisis calculado. |

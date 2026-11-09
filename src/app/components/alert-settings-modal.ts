@@ -659,7 +659,7 @@ export class AlertSettingsModal implements OnInit {
     return this.riskService.kriDefinitions().find(k => k.id === scope) || null;
   });
 
-  /** Canales disponibles en el servidor (null en la demostración). */
+  /** Canales disponibles en el servidor (null si no se pudo consultar). */
   readonly channels = signal<{ email: boolean; sms: boolean; webhook: boolean } | null>(null);
 
   // Preview properties

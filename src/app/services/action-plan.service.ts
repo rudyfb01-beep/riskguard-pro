@@ -8,7 +8,7 @@ import {
 } from '../models/action-plan.model';
 import { AuditLogEntry, Risk } from '../models/risk.model';
 import {
-  canManagePlans, checkPlanChange, daysToDue, isOpenPlan, isOverduePlan, isPlanOwner, nextPlanCode, plansFromExisting,
+  canManagePlans, checkPlanChange, daysToDue, isOpenPlan, isOverduePlan, isPlanOwner, nextPlanCode,
   progressFromTasks, riskTreatment, SOURCE_PERMISSIONS, todayIso,
 } from '../utils/action-plans';
 
@@ -31,11 +31,8 @@ export class ActionPlanService {
   private readonly sec = inject(SecurityService);
   private readonly res = inject(ResilienceService);
 
-  /** En modo demostración parte con los planes que ya traen los datos de ejemplo; con base de datos, los carga el servidor. */
-  readonly plans = signal<ActionPlan[]>(plansFromExisting({
-    risks: this.rs.risks(), audits: this.rs.audits(), compliance: this.comp.requirements(), normLabel: id => this.comp.normLabel(id),
-    assessment: this.sec.assessment(), continuityTests: this.res.tests(), at: new Date().toISOString(), by: 'RiskGuard (datos de ejemplo)',
-  }).plans);
+  /** Planes de acción (los carga el servidor). */
+  readonly plans = signal<ActionPlan[]>([]);
 
   constructor() {
     this.rs.riskTreatmentFn = r => riskTreatment(r, this.plans());

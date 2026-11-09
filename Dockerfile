@@ -1,5 +1,5 @@
 # ==============================================================================
-# CUSTODIA RISK MANAGEMENT — Imagen de producción (Angular 21 SSR + Express)
+# RiskGuard Pro — imagen de producción (Angular 21 SSR + Express)
 # Construcción multi-etapa: dependencias → build → runtime mínimo
 # ==============================================================================
 
@@ -21,7 +21,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NG_CLI_ANALYTICS=false
-RUN npx ng build --configuration production
+RUN npx ng build --configuration production \
+ && node -p "require('./package.json').version" > dist/app/VERSION
 
 # ------------------------------------------------------------------------------
 # 3. RUNTIME: el bundle SSR ya incluye sus dependencias (express, pg, etc.),
@@ -29,9 +30,11 @@ RUN npx ng build --configuration production
 # ------------------------------------------------------------------------------
 FROM node:22-alpine AS runtime
 WORKDIR /app
+ARG APP_VERSION=""
 ENV NODE_ENV=production \
     PORT=3000 \
-    BACKUP_DIR=/app/backups
+    BACKUP_DIR=/app/backups \
+    APP_VERSION=${APP_VERSION}
 
 # pg_dump / pg_restore para los respaldos programados de PostgreSQL.
 RUN apk add --no-cache postgresql16-client \

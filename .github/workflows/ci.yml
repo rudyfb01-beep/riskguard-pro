@@ -125,3 +125,67 @@ jobs:
           name: dist
           path: dist/
       - run: node --test "tests/e2e/*.test.mjs"
+
+  produccion-docker:
+    name: Producción (Docker Compose + HTTPS)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configuración de producción (.env)
+        run: |
+          cat > .env <<ENV
+          APP_URL=https://localhost
+          APP_DOMAIN=localhost
+          TLS_MODE=internal
+          POSTGRES_PASSWORD=$(openssl rand -hex 16)
+          AUTH_SECRET=$(openssl rand -hex 32)
+          ADMIN_EMAIL=riesgo@cooperativa.cl
+          SMTP_HOST=mailpit
+          SMTP_PORT=1025
+          SMTP_FROM=RiskGuard Pro <grc@cooperativa.cl>
+          UF_AUTO_SYNC=false
+          APP_VERSION=ci-${GITHUB_SHA::7}
+          ENV
+          chmod 600 .env
+      - name: La configuración insegura no arranca
+        run: |
+          docker compose build app
+          set +e
+          out=$(docker compose run --rm --no-deps -e AUTH_DEV_LOG_CODES=true -e AUTH_SECRET=corto app 2>&1)
+          code=$?
+          set -e
+          echo "$out"
+          test $code -ne 0
+          echo "$out" | grep -q "AUTH_DEV_LOG_CODES=true"
+          echo "$out" | grep -q "AUTH_SECRET debe tener"
+      - name: Levantar (PostgreSQL, aplicación y proxy HTTPS)
+        run: docker compose -f docker-compose.yml -f deploy/ci.override.yml --profile https up -d --wait --wait-timeout 180
+      - name: Certificado de la CA interna
+        run: docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt
+      - name: Verificación de la instalación
+        env:
+          PROD_URL: https://localhost
+          ADMIN_EMAIL: riesgo@cooperativa.cl
+          MAILPIT_URL: http://localhost:8025
+          NODE_EXTRA_CA_CERTS: caddy-root.crt
+        run: node tests/produccion/smoke.mjs
+      - name: Puertos expuestos y restauración del respaldo
+        run: |
+          if docker compose port postgres 5432 2>/dev/null | grep -q ':'; then echo 'PostgreSQL publicado'; exit 1; fi
+          docker compose port app 3000 | grep -q '^127.0.0.1:'
+          curl -sI http://localhost/ | grep -qi '^location: https://'
+          file=$(docker compose exec -T app sh -c 'ls -t /app/backups/*.dump | head -1')
+          docker compose exec -T app node scripts/restaurar.mjs "$file" --verificar
+      - name: Reinicio conserva los datos
+        env:
+          PROD_URL: https://localhost
+          ADMIN_EMAIL: riesgo@cooperativa.cl
+          MAILPIT_URL: http://localhost:8025
+          NODE_EXTRA_CA_CERTS: caddy-root.crt
+        run: |
+          docker compose restart app
+          docker compose -f docker-compose.yml -f deploy/ci.override.yml --profile https up -d --wait --wait-timeout 120
+          node tests/produccion/smoke.mjs
+      - name: Registros
+        if: always()
+        run: docker compose -f docker-compose.yml -f deploy/ci.override.yml --profile https logs --no-color | tail -200

@@ -9,12 +9,13 @@ auditorías, mantenedores (procesos, áreas y parámetros) y bitácora inalterab
 **Operación y respaldos:** [docs/OPERACION.md](docs/OPERACION.md) · **Seguridad:** [SECURITY.md](SECURITY.md) ·
 **Pruebas:** [docs/PRUEBAS.md](docs/PRUEBAS.md) · **Validación de usuario:** [docs/VALIDACION-UAT.md](docs/VALIDACION-UAT.md)
 
-Base de datos: PostgreSQL (instalación institucional) o SQLite (paquete descargable para un equipo:
-`npm run package:sqlite`).
+Base de datos: PostgreSQL (producción) o SQLite (paquete para un equipo: `npm run package:sqlite`).
 
-Inicio rápido con Docker:
+Producción con Docker Compose (PostgreSQL + aplicación + proxy HTTPS):
 
 ```bash
-docker compose up -d --build
-# http://localhost:3000
+cp .env.example .env && chmod 600 .env   # complete APP_URL, POSTGRES_PASSWORD, AUTH_SECRET, ADMIN_EMAIL y SMTP
+docker compose --profile https up -d --build
 ```
+
+Detalle y verificación de la instalación: [LOCAL_SETUP.md → Producción](LOCAL_SETUP.md#producción-recomendada-docker-compose-con-postgresql-y-https).

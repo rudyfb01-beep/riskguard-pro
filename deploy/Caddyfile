@@ -1,0 +1,23 @@
+# Proxy HTTPS para RiskGuard Pro (docker compose --profile https).
+# APP_DOMAIN: nombre con que se accede (p. ej. grc.cooperativa.cl).
+# TLS_MODE=internal (por defecto): certificado de la CA interna de Caddy (red interna; instale su raíz en los equipos).
+# TLS_MODE=<correo>: certificado automático de Let's Encrypt (requiere dominio público y puertos 80/443 abiertos).
+# HTTP se redirige a HTTPS automáticamente.
+{
+	admin off
+}
+
+{$APP_DOMAIN} {
+	tls {$TLS_MODE}
+	encode gzip
+	request_body {
+		max_size 40MB
+	}
+	reverse_proxy app:3000 {
+		header_up X-Forwarded-Proto https
+	}
+	log {
+		output stdout
+		format console
+	}
+}

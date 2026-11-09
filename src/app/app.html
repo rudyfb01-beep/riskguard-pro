@@ -19,6 +19,19 @@
     </div>
   }
 
+  <!-- Sin conexión con el servidor o la base de datos: no se muestra la aplicación -->
+  @if (persistence.mode() === 'error') {
+    <div class="fixed inset-0 z-[60] bg-slate-50 flex items-center justify-center p-6 no-print" role="alert">
+      <div class="max-w-md w-full bg-white border border-rose-200 rounded-2xl shadow-sm p-6 text-center space-y-3">
+        <mat-icon class="text-rose-600 text-4xl w-10 h-10">cloud_off</mat-icon>
+        <h1 class="text-base font-bold text-slate-900">No se pudo conectar con la base de datos</h1>
+        <p class="text-xs text-slate-600">{{ persistence.loadError() }}</p>
+        <p class="text-[11px] text-slate-500">Si el problema continúa, avise al área de Tecnología.</p>
+        <button type="button" (click)="persistence.init()" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-700 cursor-pointer">Reintentar</button>
+      </div>
+    </div>
+  }
+
   <!-- Inicio de sesión (y renovación si la sesión vence durante el trabajo) -->
   @if (persistence.mode() === 'login') {
     <app-login-screen (loggedIn)="persistence.onLoggedIn($event)" />
@@ -552,20 +565,6 @@
       class="flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 py-6"
       [class.max-w-7xl]="layoutMode() === 'horizontal'"
     >
-
-    @if (persistence.mode() === 'demo') {
-      <div class="mb-4 p-3 rounded-xl border border-amber-300 bg-amber-50 text-xs text-amber-900 flex items-start gap-2 no-print">
-        <mat-icon class="text-sm text-amber-600 shrink-0">science</mat-icon>
-        <span><strong>Modo demostración:</strong> esta instancia no guarda en una base de datos, así que los cambios se pierden al recargar la página.</span>
-      </div>
-    }
-    @if (persistence.mode() === 'error') {
-      <div class="mb-4 p-3 rounded-xl border border-rose-300 bg-rose-50 text-xs text-rose-900 flex items-center gap-2 no-print" role="alert">
-        <mat-icon class="text-sm text-rose-600 shrink-0">error</mat-icon>
-        <span class="flex-1"><strong>No se pudo cargar la base de datos:</strong> {{ persistence.loadError() }}. Se muestran datos de ejemplo y los cambios no se guardarán.</span>
-        <button type="button" (click)="persistence.init()" class="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-semibold hover:bg-rose-500 cursor-pointer shrink-0">Reintentar</button>
-      </div>
-    }
 
     <!-- TAB 1: TABLERO EJECUTIVO (DASHBOARD & HEATMAP) -->
     @if (activeTab() === 'tablero') {

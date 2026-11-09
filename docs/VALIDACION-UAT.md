@@ -17,8 +17,9 @@ Las pruebas automatizadas (unitarias, API, seguridad y navegador) están descrit
 
 **Ambiente:** certificación con la misma versión, motor (PostgreSQL) y configuración que
 producción, correo real de la cooperativa y HTTPS. Datos: base vacía con los mantenedores reales
-(procesos, áreas, cargos, usuarios) más un set de prueba preparado por cada área. Los datos de
-ejemplo (`SEED_DEMO_DATA=true`) sirven solo para la capacitación previa.
+(procesos, áreas, cargos, usuarios) más un set de prueba preparado por cada área (Carga masiva).
+Los datos de ejemplo (`SEED_DEMO_DATA=true`) sirven solo para la capacitación previa, en una
+instancia aparte sin `NODE_ENV=production` (en producción están bloqueados).
 
 **Calendario sugerido:** capacitación (1 día) → ciclo 1 (5 días hábiles) → corrección →
 ciclo 2 / regresión (3 días) → acta.

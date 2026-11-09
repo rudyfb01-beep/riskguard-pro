@@ -9,7 +9,6 @@ import {
   ProviderCriticality,
   ServiceProvider,
 } from '../models/resilience.model';
-import { SEED_BIA, SEED_PLANS, SEED_PROVIDERS, SEED_TESTS } from '../data/resilience-seed';
 
 /** Meses entre evaluaciones según criticidad del proveedor. */
 /** Valores por defecto; los vigentes están en Mantenedores → Parámetros generales. */
@@ -43,10 +42,10 @@ function daysBetween(from: Date, to: Date): number {
 export class ResilienceService {
   private readonly rs = inject(RiskDataService);
 
-  readonly providers = signal<ServiceProvider[]>(SEED_PROVIDERS.map(p => ({ ...p, clauses: { ...p.clauses } })));
-  readonly biaProcesses = signal<BiaProcess[]>(SEED_BIA.map(b => ({ ...b, impact: { ...b.impact } })));
-  readonly plans = signal<ContinuityPlan[]>(SEED_PLANS.map(p => ({ ...p })));
-  readonly tests = signal<ContinuityTest[]>(SEED_TESTS.map(t => ({ ...t })));
+  readonly providers = signal<ServiceProvider[]>([]);
+  readonly biaProcesses = signal<BiaProcess[]>([]);
+  readonly plans = signal<ContinuityPlan[]>([]);
+  readonly tests = signal<ContinuityTest[]>([]);
 
   /** Fecha de referencia para alertas (se puede fijar en pruebas). */
   readonly today = signal<Date>(new Date());

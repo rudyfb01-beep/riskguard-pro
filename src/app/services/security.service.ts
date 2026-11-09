@@ -10,7 +10,6 @@ import {
   VulnSeverity,
   Vulnerability,
 } from '../models/security.model';
-import { BASE_ASSESSMENT_ITEMS, DEMO_ASSESSMENT, DEMO_ASSETS, DEMO_SECURITY_TESTS, DEMO_VULNERABILITIES } from '../data/security-seed';
 import { SecurityTest, SecurityTestType } from '../models/compliance.model';
 
 const DAY = 86_400_000;
@@ -32,13 +31,11 @@ export class SecurityService {
   private readonly rs = inject(RiskDataService);
   private readonly res = inject(ResilienceService);
 
-  readonly assets = signal<InformationAsset[]>(structuredClone(DEMO_ASSETS));
-  readonly vulnerabilities = signal<Vulnerability[]>(structuredClone(DEMO_VULNERABILITIES));
+  readonly assets = signal<InformationAsset[]>([]);
+  readonly vulnerabilities = signal<Vulnerability[]>([]);
   /** Ítems de la autoevaluación con planes de acción abiertos (lo mantiene ActionPlanService). */
   readonly itemsWithOpenPlans = signal<ReadonlySet<string>>(new Set());
-  readonly assessment = signal<SecurityAssessmentItem[]>(
-    BASE_ASSESSMENT_ITEMS.map(i => ({ ...i, ...(DEMO_ASSESSMENT[i.code] ?? {}) }))
-  );
+  readonly assessment = signal<SecurityAssessmentItem[]>([]);
 
   readonly today = signal(new Date().toISOString().slice(0, 10));
 
@@ -46,7 +43,7 @@ export class SecurityService {
   // Pruebas de seguridad (RAN 20-10 4.1 y 4.2)
   // ---------------------------------------------------------------------------
 
-  readonly securityTests = signal<SecurityTest[]>(structuredClone(DEMO_SECURITY_TESTS));
+  readonly securityTests = signal<SecurityTest[]>([]);
 
   /** Última prueba de alguno de los tipos indicados (o null). */
   lastTest(...types: SecurityTestType[]): SecurityTest | null {

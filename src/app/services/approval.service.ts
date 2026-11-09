@@ -23,7 +23,6 @@ export interface ApprovalTarget {
   owner?: string;
 }
 
-const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
 /**
  * Flujos de aprobación: solicitudes con niveles por cargo (matriz configurable en Mantenedores).
@@ -39,7 +38,7 @@ export class ApprovalService {
   private readonly cat = inject(CatalogService);
   private readonly docs = inject(DocumentService);
 
-  readonly approvals = signal<ApprovalRequest[]>(this.demoRequests());
+  readonly approvals = signal<ApprovalRequest[]>([]);
   readonly matrixRaw = signal<unknown>(structuredClone(DEFAULT_APPROVAL_MATRIX));
   readonly matrix = computed(() => normalizeMatrix(this.matrixRaw()));
 
@@ -203,31 +202,4 @@ export class ApprovalService {
     this.markSaved(r.targetEntity, updated);
   }
 
-  /** Solicitudes de ejemplo (solo en modo demostración; con base de datos las carga el servidor). */
-  private demoRequests(): ApprovalRequest[] {
-    const roles = this.rs.organizationalRoles();
-    return [
-      {
-        id: 'sa-demo-1', code: 'SA-2026-001', kind: 'plan-continuidad', targetEntity: 'plans', targetId: 'pln-2',
-        targetLabel: 'DRP-01 Recuperación del centro de datos y core financiero',
-        justification: 'Versión 2.5: incorpora el sitio alterno en la nube y el RTO de 4 h del core acordado con el proveedor.',
-        payload: { version: '2.5', nextReviewDate: '2027-11-30' }, requestedBy: 'Ing. Alejandro Vega', requestedAt: daysAgo(4),
-        steps: buildSteps(['role-gerencia-general'], roles), currentStep: 0, status: 'Pendiente',
-      },
-      {
-        id: 'sa-demo-2', code: 'SA-2026-002', kind: 'aceptacion-vulnerabilidad', targetEntity: 'vulnerabilities', targetId: 'vul-1',
-        targetLabel: 'VUL-001 Protocolos TLS 1.0/1.1 habilitados en el portal de socios',
-        justification: 'El portal antiguo se retira en enero; mientras tanto el WAF bloquea TLS 1.0 para socios y queda solo para la integración del banco corresponsal.',
-        payload: { reviewDate: '2027-01-31' }, requestedBy: 'Ing. Alejandro Vega', requestedAt: daysAgo(1),
-        steps: buildSteps(DEFAULT_APPROVAL_MATRIX.steps['aceptacion-vulnerabilidad'], roles), currentStep: 0, status: 'Pendiente',
-      },
-      {
-        id: 'sa-demo-3', code: 'SA-2026-003', kind: 'documento', targetEntity: 'documents', targetId: 'doc-pol-004',
-        targetLabel: 'POL-004 Política de Externalización de Servicios',
-        justification: 'Primera versión de la política exigida por la RAN 20-7: tolerancia, criterios de actividades estratégicas y contenido mínimo de contratos.',
-        payload: { versionId: 'pol004-v1', version: '1.0', docType: 'Política' }, requestedBy: 'Ing. Carlos Mendoza', requestedAt: daysAgo(2),
-        steps: buildSteps(['role-gerencia-general', 'role-consejo'], roles), currentStep: 0, status: 'Pendiente',
-      },
-    ];
-  }
 }

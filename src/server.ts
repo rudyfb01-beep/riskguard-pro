@@ -17,6 +17,7 @@ import {
 import { dataApi, getDbReady } from './server/api';
 import { startNotifier } from './server/notifier';
 import { startBackupScheduler } from './server/backup';
+import { startupConfigErrors } from './server/ops';
 import { currentUser, hasAny, requireAuth, requireCsrfHeader } from './server/auth';
 import { apiRateLimit, checkOrigin, errorHandler, requestId, securityHeaders, serverError } from './server/security';
 
@@ -305,6 +306,11 @@ app.use(errorHandler);
  * The server listens on the port defined by the `PORT` environment variable, or defaults to 4000.
  */
 if (isMainModule(import.meta.url) || process.env['pm_id']) {
+  const problems = startupConfigErrors();
+  if (problems.length) {
+    console.error(`[Configuración] La aplicación no puede iniciar:\n${problems.map(p => `  - ${p}`).join('\n')}\nVea LOCAL_SETUP.md (Producción).`);
+    process.exit(1);
+  }
   const port = process.env['PORT'] || 4000;
   app.listen(port, (error) => {
     if (error) {
@@ -316,9 +322,11 @@ if (isMainModule(import.meta.url) || process.env['pm_id']) {
       const engine = dialect() === 'sqlite' ? `SQLite (${getSqlitePath()})` : 'PostgreSQL';
       getDbReady()
         .then(r => console.log(`[Base de datos] ${engine}: esquema al día${r.baseSeeded ? ' · datos base cargados' : ''}${r.demoSeeded ? ' · datos de ejemplo cargados' : ''}.`))
-        .catch(err => console.error(`[Base de datos] ${engine}: no se pudo preparar la base de datos:`, (err as Error).message));
-    } else {
-      console.log('[Base de datos] DB_CLIENT=none: la aplicación funciona en modo demostración (sin guardar).');
+        .catch(err => {
+          console.error(`[Base de datos] ${engine}: no se pudo preparar la base de datos:`, (err as Error).message);
+          // En producción se detiene para que el orquestador lo reinicie y el problema sea visible.
+          if (process.env['NODE_ENV'] === 'production') process.exit(1);
+        });
     }
     // Avisos por plazos y envío de correos (cada NOTIFY_INTERVAL_MINUTES).
     startNotifier(() => getDbReady());

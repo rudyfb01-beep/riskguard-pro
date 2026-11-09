@@ -127,7 +127,7 @@ export class App {
   readonly persistence = inject(PersistenceService);
 
   constructor() {
-    // Carga los datos desde la base (o activa el modo demostración) en el navegador.
+    // Verifica la sesión y carga los datos desde la base.
     afterNextRender(() => {
       this.persistence.init();
       // Si un administrador cambia los permisos del cargo, se aplican sin cerrar sesión:
@@ -207,7 +207,7 @@ export class App {
     // Enlace de un correo (?tab=…&ref=…): se abre una vez cargados los datos.
     effect(() => {
       const mode = this.persistence.mode();
-      if (this.deepLinkDone || (mode !== 'database' && mode !== 'demo')) return;
+      if (this.deepLinkDone || mode !== 'database') return;
       this.deepLinkDone = true;
       untracked(() => this.notifications.consumeDeepLink());
     }),
@@ -330,15 +330,6 @@ export class App {
         return { title: 'Operación y respaldos', section: 'Configuración', icon: 'monitor_heart' };
     }
   });
-
-  onRoleChange(event: Event) {
-    const roleId = (event.target as HTMLSelectElement).value;
-    const profile = this.riskService.availableProfiles.find(p => p.id === roleId);
-    if (profile) {
-      this.riskService.switchProfile(profile.id);
-      this.showToast(`Sesión cambiada a: ${profile.name} (${profile.role})`);
-    }
-  }
 
   // Modals state
   readonly isRiskModalOpen = signal<boolean>(false);

@@ -13,3 +13,10 @@ dist
 coverage
 Dockerfile
 docker-compose.yml
+data
+backups
+release
+tests
+docs
+deploy
+.env

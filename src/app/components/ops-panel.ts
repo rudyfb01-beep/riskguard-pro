@@ -39,7 +39,7 @@ const LEVEL_CLS = { alta: 'bg-rose-100 text-rose-800', media: 'bg-amber-100 text
       </div>
 
       @if (persistence.mode() !== 'database') {
-        <p class="text-xs text-slate-600 bg-white border border-slate-200 rounded-xl p-4">Disponible cuando la aplicación funciona con base de datos (no en el modo demostración).</p>
+        <p class="text-xs text-slate-600 bg-white border border-slate-200 rounded-xl p-4">Cargando…</p>
       } @else {
         @if (error()) { <p class="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2" role="alert">{{ error() }}</p> }
         @if (message()) { <p class="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2" role="status">{{ message() }}</p> }

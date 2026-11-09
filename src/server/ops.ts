@@ -55,6 +55,32 @@ export function configFindings(req?: express.Request): ConfigFinding[] {
 const lastFromList = (list: ReturnType<typeof listBackups>): BackupStatus | null =>
   list[0] ? { ok: true, at: list[0].createdAt, file: list[0].file, size: list[0].size } : null;
 
+/**
+ * Configuración que impide arrancar: sin base de datos nunca; en producción (NODE_ENV=production),
+ * además, lo que dejaría la instalación insegura o sin forma de ingresar.
+ */
+export function startupConfigErrors(): string[] {
+  const env = process.env;
+  const out: string[] = [];
+  const db = (env['DB_CLIENT'] || '').trim().toLowerCase();
+  if (db === 'none' || db === 'memory') out.push('DB_CLIENT=none ya no se admite: la aplicación necesita PostgreSQL o SQLite.');
+  else if (!getPool()) out.push('No se pudo abrir la base de datos: revise DATABASE_URL (PostgreSQL) o SQLITE_PATH.');
+  if (env['NODE_ENV'] !== 'production') return out;
+  if (env['AUTH_DEV_LOG_CODES'] === 'true') out.push('AUTH_DEV_LOG_CODES=true: los códigos de acceso quedarían en el log. Use false y configure SMTP.');
+  if (env['NOTIFY_DEV_LOG'] === 'true') out.push('NOTIFY_DEV_LOG=true: el contenido de los avisos quedaría en el log.');
+  if (env['SEED_DEMO_DATA'] === 'true') out.push('SEED_DEMO_DATA=true: los datos de ejemplo solo se permiten fuera de producción.');
+  if (!env['AUTH_SECRET'] || env['AUTH_SECRET'].length < 32) out.push('AUTH_SECRET debe tener al menos 32 caracteres aleatorios (p. ej. openssl rand -hex 32).');
+  if (!env['APP_URL']) out.push('Defina APP_URL con la dirección pública (p. ej. https://grc.cooperativa.cl).');
+  const g = googleConfig();
+  if (!isMailConfigured() && (!g.enabled || g.emailCode !== 'false')) {
+    out.push('Configure SMTP_HOST (y SMTP_USER/SMTP_PASS/SMTP_FROM): sin correo nadie recibe el código de acceso.');
+  }
+  if (/:(postgrespassword|postgres|changeme|password)@/i.test(env['DATABASE_URL'] ?? '') || ['postgrespassword', 'postgres'].includes(env['POSTGRES_PASSWORD'] ?? '')) {
+    out.push('La contraseña de PostgreSQL es la de ejemplo: use una contraseña propia.');
+  }
+  return out;
+}
+
 const can = (res: express.Response) => hasAny(currentUser(res), ['canManageRoles', 'canManageCatalogs']);
 const canBackup = (res: express.Response) => hasAny(currentUser(res), ['canManageRoles']);
 
@@ -84,7 +110,7 @@ opsRouter.get('/health', (_req, res) => {
 /** Listo: hay base de datos y responde (para enviarle tráfico). */
 opsRouter.get('/ready', async (_req, res) => {
   if (!getPool()) {
-    res.json({ status: 'ready', database: 'none' });
+    res.status(503).json({ status: 'not-ready', database: 'none' });
     return;
   }
   const h = await checkDbHealth().catch(() => ({ connected: false }));

@@ -6,7 +6,6 @@ import {
   normalizeProviderCatalogs, normalizeRiskAppetite, normalizeRiskScale,
 } from '../models/catalog.model';
 import { DEFAULT_AREAS } from '../data/base-seed';
-import { DEMO_ACCOUNTING_ACCOUNTS, DEMO_PROCESSES } from '../data/demo-seed';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 
@@ -17,7 +16,7 @@ const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 @Injectable({ providedIn: 'root' })
 export class CatalogService {
   readonly areas = signal<OrgArea[]>(clone(DEFAULT_AREAS));
-  readonly processes = signal<BusinessProcess[]>(clone(DEMO_PROCESSES));
+  readonly processes = signal<BusinessProcess[]>([]);
   /** Valor guardado tal cual; usar `params()` para leerlo ya validado. */
   readonly generalParameters = signal<unknown>(clone(DEFAULT_GENERAL_PARAMETERS));
 
@@ -29,7 +28,7 @@ export class CatalogService {
   // Prioridad 2 (cada uno se guarda como un ajuste; usar las versiones normalizadas)
   readonly riskScaleRaw = signal<unknown>(clone(DEFAULT_RISK_SCALE));
   readonly riskAppetiteRaw = signal<unknown>(clone(DEFAULT_RISK_APPETITE));
-  readonly accountingAccountsRaw = signal<unknown>(clone(DEMO_ACCOUNTING_ACCOUNTS));
+  readonly accountingAccountsRaw = signal<unknown>([]);
   readonly providerCatalogsRaw = signal<unknown>(clone(DEFAULT_PROVIDER_CATALOGS));
   /** Parámetros de avisos y correo (se normalizan en NotificationService). */
   readonly notificationSettingsRaw = signal<unknown>({});
