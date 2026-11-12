@@ -10,6 +10,9 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
   selector: 'app-roles-management-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ReactiveFormsModule, MatIconModule],
+  styles: [`
+    input.ng-invalid.ng-touched, select.ng-invalid.ng-touched, textarea.ng-invalid.ng-touched { border-color: #f43f5e; background-color: #fff1f2; }
+  `],
   template: `
     <div class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
       <div class="bg-white rounded-2xl max-w-5xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200">
@@ -486,6 +489,9 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                     </div>
                   </div>
 
+                  @if (userFormError()) {
+                    <p class="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2 flex items-start gap-1" role="alert"><mat-icon class="text-sm shrink-0">error</mat-icon>{{ userFormError() }}</p>
+                  }
                   <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
                     <button
                       type="button"
@@ -496,7 +502,6 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                     </button>
                     <button
                       type="submit" [class.perm-hidden]="!canManage()"
-                      [disabled]="userForm.invalid"
                       class="px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm disabled:opacity-50"
                     >
                       Dar de Alta Colaborador
@@ -830,17 +835,19 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                 </div>
               </div>
 
+              @if (roleFormError()) {
+                <p class="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2 flex items-start gap-1" role="alert"><mat-icon class="text-sm shrink-0">error</mat-icon>{{ roleFormError() }}</p>
+              }
               <div class="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
                 <button
                   type="button"
-                  (click)="activeTab.set('roles')"
+                  (click)="activeTab.set('roles'); roleFormError.set(null)"
                   class="px-4 py-2 text-xs text-slate-600 hover:text-slate-900 bg-white border border-slate-300 rounded-lg"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit" [class.perm-hidden]="!canManage()"
-                  [disabled]="roleForm.invalid"
                   class="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm disabled:opacity-50"
                 >
                   Crear Puesto & Registrar en Estructura
@@ -900,6 +907,15 @@ export class RolesManagementModal {
   readonly showAddUserForm = signal<boolean>(false);
   readonly userToDeleteId = signal<string | null>(null);
   readonly actionToast = signal<string | null>(null);
+
+  readonly roleFormError = signal<string | null>(null);
+  readonly userFormError = signal<string | null>(null);
+
+  /** Mensaje con los campos que faltan, para no dejar el botón deshabilitado sin explicación. */
+  private missingFields(controls: Record<string, { invalid: boolean }>, labels: Record<string, string>): string {
+    const faltan = Object.entries(labels).filter(([k]) => controls[k]?.invalid).map(([, l]) => l);
+    return faltan.length ? `Para guardar falta completar: ${faltan.join(', ')}.` : 'Revisa los datos del formulario.';
+  }
 
   readonly roleForm = this.fb.group({
     title: ['', [Validators.required, Validators.minLength(3)]],
@@ -1058,7 +1074,14 @@ export class RolesManagementModal {
 
   onCreateRole() {
     if (!this.riskService.requirePermission(['canManageRoles'], 'administrar puestos y permisos')) return;
-    if (this.roleForm.invalid) return;
+    if (this.roleForm.invalid) {
+      this.roleForm.markAllAsTouched();
+      this.roleFormError.set(this.missingFields(this.roleForm.controls, {
+        title: 'el título del puesto (mínimo 3 caracteres)', department: 'el departamento o área', description: 'la descripción de responsabilidades',
+      }));
+      return;
+    }
+    this.roleFormError.set(null);
     const v = this.roleForm.value;
 
     this.riskService.addOrganizationalRole({
@@ -1118,7 +1141,14 @@ export class RolesManagementModal {
 
   onCreateUser() {
     if (!this.riskService.requirePermission(['canManageRoles'], 'administrar puestos y permisos')) return;
-    if (this.userForm.invalid) return;
+    if (this.userForm.invalid) {
+      this.userForm.markAllAsTouched();
+      this.userFormError.set(this.missingFields(this.userForm.controls, {
+        name: 'el nombre (mínimo 3 caracteres)', email: 'un correo válido', roleId: 'el puesto (cree uno primero en "Definir Nuevo Puesto")',
+      }));
+      return;
+    }
+    this.userFormError.set(null);
     const v = this.userForm.value;
     const selectedRole = this.riskService.organizationalRoles().find(r => r.id === v.roleId);
 
