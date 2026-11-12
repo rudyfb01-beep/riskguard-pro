@@ -5,6 +5,9 @@
 # HTTP se redirige a HTTPS automáticamente.
 {
 	admin off
+	# Quien entra por IP no envía SNI y, dentro de Docker, la conexión llega a la IP del contenedor:
+	# sin esto Caddy no sabe qué certificado entregar ("tlsv1 alert internal error").
+	default_sni {$APP_DOMAIN}
 }
 
 {$APP_DOMAIN} {
