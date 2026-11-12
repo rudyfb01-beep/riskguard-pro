@@ -39,6 +39,10 @@
     <app-login-screen [overlay]="true" [presetEmail]="persistence.sessionUser()?.email ?? ''" (loggedIn)="persistence.onLoggedIn($event)" />
   }
 
+  @if (persistence.changePasswordOpen() && persistence.mode() !== 'login') {
+    <app-change-password-dialog (closed)="persistence.changePasswordOpen.set(false)" />
+  }
+
   <!-- Crisis real en curso: visible en toda la aplicación -->
   @if (crisis.realOpen().length && activeTab() !== 'gestion-crisis') {
     <div class="fixed top-3 left-1/2 -translate-x-1/2 z-[55] no-print max-w-[calc(100vw-2rem)]" role="alert">

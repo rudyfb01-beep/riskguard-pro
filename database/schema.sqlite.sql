@@ -463,6 +463,18 @@ CREATE TABLE IF NOT EXISTS auth_login_codes (
     FOREIGN KEY (user_id) REFERENCES user_profiles(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS auth_totp (
+    user_id TEXT NOT NULL,
+    secret_enc TEXT NOT NULL,
+    last_step INTEGER NOT NULL DEFAULT 0,
+    failures INTEGER NOT NULL DEFAULT 0,
+    locked_until TIMESTAMPTZ,
+    created_by TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    FOREIGN KEY (user_id) REFERENCES user_profiles(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id)
+);
+
 CREATE TABLE IF NOT EXISTS auth_sessions (
     token_hash TEXT NOT NULL,
     user_id TEXT NOT NULL,
@@ -882,6 +894,19 @@ CREATE TABLE IF NOT EXISTS crisis_events (
     CHECK (((mode) IN ('Real', 'Simulacro'))),
     CHECK (((status) IN ('Programada', 'Activa', 'Estabilizada', 'Cerrada', 'Cancelada'))),
     PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS auth_passwords (
+    user_id TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    must_change BOOLEAN NOT NULL DEFAULT 0,
+    temp_expires_at TIMESTAMPTZ,
+    failures INTEGER NOT NULL DEFAULT 0,
+    locked_until TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    updated_by TEXT,
+    FOREIGN KEY (user_id) REFERENCES user_profiles(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id)
 );
 
 -- Índices

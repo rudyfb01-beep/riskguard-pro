@@ -213,6 +213,17 @@ export interface NavGroup {
                   <mat-icon class="text-xs">logout</mat-icon>
                   <span>Cerrar sesión</span>
                 </button>
+              @if (persistence.passwordAuth()) {
+                <button
+                  type="button"
+                  (click)="persistence.changePasswordOpen.set(true)"
+                  class="w-full mt-2 flex items-center justify-center gap-1.5 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-md text-[10px] font-medium border border-slate-700/80 transition-colors cursor-pointer"
+                  title="Cambiar tu contraseña"
+                >
+                  <mat-icon class="text-xs">key</mat-icon>
+                  <span>Cambiar contraseña</span>
+                </button>
+              }
 
               <button
                 type="button"

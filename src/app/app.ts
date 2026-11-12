@@ -5,6 +5,7 @@ import { PermissionDeniedError, RiskDataService } from './services/risk-data.ser
 import { UserPermissions } from './models/risk.model';
 import { PersistenceService, entityLabel } from './services/persistence.service';
 import { LoginScreen } from './components/login-screen';
+import { ChangePasswordDialog } from './components/change-password-dialog';
 import { TopBar } from './components/top-bar';
 import { ExecutiveKpis } from './components/executive-kpis';
 import { HeatmapMatrix } from './components/heatmap-matrix';
@@ -118,6 +119,7 @@ export type ActiveTab =
     AuditsPanel,
     MoneyPipe,
     LoginScreen,
+    ChangePasswordDialog,
   ],
   templateUrl: './app.html',
   styleUrl: './app.css',

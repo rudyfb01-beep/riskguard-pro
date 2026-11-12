@@ -28,8 +28,9 @@ import { SurveyResponse } from '../app/models/survey.model';
 import { checkResponseChange } from '../app/utils/surveys';
 import {
   AuthError, clearSessionCookie, clientIp, currentUser, destroySession, getSessionUser, hasAny, readSessionCookie,
-  requestLoginCode, requireAuth, requireCsrfHeader, setSessionCookie, verifyLoginCode, createSession,
+  requestLoginCode, requireAuth, requireCsrfHeader, setSessionCookie, verifyLoginCode, createSession, sha256,
 } from './auth';
+import { changeOwnPassword, changeWithTicket, loginWithPassword, passwordEnabled, passwordStatus, setTemporaryPassword } from './passwords';
 import {
   authorizationUrl, decodeFlow, encodeFlow, exchangeCode, FLOW_COOKIE, googleConfig, newFlow, userForGoogle, verifyIdToken,
 } from './google-sso';
@@ -197,7 +198,52 @@ dataApi.post('/auth/verify', async (req, res) => {
 /** Formas de ingreso disponibles (pública: la usa la pantalla de acceso). */
 dataApi.get('/auth/config', (_req, res) => {
   const cfg = googleConfig();
-  res.json({ google: cfg.enabled && !!getPool(), emailCode: cfg.emailCode, domains: cfg.domains });
+  res.json({ google: cfg.enabled && !!getPool(), emailCode: cfg.emailCode, domains: cfg.domains, password: passwordEnabled() && !!getPool() });
+});
+
+/** Ingreso con correo y contraseña. Con contraseña temporal responde { mustChange, ticket } en vez de abrir sesión. */
+dataApi.post('/auth/password-login', async (req, res) => {
+  if (!getPool()) { res.status(503).json({ error: 'Base de datos no configurada.' }); return; }
+  try {
+    await getDbReady();
+    const r = await loginWithPassword(req.body?.email, req.body?.password, clientIp(req), req.get('user-agent') ?? '');
+    if (r.kind === 'change') {
+      res.json({ mustChange: true, ticket: r.ticket, email: r.email, name: r.name });
+      return;
+    }
+    setSessionCookie(req, res, r.token, r.maxAgeSeconds);
+    res.json({ user: r.user });
+  } catch (err) {
+    sendAuthError(res, err);
+  }
+});
+
+/** Cambio obligatorio de la contraseña temporal (con el ticket del ingreso); abre la sesión. */
+dataApi.post('/auth/password-change', async (req, res) => {
+  if (!getPool()) { res.status(503).json({ error: 'Base de datos no configurada.' }); return; }
+  try {
+    await getDbReady();
+    const { token, user, maxAgeSeconds } = await changeWithTicket(req.body?.ticket, req.body?.newPassword, clientIp(req), req.get('user-agent') ?? '');
+    setSessionCookie(req, res, token, maxAgeSeconds);
+    res.json({ user });
+  } catch (err) {
+    sendAuthError(res, err);
+  }
+});
+
+/** Cambio voluntario de la propia contraseña (requiere sesión y la contraseña actual). */
+dataApi.post('/auth/password', async (req, res) => {
+  if (!getPool()) { res.status(503).json({ error: 'Base de datos no configurada.' }); return; }
+  try {
+    await getDbReady();
+    const token = readSessionCookie(req);
+    const user = await getSessionUser(token);
+    if (!user || !token) { res.status(401).json({ error: 'Sesión no iniciada o vencida.' }); return; }
+    await changeOwnPassword(user, req.body?.currentPassword, req.body?.newPassword, sha256(token), clientIp(req));
+    res.json({ ok: true });
+  } catch (err) {
+    sendAuthError(res, err);
+  }
 });
 
 const flowCookieOptions = (req: express.Request) => ({
@@ -951,6 +997,34 @@ dataApi.post('/admin/users/:id/google-unlink', async (req, res) => {
     res.json({ ok: true, ledger });
   } catch (err) {
     res.status(422).json({ error: friendlyDbError(err) });
+  }
+});
+
+/** Estado de contraseña de cada persona (temporal pendiente, bloqueada), sin el hash. */
+dataApi.get('/admin/passwords', async (req, res) => {
+  if (!authorize(res, ['canManageRoles'], 'los usuarios')) return;
+  try {
+    res.json({ enabled: passwordEnabled(), users: await passwordStatus() });
+  } catch (err) {
+    serverError(res, err, req);
+  }
+});
+
+/** Asigna o restablece una contraseña temporal: se devuelve una sola vez para entregarla a la persona. */
+dataApi.post('/admin/users/:id/password', async (req, res) => {
+  if (!authorize(res, ['canManageRoles'], 'los usuarios')) return;
+  const admin = currentUser(res)!;
+  try {
+    const r = await getPool()!.query('SELECT id, name, email, active FROM user_profiles WHERE id = $1', [req.params['id']]);
+    const u = r.rows[0];
+    if (!u) { res.status(404).json({ error: 'Usuario no encontrado.' }); return; }
+    if (!u.active) { res.status(400).json({ error: 'La persona está inactiva: actívela antes de asignarle una contraseña.' }); return; }
+    if (u.id === admin.id) { res.status(400).json({ error: 'Para tu propia cuenta usa "Cambiar contraseña".' }); return; }
+    const t = await setTemporaryPassword(u, { name: admin.name, role: admin.role, email: admin.email }, clientIp(req));
+    res.set('Cache-Control', 'no-store');
+    res.json({ password: t.password, expiresAt: t.expiresAt, email: u.email, name: u.name });
+  } catch (err) {
+    serverError(res, err, req);
   }
 });
 

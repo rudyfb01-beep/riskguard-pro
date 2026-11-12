@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ROOT, SERVER } from './helpers.mjs';
+import { ROOT, SERVER, startServer } from './helpers.mjs';
 
 function start(env) {
   const r = spawnSync(process.execPath, [SERVER], { cwd: ROOT, env: { PATH: process.env.PATH, PORT: '0', ...env }, encoding: 'utf8', timeout: 20_000 });
@@ -47,6 +47,31 @@ describe('Validación de la configuración al arrancar', () => {
       assert.match(r.out, /defina ADMIN_EMAIL/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('producción con AUTH_PASSWORD=true: arranca sin SMTP y el administrador inicial entra con una temporal', async () => {
+    const srv = await startServer({
+      NODE_ENV: 'production', AUTH_DEV_LOG_CODES: 'false', SEED_DEMO_DATA: 'false', AUTH_PASSWORD: 'true',
+      AUTH_SECRET: 'b'.repeat(64), ADMIN_EMAIL: 'jefa.riesgos@cooperativa.cl',
+    });
+    try {
+      const dbEnv = process.env.TEST_DATABASE_URL
+        ? { DATABASE_URL: (() => { const u = new URL(process.env.TEST_DATABASE_URL); u.pathname = `/riskguard_test_${srv.port}`; return u.toString(); })() }
+        : { DB_CLIENT: 'sqlite', SQLITE_PATH: join(srv.dir, 'riskguard.db') };
+      const run = spawnSync(process.execPath, [SERVER, 'contrasena', 'jefa.riesgos@cooperativa.cl'],
+        { cwd: ROOT, env: { PATH: process.env.PATH, AUTH_PASSWORD: 'true', AUTH_SECRET: 'b'.repeat(64), ...dbEnv }, encoding: 'utf8', timeout: 30_000 });
+      assert.equal(run.status, 0, run.stderr);
+      const temp = /\n {4}(\S{4}-\S{4}-\S{4})\n/.exec(run.stdout)?.[1];
+      const r = await fetch(`${srv.base}/api/auth/password-login`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'X-Requested-With': 'RiskGuard' },
+        body: JSON.stringify({ email: 'jefa.riesgos@cooperativa.cl', password: temp }),
+      });
+      assert.equal(r.status, 200);
+      assert.equal((await r.json()).mustChange, true);
+      assert.doesNotMatch(srv.log, /nadie podrá recibir el código/);
+    } finally {
+      await srv.stop();
     }
   });
 });
