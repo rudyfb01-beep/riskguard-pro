@@ -40,8 +40,8 @@ export function googleConfig(): GoogleConfig {
     clientId,
     clientSecret,
     domains: env('GOOGLE_ALLOWED_DOMAINS').split(',').map(d => d.trim().toLowerCase()).filter(Boolean),
-    // Sin Google configurado, el código por correo es la única forma de entrar.
-    emailCode: !enabled ? 'true' : mode === 'false' || mode === 'admins' ? mode : 'true',
+    // Con contraseñas no se usa el código por correo; sin Google, el código es la única forma de entrar.
+    emailCode: env('AUTH_PASSWORD').toLowerCase() === 'true' ? 'false' : !enabled ? 'true' : mode === 'false' || mode === 'admins' ? mode : 'true',
     // Las URL solo se cambian en pruebas (proveedor simulado).
     authUrl: env('GOOGLE_AUTH_URL') || 'https://accounts.google.com/o/oauth2/v2/auth',
     tokenUrl: env('GOOGLE_TOKEN_URL') || 'https://oauth2.googleapis.com/token',

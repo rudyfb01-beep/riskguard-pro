@@ -748,6 +748,18 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
 
+-- Contraseñas (AUTH_PASSWORD=true). Solo el hash scrypt; must_change obliga a cambiar una temporal.
+CREATE TABLE IF NOT EXISTS auth_passwords (
+    user_id VARCHAR(64) PRIMARY KEY REFERENCES user_profiles(id) ON DELETE CASCADE,
+    password_hash VARCHAR(300) NOT NULL,
+    must_change BOOLEAN NOT NULL DEFAULT FALSE,
+    temp_expires_at TIMESTAMPTZ,
+    failures INTEGER NOT NULL DEFAULT 0,
+    locked_until TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(200)
+);
+
 -- ==============================================================================
 -- 21. SEGURIDAD DE LA INFORMACIÓN Y CIBERSEGURIDAD
 -- ==============================================================================

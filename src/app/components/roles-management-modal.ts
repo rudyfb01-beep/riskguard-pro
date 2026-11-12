@@ -529,6 +529,25 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                               <button type="button" (click)="unlinkGoogle(usr)" class="text-[10px] text-sky-700 hover:underline cursor-pointer" title="La próxima vez que ingrese con Google se vinculará la cuenta que use">Desvincular</button>
                             }
                           }
+                          @if (pwEnabled() && canManage()) {
+                            @let st = pwStatus()[usr.id];
+                            @if (!st) {
+                              <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-50 text-slate-500 border border-slate-200" title="Aún no puede ingresar: asígnele una contraseña temporal">Sin contraseña</span>
+                            } @else if (st.locked) {
+                              <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200" title="Bloqueada 15 minutos por intentos fallidos">Bloqueada</span>
+                            } @else if (st.mustChange) {
+                              <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200" [title]="'Temporal pendiente de cambio · vence ' + (st.tempExpiresAt | date:'dd/MM HH:mm')">{{ isExpired(st.tempExpiresAt) ? 'Temporal vencida' : 'Temporal pendiente' }}</span>
+                            } @else {
+                              <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200" title="Ingresa con su propia contraseña">Contraseña activa</span>
+                            }
+                            @if (usr.id !== riskService.currentProfile().id && usr.active !== false) {
+                              <button type="button" (click)="assignTempPassword(usr)" [disabled]="pwBusy() === usr.id"
+                                class="text-[10px] text-indigo-700 hover:underline cursor-pointer disabled:opacity-50"
+                                [title]="st ? 'Genera una contraseña temporal nueva y cierra sus sesiones' : 'Genera la contraseña para su primer ingreso'">
+                                {{ st ? 'Restablecer contraseña' : 'Asignar contraseña temporal' }}
+                              </button>
+                            }
+                          }
                         </div>
                         <div class="mt-1">
                           <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
@@ -850,6 +869,25 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
 
       </div>
     </div>
+
+    @if (tempShown(); as t) {
+      <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70" role="dialog" aria-modal="true" aria-labelledby="tmp-title">
+        <div class="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 space-y-4">
+          <h3 id="tmp-title" class="text-sm font-bold text-slate-900 flex items-center gap-2"><mat-icon class="text-indigo-600">key</mat-icon>Contraseña temporal</h3>
+          <p class="text-xs text-slate-600">Para <strong class="text-slate-900">{{ t.name }}</strong> ({{ t.email }}). Ingresa con su correo y esta contraseña; el sistema le pedirá crear una propia.</p>
+          <div class="flex items-center gap-2">
+            <code class="flex-1 text-center text-lg font-mono tracking-wider bg-slate-100 border border-slate-200 rounded-lg py-2.5 select-all" data-testid="temp-password">{{ t.password }}</code>
+            <button type="button" (click)="copyTemp(t.password)" class="p-2 rounded-lg border border-slate-300 hover:bg-slate-50 cursor-pointer" title="Copiar" aria-label="Copiar contraseña"><mat-icon class="text-base">{{ copied() ? 'check' : 'content_copy' }}</mat-icon></button>
+          </div>
+          <ul class="text-[11px] text-slate-600 space-y-1 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+            <li>• Vence el {{ t.expiresAt | date:'dd/MM/yyyy HH:mm' }} (24 horas).</li>
+            <li>• Se muestra <strong>solo esta vez</strong>: entrégala en persona o por un canal distinto del correo.</li>
+            <li>• Se cerraron las sesiones abiertas de esta persona.</li>
+          </ul>
+          <button type="button" (click)="tempShown.set(null)" class="w-full py-2 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-700 rounded-lg cursor-pointer">Ya la entregué</button>
+        </div>
+      </div>
+    }
   `
 })
 export class RolesManagementModal {
@@ -895,6 +933,7 @@ export class RolesManagementModal {
   });
 
   constructor() {
+    void this.loadPasswords();
     const roles = this.riskService.organizationalRoles();
     if (roles.length > 0) {
       this.userForm.patchValue({ roleId: roles[0].id });
@@ -923,6 +962,55 @@ export class RolesManagementModal {
       { key: 'surveys', label: 'Autoevaluaciones', granted: !!p.canManageSurveys },
       { key: 'documents', label: 'Documentos', granted: !!p.canManageDocuments }
     ];
+  }
+
+  // --- Contraseñas (AUTH_PASSWORD=true) ---
+  readonly pwEnabled = signal(false);
+  readonly pwStatus = signal<Record<string, { mustChange: boolean; tempExpiresAt: string | null; locked: boolean }>>({});
+  readonly pwBusy = signal<string | null>(null);
+  readonly tempShown = signal<{ name: string; email: string; password: string; expiresAt: string } | null>(null);
+  readonly copied = signal(false);
+
+  async loadPasswords() {
+    if (!this.canManage()) return;
+    try {
+      const resp = await apiFetch('/api/admin/passwords');
+      if (!resp.ok) return;
+      const data = await resp.json();
+      this.pwEnabled.set(!!data.enabled);
+      this.pwStatus.set(data.users ?? {});
+    } catch { /* sin servidor: no se muestra */ }
+  }
+
+  isExpired(iso: string | null): boolean {
+    return !!iso && new Date(iso).getTime() < Date.now();
+  }
+
+  async assignTempPassword(usr: UserProfile) {
+    if (!this.canManage()) return;
+    const had = !!this.pwStatus()[usr.id];
+    if (had && !confirm(`¿Restablecer la contraseña de ${usr.name}? Su contraseña actual dejará de servir y se cerrarán sus sesiones.`)) return;
+    this.pwBusy.set(usr.id);
+    try {
+      const resp = await apiFetch(`/api/admin/users/${encodeURIComponent(usr.id)}/password`, { method: 'POST' });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.status === 404) throw new Error('La persona aún no se guarda en el servidor; espera unos segundos e inténtalo de nuevo.');
+      if (!resp.ok) throw new Error(data?.error || `Error ${resp.status}`);
+      this.copied.set(false);
+      this.tempShown.set({ name: data.name, email: data.email, password: data.password, expiresAt: data.expiresAt });
+      await this.loadPasswords();
+    } catch (e) {
+      this.riskService.permissionNotice.set({ message: (e as Error).message, at: Date.now() });
+    } finally {
+      this.pwBusy.set(null);
+    }
+  }
+
+  async copyTemp(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      this.copied.set(true);
+    } catch { /* el texto queda seleccionable */ }
   }
 
   /** Desvincula la cuenta de Google (cambio de cuenta o correo reasignado). */

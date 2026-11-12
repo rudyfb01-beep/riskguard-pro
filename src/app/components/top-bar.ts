@@ -82,6 +82,16 @@ import { PersistenceService } from '../services/persistence.service';
                 </div>
               </div>
 
+                @if (persistence.passwordAuth()) {
+                  <button
+                    type="button"
+                    (click)="persistence.changePasswordOpen.set(true)"
+                    class="mr-1.5 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer flex items-center"
+                    title="Cambiar contraseña" aria-label="Cambiar contraseña"
+                  >
+                    <mat-icon class="text-sm">key</mat-icon>
+                  </button>
+                }
                 <button
                   type="button"
                   (click)="persistence.logout()"

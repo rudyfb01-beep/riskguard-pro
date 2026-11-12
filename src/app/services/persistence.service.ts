@@ -99,6 +99,9 @@ export class PersistenceService {
   /** La sesión venció mientras se trabajaba: se pide iniciar sesión sin perder cambios. */
   readonly sessionExpired = signal(false);
   readonly sessionUser = signal<UserProfile | null>(null);
+  /** El servidor usa correo y contraseña (AUTH_PASSWORD=true): se ofrece "Cambiar contraseña". */
+  readonly passwordAuth = signal(false);
+  readonly changePasswordOpen = signal(false);
   /** Ediciones simultáneas detectadas: se cargó la versión de la otra persona. */
   readonly conflicts = signal<EditConflict[]>([]);
   /** Versión conocida de cada registro (entidad → id → versión del servidor). */
@@ -183,6 +186,7 @@ export class PersistenceService {
   async init(): Promise<void> {
     this.mode.set('loading');
     this.loadError.set(null);
+    void apiFetch('/api/auth/config').then(r => (r.ok ? r.json() : null)).then(c => this.passwordAuth.set(!!c?.password)).catch(() => undefined);
     try {
       const me = await apiFetch('/api/auth/me');
       const meData = await me.json().catch(() => ({}));

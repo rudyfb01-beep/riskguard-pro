@@ -23,7 +23,7 @@ const SESSION_MAX_HOURS = Number(process.env['SESSION_MAX_HOURS'] || 10);
 
 // Clave para el HMAC de los códigos. Si no se define, se genera al arrancar
 // (los códigos viven 10 minutos, así que un reinicio solo invalida los pendientes).
-const AUTH_SECRET = process.env['AUTH_SECRET'] || randomBytes(32).toString('hex');
+export const AUTH_SECRET = process.env['AUTH_SECRET'] || randomBytes(32).toString('hex');
 
 export class AuthError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -34,7 +34,7 @@ export class AuthError extends Error {
 // -----------------------------------------------------------------------------
 
 const hits = new Map<string, number[]>();
-function rateLimit(bucket: string, ip: string, max: number, windowMs = 15 * 60_000) {
+export function rateLimit(bucket: string, ip: string, max: number, windowMs = 15 * 60_000) {
   const key = `${bucket}:${ip}`;
   const now = Date.now();
   const list = (hits.get(key) ?? []).filter(t => now - t < windowMs);
@@ -51,9 +51,9 @@ setInterval(() => {
 // Utilidades
 // -----------------------------------------------------------------------------
 
-const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
+export const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
 const codeHash = (userId: string, code: string) => createHmac('sha256', AUTH_SECRET).update(`${userId}:${code}`).digest('hex');
-const normalizeEmail = (e: unknown) => (typeof e === 'string' ? e.trim().toLowerCase() : '');
+export const normalizeEmail = (e: unknown) => (typeof e === 'string' ? e.trim().toLowerCase() : '');
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 export function clientIp(req: express.Request): string {
@@ -61,7 +61,7 @@ export function clientIp(req: express.Request): string {
 }
 
 /** Fecha ISO (UTC) desplazada en minutos desde ahora; se usa en vez de now() para que el SQL sea portable. */
-const isoIn = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
+export const isoIn = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
 
 /**
  * Política del código por correo cuando hay ingreso con Google:
@@ -72,7 +72,7 @@ export type EmailCodePolicy = 'true' | 'false' | 'admins';
 const codeAllowed = (user: { permissions?: Partial<UserPermissions> } | undefined, policy: EmailCodePolicy) =>
   policy === 'true' || (policy === 'admins' && !!user?.permissions?.canManageRoles);
 
-async function findActiveUserByEmail(email: string) {
+export async function findActiveUserByEmail(email: string) {
   const r = await getPool()!.query('SELECT * FROM user_profiles WHERE lower(email) = $1 AND active = TRUE', [email]);
   return r.rows[0];
 }
@@ -86,7 +86,7 @@ async function findActiveUserByEmail(email: string) {
  * la misma exista o no el usuario, para no revelar qué correos están registrados.
  */
 export async function requestLoginCode(rawEmail: unknown, ip: string, policy: EmailCodePolicy = 'true'): Promise<void> {
-  if (policy === 'false') throw new AuthError(403, 'El ingreso es con la cuenta de Google de la organización.');
+  if (policy === 'false') throw new AuthError(403, process.env['AUTH_PASSWORD'] === 'true' ? 'El ingreso es con correo y contraseña.' : 'El ingreso es con la cuenta de Google de la organización.');
   const email = normalizeEmail(rawEmail);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     throw new AuthError(400, 'Ingresa un correo electrónico válido.');
@@ -126,7 +126,7 @@ export async function requestLoginCode(rawEmail: unknown, ip: string, policy: Em
 export async function verifyLoginCode(
   rawEmail: unknown, rawCode: unknown, ip: string, userAgent: string, policy: EmailCodePolicy = 'true'
 ): Promise<{ token: string; user: UserProfile; maxAgeSeconds: number }> {
-  if (policy === 'false') throw new AuthError(403, 'El ingreso es con la cuenta de Google de la organización.');
+  if (policy === 'false') throw new AuthError(403, process.env['AUTH_PASSWORD'] === 'true' ? 'El ingreso es con correo y contraseña.' : 'El ingreso es con la cuenta de Google de la organización.');
   rateLimit('verify', ip, 30);
   const email = normalizeEmail(rawEmail);
   const code = typeof rawCode === 'string' ? rawCode.replace(/\D/g, '') : '';

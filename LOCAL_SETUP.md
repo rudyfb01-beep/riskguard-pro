@@ -27,7 +27,8 @@ o **SQLite** (un archivo local, sin servidor de base de datos).
 
 Requisitos: un servidor Linux (o Windows con Docker) con Docker Engine 24+ y Docker Compose v2,
 2 vCPU, 4 GB de RAM y 20 GB de disco; un nombre DNS (p. ej. `grc.cooperativa.cl`); una cuenta de
-correo SMTP (o Google Workspace) para enviar los códigos de acceso.
+correo SMTP (o Google Workspace) para enviar los códigos de acceso, **o** `AUTH_PASSWORD=true` para
+entrar con correo y contraseña si el servidor no tiene correo saliente (ver "Ingreso con contraseña").
 
 ```bash
 git clone https://github.com/rudyfb01-beep/riskguard-pro
@@ -45,7 +46,7 @@ escala y apetito; con **Carga masiva** importe la matriz de riesgos y controles 
 
 **Qué protege la configuración de producción** (`NODE_ENV=production`, fija en la imagen): la
 aplicación **no arranca** e indica qué corregir si falta `APP_URL`, `AUTH_SECRET` (32+ caracteres),
-SMTP (salvo ingreso solo con Google), si la contraseña de PostgreSQL es la de ejemplo, si
+SMTP (salvo ingreso solo con Google o con `AUTH_PASSWORD=true`), si la contraseña de PostgreSQL es la de ejemplo, si
 `AUTH_DEV_LOG_CODES`/`NOTIFY_DEV_LOG` están activos, si `SEED_DEMO_DATA=true`, o si la base es nueva
 y falta `ADMIN_EMAIL`. Además:
 
@@ -115,7 +116,8 @@ npm run dev
 
 Los usuarios entran con su **cuenta de Google** de la organización (si está configurado, ver
 "Ingreso con Google") o con su **correo electrónico** y un **código de 6 dígitos** que se les envía
-por email. No hay contraseñas.
+por email, o bien con **correo y contraseña** cuando el servidor no tiene correo saliente
+(`AUTH_PASSWORD=true`, ver "Ingreso con contraseña").
 
 - El código vence a los 10 minutos, sirve una sola vez y admite 5 intentos. Se pueden pedir
   hasta 5 códigos cada 15 minutos por usuario, y hay un límite por dirección IP.
@@ -136,6 +138,30 @@ por email. No hay contraseñas.
   sesiones de inmediato. El sistema impide eliminarse o desactivarse a uno mismo y dejar el
   sistema sin ningún administrador.
 - En la base de datos solo se guardan hashes de los códigos y de los tokens de sesión.
+
+### Ingreso con contraseña (sin correo saliente)
+
+Si el servidor no puede enviar correo (puerto 587 cerrado, sin relay), active `AUTH_PASSWORD=true`
+en `.env` y reinicie (`docker compose up -d`). El código por correo queda desactivado; Google sigue
+disponible si está configurado. El usuario es el correo de cada persona.
+
+1. **Primer administrador** (aún no puede entrar): en el servidor genere una contraseña temporal
+   ```bash
+   docker compose exec app node dist/app/server/server.mjs contrasena admin@cooperativa.cl
+   ```
+   Se muestra una sola vez, vence en 24 horas y, al ingresar, el sistema obliga a crear una propia.
+2. **Demás personas**: en **Puestos & Permisos → Colaboradores**, botón *Asignar contraseña
+   temporal*. La contraseña aparece una sola vez para entregarla en persona.
+3. **Olvido o bloqueo**: el administrador usa *Restablecer contraseña* (cierra las sesiones de esa
+   persona). No hay recuperación por correo. Si el único administrador la olvida, use el comando
+   del paso 1.
+4. Cada persona puede cambiar la suya con el botón de llave (*Cambiar contraseña*) junto a
+   *Cerrar sesión*; se cierran sus sesiones en otros navegadores.
+
+Reglas: mínimo 12 caracteres (se recomienda una frase), sin el correo ni el nombre, sin contraseñas
+comunes ni secuencias. Se guardan con scrypt y sal propia. 5 intentos fallidos bloquean la cuenta
+15 minutos; los mensajes no revelan si el correo existe. Todo queda en la bitácora (nunca la
+contraseña). Sin SMTP, los avisos quedan en la campana de la aplicación.
 
 ### Ingreso con Google (Google Workspace)
 
@@ -681,6 +707,7 @@ En **Supervisión & Auditoría → Gestión Documental** se lleva el listado mae
 | `NOTIFY_DEV_LOG` | `true` escribe en el log los correos de aviso cuando no hay SMTP (solo para evaluar). |
 | `GOOGLE_CLIENT_ID` · `GOOGLE_CLIENT_SECRET` | Credenciales de OAuth de Google Cloud. Con ambas se activa "Continuar con Google". |
 | `GOOGLE_ALLOWED_DOMAINS` | Dominios de Google Workspace permitidos, separados por coma (recomendado). |
+| `AUTH_PASSWORD` | `true`: ingreso con correo y contraseña (desactiva el código por correo; no exige SMTP). Ver "Ingreso con contraseña". |
 | `AUTH_EMAIL_CODE` | Con Google activo: `true` (código también disponible), `false` (solo Google) o `admins` (código solo como acceso de emergencia de administradores). |
 | `GOOGLE_REDIRECT_URI` | Opcional: dirección de retorno si no es `APP_URL` + `/api/auth/google/callback`. |
 | `UF_AUTO_SYNC` | `false` desactiva la descarga diaria de la UF (servidores sin salida a internet). |

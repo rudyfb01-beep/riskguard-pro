@@ -18,6 +18,7 @@ import { dataApi, getDbReady } from './server/api';
 import { startNotifier } from './server/notifier';
 import { startBackupScheduler } from './server/backup';
 import { startupConfigErrors } from './server/ops';
+import { runPasswordCli } from './server/password-cli';
 import { currentUser, hasAny, requireAuth, requireCsrfHeader } from './server/auth';
 import { apiRateLimit, checkOrigin, errorHandler, requestId, securityHeaders, serverError } from './server/security';
 
@@ -305,7 +306,12 @@ app.use(errorHandler);
  * Start the server if this module is the main entry point, or it is ran via PM2.
  * The server listens on the port defined by the `PORT` environment variable, or defaults to 4000.
  */
-if (isMainModule(import.meta.url) || process.env['pm_id']) {
+if ((isMainModule(import.meta.url) || process.env['pm_id']) && process.argv[2] === 'contrasena') {
+  // Comando de consola: contraseña temporal para una persona (ver src/server/password-cli.ts).
+  runPasswordCli(process.argv[3], () => getDbReady())
+    .then(code => process.exit(code))
+    .catch(err => { console.error('[Contraseña] No se pudo asignar:', (err as Error).message); process.exit(1); });
+} else if (isMainModule(import.meta.url) || process.env['pm_id']) {
   const problems = startupConfigErrors();
   if (problems.length) {
     console.error(`[Configuración] La aplicación no puede iniciar:\n${problems.map(p => `  - ${p}`).join('\n')}\nVea LOCAL_SETUP.md (Producción).`);
@@ -331,7 +337,7 @@ if (isMainModule(import.meta.url) || process.env['pm_id']) {
     // Avisos por plazos y envío de correos (cada NOTIFY_INTERVAL_MINUTES).
     startNotifier(() => getDbReady());
     startBackupScheduler(() => getDbReady());
-    if (getPool() && !process.env['SMTP_HOST']) {
+    if (getPool() && !process.env['SMTP_HOST'] && process.env['AUTH_PASSWORD'] !== 'true') {
       console.warn(process.env['AUTH_DEV_LOG_CODES'] === 'true'
         ? '[Auth] ATENCIÓN: SMTP no configurado; los códigos de acceso se escriben en este log. Usar solo para evaluación.'
         : '[Auth] SMTP no configurado (SMTP_HOST): nadie podrá recibir el código para iniciar sesión.');
