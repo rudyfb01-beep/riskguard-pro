@@ -30,7 +30,11 @@ export function configFindings(req?: express.Request): ConfigFinding[] {
   if (env['NOTIFY_DEV_LOG'] === 'true') out.push({ level: 'media', text: 'NOTIFY_DEV_LOG=true: el contenido de los avisos queda en el log.' });
   if (!env['AUTH_SECRET']) out.push({ level: 'media', text: 'Sin AUTH_SECRET: los códigos pendientes se invalidan al reiniciar y no sirve con varias instancias.' });
   else if (env['AUTH_SECRET'].length < 32) out.push({ level: 'alta', text: 'AUTH_SECRET es corto: use al menos 32 caracteres aleatorios.' });
-  if (!isMailConfigured()) out.push({ level: 'alta', text: 'SMTP no configurado: nadie recibe códigos de acceso ni avisos por correo.' });
+  if (!isMailConfigured()) {
+    out.push(env['AUTH_TOTP'] === 'true'
+      ? { level: 'media', text: 'SMTP no configurado: el ingreso es con aplicación autenticadora y los avisos quedan solo en la campana (sin correo).' }
+      : { level: 'alta', text: 'SMTP no configurado: nadie recibe códigos de acceso ni avisos por correo.' });
+  }
   if (env['SEED_DEMO_DATA'] === 'true') out.push({ level: 'media', text: 'SEED_DEMO_DATA=true: en una base vacía se cargan datos ficticios. Use false en producción.' });
   const url = env['APP_URL'] ?? '';
   if (!url) out.push({ level: 'media', text: 'Sin APP_URL: los correos no llevan enlace directo.' });
@@ -72,8 +76,8 @@ export function startupConfigErrors(): string[] {
   if (!env['AUTH_SECRET'] || env['AUTH_SECRET'].length < 32) out.push('AUTH_SECRET debe tener al menos 32 caracteres aleatorios (p. ej. openssl rand -hex 32).');
   if (!env['APP_URL']) out.push('Defina APP_URL con la dirección pública (p. ej. https://grc.cooperativa.cl).');
   const g = googleConfig();
-  if (!isMailConfigured() && (!g.enabled || g.emailCode !== 'false')) {
-    out.push('Configure SMTP_HOST (y SMTP_USER/SMTP_PASS/SMTP_FROM): sin correo nadie recibe el código de acceso.');
+  if (!isMailConfigured() && env['AUTH_TOTP'] !== 'true' && (!g.enabled || g.emailCode !== 'false')) {
+    out.push('Configure SMTP_HOST (y SMTP_USER/SMTP_PASS/SMTP_FROM) o active AUTH_TOTP=true (aplicación autenticadora): sin correo nadie recibe el código de acceso.');
   }
   if (/:(postgrespassword|postgres|changeme|password)@/i.test(env['DATABASE_URL'] ?? '') || ['postgrespassword', 'postgres'].includes(env['POSTGRES_PASSWORD'] ?? '')) {
     out.push('La contraseña de PostgreSQL es la de ejemplo: use una contraseña propia.');

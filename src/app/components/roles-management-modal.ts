@@ -523,6 +523,15 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
                         </div>
                         <p class="text-[11px] text-slate-500 truncate">{{ usr.email }}</p>
                         <div class="mt-1 flex flex-wrap items-center gap-1">
+                          @if (totp().enabled && canManage()) {
+                            @if (totp().userIds.includes(usr.id)) {
+                              <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200" title="Ingresa con el código de su aplicación autenticadora">Autenticador activo</span>
+                              <button type="button" (click)="enrollTotp(usr)" class="text-[10px] text-emerald-700 hover:underline cursor-pointer" title="Nuevo QR: el registro anterior deja de servir (celular perdido o cambiado)">Restablecer</button>
+                              <button type="button" (click)="removeTotp(usr)" class="text-[10px] text-slate-500 hover:underline cursor-pointer" title="Vuelve al código por correo">Quitar</button>
+                            } @else {
+                              <button type="button" (click)="enrollTotp(usr)" class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-white text-emerald-700 border border-emerald-300 hover:bg-emerald-50 cursor-pointer" title="Mostrar el QR para Google Authenticator">Activar autenticador</button>
+                            }
+                          }
                           @if (usr.googleLinked) {
                             <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200" title="Ingresa con su cuenta de Google">Google vinculado</span>
                             @if (canManage()) {
@@ -850,6 +859,32 @@ import { OrganizationalRole, UserPermissions, UserProfile } from '../models/risk
 
       </div>
     </div>
+
+    @if (totpQr(); as q) {
+      <div class="fixed inset-0 z-[70] bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="totp-title">
+        <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4 text-xs text-slate-700">
+          <div>
+            <h3 id="totp-title" class="text-sm font-bold text-slate-900">Autenticador de {{ q.name }}</h3>
+            <p class="text-[11px] text-slate-500">{{ q.email }}</p>
+          </div>
+          <img [src]="q.qr" width="240" height="240" alt="Código QR para la aplicación autenticadora" class="mx-auto border border-slate-200 rounded-lg" />
+          <ol class="list-decimal pl-4 space-y-1">
+            <li>Abra Google Authenticator (o Microsoft Authenticator) en el celular de {{ q.name }}.</li>
+            <li>Toque <strong>+</strong> → <strong>Escanear un código QR</strong> y apunte a este QR.</li>
+            <li>Para entrar: su correo y luego el número de 6 dígitos de "RiskGuard Pro".</li>
+          </ol>
+          <details class="text-[11px]">
+            <summary class="cursor-pointer text-slate-500">¿No puede escanear? Clave para ingresar a mano</summary>
+            <p class="mt-1">Cuenta: {{ q.email }} · Clave: <code class="font-mono text-slate-900 break-all select-all">{{ q.secret }}</code> · Basada en el tiempo.</p>
+          </details>
+          @if (q.replaced) { <p class="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">El registro anterior dejó de servir.</p> }
+          <p class="text-[11px] text-slate-500">Este QR es una llave de acceso: muéstrelo solo a la persona y no lo guarde. Al cerrar no se vuelve a mostrar.</p>
+          <div class="flex justify-end">
+            <button type="button" (click)="totpQr.set(null)" class="px-4 py-2 rounded-lg bg-slate-900 text-white font-semibold hover:bg-slate-700 cursor-pointer">Listo, ya lo escaneó</button>
+          </div>
+        </div>
+      </div>
+    }
   `
 })
 export class RolesManagementModal {
@@ -899,6 +934,7 @@ export class RolesManagementModal {
     if (roles.length > 0) {
       this.userForm.patchValue({ roleId: roles[0].id });
     }
+    void this.loadTotp();
   }
 
   activePermissionLabels() {
@@ -923,6 +959,43 @@ export class RolesManagementModal {
       { key: 'surveys', label: 'Autoevaluaciones', granted: !!p.canManageSurveys },
       { key: 'documents', label: 'Documentos', granted: !!p.canManageDocuments }
     ];
+  }
+
+  /** Aplicación autenticadora: si está activa en el servidor y quiénes la tienen registrada. */
+  readonly totp = signal<{ enabled: boolean; userIds: string[] }>({ enabled: false, userIds: [] });
+  readonly totpQr = signal<{ name: string; email: string; qr: string; secret: string; replaced: boolean } | null>(null);
+
+  private async loadTotp() {
+    if (!this.canManage()) return;
+    const resp = await apiFetch('/api/admin/totp').catch(() => null);
+    if (resp?.ok) this.totp.set(await resp.json());
+  }
+
+  async enrollTotp(usr: UserProfile) {
+    if (!this.canManage()) return;
+    if (this.totp().userIds.includes(usr.id) && !confirm(`¿Restablecer el autenticador de ${usr.name}? El registro actual de su celular dejará de servir.`)) return;
+    try {
+      const resp = await apiFetch(`/api/admin/users/${encodeURIComponent(usr.id)}/totp`, { method: 'POST' });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data?.error || `Error ${resp.status}`);
+      this.totp.update(t => ({ ...t, userIds: [...new Set([...t.userIds, usr.id])] }));
+      this.totpQr.set({ name: usr.name, email: usr.email, qr: data.qr, secret: data.secret, replaced: !!data.replaced });
+    } catch (e) {
+      this.riskService.permissionNotice.set({ message: (e as Error).message, at: Date.now() });
+    }
+  }
+
+  async removeTotp(usr: UserProfile) {
+    if (!this.canManage() || !confirm(`¿Quitar el autenticador de ${usr.name}? Volverá a ingresar con el código por correo, si el servidor lo envía.`)) return;
+    try {
+      const resp = await apiFetch(`/api/admin/users/${encodeURIComponent(usr.id)}/totp`, { method: 'DELETE' });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data?.error || `Error ${resp.status}`);
+      this.totp.update(t => ({ ...t, userIds: t.userIds.filter(id => id !== usr.id) }));
+      this.riskService.permissionNotice.set({ message: `Autenticador de ${usr.name} quitado.`, at: Date.now() });
+    } catch (e) {
+      this.riskService.permissionNotice.set({ message: (e as Error).message, at: Date.now() });
+    }
   }
 
   /** Desvincula la cuenta de Google (cambio de cuenta o correo reasignado). */

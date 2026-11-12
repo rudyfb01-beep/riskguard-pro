@@ -18,6 +18,7 @@ import { dataApi, getDbReady } from './server/api';
 import { startNotifier } from './server/notifier';
 import { startBackupScheduler } from './server/backup';
 import { startupConfigErrors } from './server/ops';
+import { runTotpCli } from './server/totp-cli';
 import { currentUser, hasAny, requireAuth, requireCsrfHeader } from './server/auth';
 import { apiRateLimit, checkOrigin, errorHandler, requestId, securityHeaders, serverError } from './server/security';
 
@@ -305,7 +306,12 @@ app.use(errorHandler);
  * Start the server if this module is the main entry point, or it is ran via PM2.
  * The server listens on the port defined by the `PORT` environment variable, or defaults to 4000.
  */
-if (isMainModule(import.meta.url) || process.env['pm_id']) {
+if ((isMainModule(import.meta.url) || process.env['pm_id']) && process.argv[2] === 'autenticador') {
+  // Comando de administración: registrar el autenticador de una persona (no inicia el servidor).
+  runTotpCli(process.argv[3], () => getDbReady())
+    .then(code => process.exit(code))
+    .catch(err => { console.error(`[Autenticador] ${(err as Error).message}`); process.exit(1); });
+} else if (isMainModule(import.meta.url) || process.env['pm_id']) {
   const problems = startupConfigErrors();
   if (problems.length) {
     console.error(`[Configuración] La aplicación no puede iniciar:\n${problems.map(p => `  - ${p}`).join('\n')}\nVea LOCAL_SETUP.md (Producción).`);

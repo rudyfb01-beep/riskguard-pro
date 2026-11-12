@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ROOT, SERVER } from './helpers.mjs';
+import { ROOT, SERVER, startServer } from './helpers.mjs';
 
 function start(env) {
   const r = spawnSync(process.execPath, [SERVER], { cwd: ROOT, env: { PATH: process.env.PATH, PORT: '0', ...env }, encoding: 'utf8', timeout: 20_000 });
@@ -47,6 +47,20 @@ describe('Validación de la configuración al arrancar', () => {
       assert.match(r.out, /defina ADMIN_EMAIL/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('producción sin SMTP pero con autenticador (AUTH_TOTP=true): arranca', async () => {
+    const srv = await startServer({
+      NODE_ENV: 'production', AUTH_DEV_LOG_CODES: 'false', SEED_DEMO_DATA: 'false', AUTH_TOTP: 'true',
+      AUTH_SECRET: 'b'.repeat(64), ADMIN_EMAIL: 'admin@ejemplo.cl',
+    });
+    try {
+      const r = await srv.anon().call('GET', '/api/auth/config');
+      assert.equal(r.body.totp, true);
+      assert.equal(r.body.mail, false);
+    } finally {
+      await srv.stop();
     }
   });
 });

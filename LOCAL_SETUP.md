@@ -45,7 +45,7 @@ escala y apetito; con **Carga masiva** importe la matriz de riesgos y controles 
 
 **Qué protege la configuración de producción** (`NODE_ENV=production`, fija en la imagen): la
 aplicación **no arranca** e indica qué corregir si falta `APP_URL`, `AUTH_SECRET` (32+ caracteres),
-SMTP (salvo ingreso solo con Google), si la contraseña de PostgreSQL es la de ejemplo, si
+SMTP (salvo ingreso con autenticador `AUTH_TOTP=true` o solo con Google), si la contraseña de PostgreSQL es la de ejemplo, si
 `AUTH_DEV_LOG_CODES`/`NOTIFY_DEV_LOG` están activos, si `SEED_DEMO_DATA=true`, o si la base es nueva
 y falta `ADMIN_EMAIL`. Además:
 
@@ -136,6 +136,26 @@ por email. No hay contraseñas.
   sesiones de inmediato. El sistema impide eliminarse o desactivarse a uno mismo y dejar el
   sistema sin ningún administrador.
 - En la base de datos solo se guardan hashes de los códigos y de los tokens de sesión.
+
+### Ingreso con aplicación autenticadora (sin correo)
+
+Con `AUTH_TOTP=true` cada persona entra con su correo y el número de 6 dígitos que muestra
+**Google Authenticator** (o Microsoft Authenticator) en su celular. No se necesita servidor de correo
+ni salida a internet para ingresar; el servidor y los celulares deben tener la hora correcta.
+
+1. En `.env`: `AUTH_TOTP=true` y `docker compose --profile https up -d`.
+2. **Primer administrador** (aún no puede entrar): en el servidor,
+   `docker compose exec app node dist/app/server/server.mjs autenticador <su correo>`.
+   Dibuja un QR en la terminal; escanéelo con la aplicación (o use la clave que imprime).
+3. **Demás personas:** *Puestos & Permisos → Colaboradores → Activar autenticador* muestra el QR para
+   que la persona lo escanee. *Restablecer* genera uno nuevo (celular perdido o cambiado) e invalida el
+   anterior; *Quitar* vuelve al código por correo.
+
+Cada número sirve una sola vez y se acepta ±30 s de desfase; 5 números incorrectos seguidos bloquean
+a esa persona 15 minutos (o hasta que se restablezca). Los secretos se guardan cifrados con
+`AUTH_SECRET`: si se cambia esa clave hay que volver a activar los autenticadores. Quien tiene
+autenticador no recibe códigos por correo; quien no lo tiene sigue recibiéndolos, si hay SMTP. Sin
+SMTP, los avisos de la aplicación quedan solo en la campana.
 
 ### Ingreso con Google (Google Workspace)
 
@@ -675,6 +695,7 @@ En **Supervisión & Auditoría → Gestión Documental** se lleva el listado mae
 | `DATABASE_SSL` | `true` para conectarse con SSL (bases administradas en la nube). |
 | `DATABASE_SSL_REJECT_UNAUTHORIZED` | `false` solo si el certificado del servidor no es verificable. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_HELO_NAME` | Servidor de correo para los códigos de acceso y los avisos (ver Google Workspace). |
+| `AUTH_TOTP` | `true` habilita el ingreso con aplicación autenticadora (Google Authenticator); no requiere SMTP. |
 | `AUTH_DEV_LOG_CODES` | `true` muestra los códigos en el log (solo desarrollo; bloqueado en producción). |
 | `APP_URL` | Dirección pública de la aplicación (p. ej. `https://grc.tucooperativa.cl`) para los enlaces de los correos. |
 | `NOTIFY_INTERVAL_MINUTES` | Cada cuántos minutos se revisan los plazos y se envían correos (15 por defecto; `0` lo desactiva). |
@@ -731,6 +752,7 @@ muestran detalles internos.
 | `GET /api/admin/ops` | Estado para el panel Operación y respaldos. |
 | `POST /api/admin/backups` · `POST /api/admin/backups/:archivo/verify` · `GET /api/admin/backups/:archivo` | Respaldar ahora / verificar / descargar (administración de cargos). |
 | `GET /api/notifications/channels` · `POST /api/notifications/kri-test` | Canales de aviso de KRIs disponibles / envío de prueba real `{channel: email\|sms\|webhook, to, kriCode}`. |
+| `GET /api/admin/totp` · `POST`/`DELETE /api/admin/users/:id/totp` | Personas con autenticador / activar o restablecer (devuelve el QR) / quitar (administración de cargos). |
 | `POST /api/admin/uf-sync` | Descarga los valores de la UF (`{years}`) y los agrega a la tabla. |
 | `POST /api/import/:tipo` | Carga masiva `{records, fileName}` (`areas`, `processes`, `users`, `controls`, `providers`, `info-assets`, `flaws`): valida y guarda todo en una transacción. |
 | `POST /api/evidence?entityType=&entityId=&context=&description=` | Carga un archivo (cuerpo binario, nombre en `X-File-Name`). |

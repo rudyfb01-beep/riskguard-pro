@@ -3,7 +3,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { apiFetch } from '../services/persistence.service';
 import { UserProfile } from '../models/risk.model';
 
-interface AuthConfig { google: boolean; emailCode: 'true' | 'false' | 'admins'; domains: string[] }
+interface AuthConfig { google: boolean; emailCode: 'true' | 'false' | 'admins'; domains: string[]; totp?: boolean; mail?: boolean }
 
 /**
  * Acceso sin contraseña: el usuario ingresa su correo, recibe un código de
@@ -63,13 +63,13 @@ interface AuthConfig { google: boolean; emailCode: 'true' | 'false' | 'admins'; 
                 [value]="email()" (input)="email.set($any($event.target).value)"
                 placeholder="nombre@cooperativa.cl"
                 class="w-full text-sm rounded-lg border border-slate-300 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-              <p class="text-[11px] text-slate-500 mt-1.5">Te enviaremos un código de acceso de 6 dígitos.</p>
+              <p class="text-[11px] text-slate-500 mt-1.5">{{ emailHint() }}</p>
             </div>
             @if (error()) { <p class="text-xs text-rose-700 flex items-start gap-1" role="alert"><mat-icon class="text-sm shrink-0">error</mat-icon>{{ error() }}</p> }
             <button type="submit" [disabled]="busy() || !email().trim()"
               class="w-full py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
               @if (busy()) { <span class="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin"></span> }
-              <span>Enviarme un código</span>
+              <span>{{ cfg().totp ? 'Continuar' : 'Enviarme un código' }}</span>
             </button>
           </form>
         } @else {
@@ -83,7 +83,7 @@ interface AuthConfig { google: boolean; emailCode: 'true' | 'false' | 'admins'; 
                 [value]="code()" (input)="onCodeInput($event)"
                 placeholder="••••••"
                 class="w-full text-center text-2xl tracking-[0.5em] font-mono rounded-lg border border-slate-300 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-              <p class="text-[11px] text-slate-500 mt-1.5">Vence en 10 minutos. Revisa también la carpeta de correo no deseado. Si no llega en unos minutos, avisa al administrador del sistema.</p>
+              <p class="text-[11px] text-slate-500 mt-1.5">{{ codeHint() }}</p>
             </div>
             @if (error()) { <p class="text-xs text-rose-700 flex items-start gap-1" role="alert"><mat-icon class="text-sm shrink-0">error</mat-icon>{{ error() }}</p> }
             <button type="submit" [disabled]="busy() || code().length !== 6"
@@ -93,10 +93,12 @@ interface AuthConfig { google: boolean; emailCode: 'true' | 'false' | 'admins'; 
             </button>
             <div class="flex items-center justify-between text-xs">
               <button type="button" (click)="backToEmail()" class="text-slate-600 hover:text-slate-900 cursor-pointer">← Usar otro correo</button>
-              <button type="button" (click)="requestCode()" [disabled]="cooldown() > 0 || busy()"
-                class="text-emerald-700 font-semibold hover:underline disabled:text-slate-400 disabled:no-underline cursor-pointer">
-                {{ cooldown() > 0 ? 'Reenviar en ' + cooldown() + ' s' : 'Reenviar código' }}
-              </button>
+              @if (!cfg().totp || cfg().mail !== false) {
+                <button type="button" (click)="requestCode()" [disabled]="cooldown() > 0 || busy()"
+                  class="text-emerald-700 font-semibold hover:underline disabled:text-slate-400 disabled:no-underline cursor-pointer">
+                  {{ cooldown() > 0 ? 'Reenviar en ' + cooldown() + ' s' : 'Reenviar código' }}
+                </button>
+              }
             </div>
           </form>
         }
@@ -123,7 +125,26 @@ export class LoginScreen {
   /** El formulario de código se muestra si la política lo permite (o en acceso de emergencia). */
   showCodeForm() {
     const c = this.cfg();
-    return !c.google || c.emailCode === 'true' || (c.emailCode === 'admins' && this.emergency());
+    return !c.google || !!c.totp || c.emailCode === 'true' || (c.emailCode === 'admins' && this.emergency());
+  }
+
+  /** Solo autenticador (sin correo) o autenticador y correo. */
+  private readonly totpOnly = () => !!this.cfg().totp && this.cfg().mail === false;
+
+  emailHint(): string {
+    if (this.totpOnly()) return 'Luego escribirás el código de 6 dígitos de tu aplicación autenticadora (Google Authenticator).';
+    if (this.cfg().totp) return 'Luego escribirás el código de tu aplicación autenticadora o, si no la tienes, el que te enviaremos por correo.';
+    return 'Te enviaremos un código de acceso de 6 dígitos.';
+  }
+
+  codeHint(): string {
+    if (this.totpOnly()) {
+      return 'Abre Google Authenticator y escribe el número de "RiskGuard Pro" (cambia cada 30 segundos). Si no tienes la aplicación registrada, pídesela al administrador del sistema.';
+    }
+    if (this.cfg().totp) {
+      return 'Usa el número de "RiskGuard Pro" en tu aplicación autenticadora o, si no la tienes, el código que llega por correo (vence en 10 minutos).';
+    }
+    return 'Vence en 10 minutos. Revisa también la carpeta de correo no deseado. Si no llega en unos minutos, avisa al administrador del sistema.';
   }
 
   private readonly codeInput = viewChild<ElementRef<HTMLInputElement>>('codeInput');
@@ -202,7 +223,7 @@ export class LoginScreen {
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(data?.error || 'No se pudo solicitar el código.');
-      this.info.set('Si el correo está registrado, enviamos un código a');
+      this.info.set(this.totpOnly() ? 'Código de la aplicación autenticadora para' : this.cfg().totp ? 'Código de acceso para' : 'Si el correo está registrado, enviamos un código a');
       this.step.set('code');
       this.code.set('');
       this.startCooldown(60);

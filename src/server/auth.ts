@@ -3,12 +3,14 @@ import express from 'express';
 import { getPool } from './db';
 import { appendLedger, userFromRow } from './repository';
 import { sendLoginCode } from './mailer';
+import { hasTotp, totpEnabled, TOTP_MAX_FAILURES, verifyTotp } from './totp';
 import { UserPermissions, UserProfile } from '../app/models/risk.model';
 
 /**
- * Inicio de sesión sin contraseña: el usuario ingresa su correo, recibe un
- * código de 6 dígitos de un solo uso y, al verificarlo, obtiene una sesión en
- * una cookie HttpOnly. En la base solo se guardan hashes de códigos y tokens.
+ * Inicio de sesión sin contraseña: el usuario ingresa su correo y luego un código de 6 dígitos,
+ * que recibe por correo o, si tiene una aplicación autenticadora registrada (AUTH_TOTP=true),
+ * lee en su celular. Al verificarlo obtiene una sesión en una cookie HttpOnly. En la base solo
+ * se guardan hashes de códigos y tokens, y los secretos del autenticador cifrados.
  */
 
 export const SESSION_COOKIE = 'rg_session';
@@ -86,7 +88,7 @@ async function findActiveUserByEmail(email: string) {
  * la misma exista o no el usuario, para no revelar qué correos están registrados.
  */
 export async function requestLoginCode(rawEmail: unknown, ip: string, policy: EmailCodePolicy = 'true'): Promise<void> {
-  if (policy === 'false') throw new AuthError(403, 'El ingreso es con la cuenta de Google de la organización.');
+  if (policy === 'false' && !totpEnabled()) throw new AuthError(403, 'El ingreso es con la cuenta de Google de la organización.');
   const email = normalizeEmail(rawEmail);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     throw new AuthError(400, 'Ingresa un correo electrónico válido.');
@@ -95,8 +97,10 @@ export async function requestLoginCode(rawEmail: unknown, ip: string, policy: Em
   const started = Date.now();
 
   const user = await findActiveUserByEmail(email);
+  // Con autenticador registrado no se envía correo: el código lo da la aplicación del celular.
+  const usesTotp = !!user && totpEnabled() && (await hasTotp(user.id));
   // Con la política "admins" el resto recibe la misma respuesta, pero no se envía código.
-  if (user && codeAllowed(user, policy)) {
+  if (user && !usesTotp && codeAllowed(user, policy)) {
     const recent = await getPool()!.query(
       `SELECT count(*) AS n FROM auth_login_codes WHERE user_id = $1 AND created_at > $2`,
       [user.id, isoIn(-15)]
@@ -126,7 +130,7 @@ export async function requestLoginCode(rawEmail: unknown, ip: string, policy: Em
 export async function verifyLoginCode(
   rawEmail: unknown, rawCode: unknown, ip: string, userAgent: string, policy: EmailCodePolicy = 'true'
 ): Promise<{ token: string; user: UserProfile; maxAgeSeconds: number }> {
-  if (policy === 'false') throw new AuthError(403, 'El ingreso es con la cuenta de Google de la organización.');
+  if (policy === 'false' && !totpEnabled()) throw new AuthError(403, 'El ingreso es con la cuenta de Google de la organización.');
   rateLimit('verify', ip, 30);
   const email = normalizeEmail(rawEmail);
   const code = typeof rawCode === 'string' ? rawCode.replace(/\D/g, '') : '';
@@ -134,6 +138,14 @@ export async function verifyLoginCode(
   if (!email || code.length !== 6) throw invalid;
 
   const user = await findActiveUserByEmail(email);
+  if (user && totpEnabled() && (await hasTotp(user.id))) {
+    const r = await verifyTotp(user.id, code);
+    if (r.ok) return createSession(user, ip, userAgent, `Inicio de sesión con aplicación autenticadora (${user.email}).`);
+    await delay(300);
+    if (r.reason === 'locked') throw new AuthError(429, `Demasiados códigos incorrectos (${TOTP_MAX_FAILURES}). Espera 15 minutos o pide al administrador restablecer tu autenticador.`);
+    if (r.reason === 'reused') throw new AuthError(401, 'Ese código ya se usó. Espera el siguiente número de la aplicación.');
+    throw new AuthError(401, `Código incorrecto. Revisa que sea el de "RiskGuard Pro" en tu aplicación y que la hora del celular sea automática. Te quedan ${r.remaining} intentos.`);
+  }
   if (!user || !codeAllowed(user, policy)) {
     await delay(300);
     throw invalid;

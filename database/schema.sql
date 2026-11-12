@@ -736,6 +736,17 @@ CREATE TABLE IF NOT EXISTS auth_login_codes (
 );
 CREATE INDEX IF NOT EXISTS idx_auth_codes_user ON auth_login_codes(user_id, created_at DESC);
 
+-- Aplicación autenticadora (TOTP): secreto cifrado con AUTH_SECRET, último paso usado (anti-reuso) y bloqueo
+CREATE TABLE IF NOT EXISTS auth_totp (
+    user_id VARCHAR(64) PRIMARY KEY REFERENCES user_profiles(id) ON DELETE CASCADE,
+    secret_enc TEXT NOT NULL,
+    last_step BIGINT NOT NULL DEFAULT 0,
+    failures INTEGER NOT NULL DEFAULT 0,
+    locked_until TIMESTAMPTZ,
+    created_by VARCHAR(200),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Sesiones activas (se guarda solo el hash del token de la cookie)
 CREATE TABLE IF NOT EXISTS auth_sessions (
     token_hash VARCHAR(128) PRIMARY KEY,

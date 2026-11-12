@@ -57,6 +57,8 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_ALLOWED_DOMAINS: ${GOOGLE_ALLOWED_DOMAINS:-}
       AUTH_EMAIL_CODE: ${AUTH_EMAIL_CODE:-true}
+      # Ingreso con aplicación autenticadora (Google Authenticator): no requiere correo.
+      AUTH_TOTP: ${AUTH_TOTP:-false}
       SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-60}
       SESSION_MAX_HOURS: ${SESSION_MAX_HOURS:-10}
       # La aplicación queda detrás de un proxy HTTPS (un salto): IP real y cookie Secure.

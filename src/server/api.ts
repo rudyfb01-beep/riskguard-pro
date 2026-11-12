@@ -37,6 +37,7 @@ import { UserPermissions, UserProfile } from '../app/models/risk.model';
 import { bulkLedgerDetails, bulkSpec, canBulkImport, MAX_BULK_ROWS, validateBulkRecord } from '../app/utils/bulk-import';
 import { serverError } from './security';
 import { channelStatus, testChannel } from './kri-channels';
+import { enrolledUserIds, enrollTotp, hasTotp, removeTotp, totpEnabled } from './totp';
 
 let ready: ReturnType<typeof ensureDatabase> | null = null;
 
@@ -197,7 +198,7 @@ dataApi.post('/auth/verify', async (req, res) => {
 /** Formas de ingreso disponibles (pública: la usa la pantalla de acceso). */
 dataApi.get('/auth/config', (_req, res) => {
   const cfg = googleConfig();
-  res.json({ google: cfg.enabled && !!getPool(), emailCode: cfg.emailCode, domains: cfg.domains });
+  res.json({ google: cfg.enabled && !!getPool(), emailCode: cfg.emailCode, domains: cfg.domains, totp: totpEnabled(), mail: isMailConfigured() });
 });
 
 const flowCookieOptions = (req: express.Request) => ({
@@ -951,6 +952,53 @@ dataApi.post('/admin/users/:id/google-unlink', async (req, res) => {
     res.json({ ok: true, ledger });
   } catch (err) {
     res.status(422).json({ error: friendlyDbError(err) });
+  }
+});
+
+/** Personas con aplicación autenticadora registrada (para la lista de usuarios). */
+dataApi.get('/admin/totp', async (_req, res) => {
+  if (!authorize(res, ['canManageRoles'], 'los usuarios')) return;
+  res.json({ enabled: totpEnabled(), userIds: await enrolledUserIds() });
+});
+
+/** Activa (o reemplaza) la aplicación autenticadora de una persona: devuelve el QR para escanear. */
+dataApi.post('/admin/users/:id/totp', async (req, res) => {
+  if (!authorize(res, ['canManageRoles'], 'los usuarios')) return;
+  if (!totpEnabled()) { res.status(400).json({ error: 'El ingreso con autenticador no está activado en el servidor (AUTH_TOTP=true).' }); return; }
+  const admin = currentUser(res)!;
+  try {
+    const r = await getPool()!.query('SELECT id, name, email, active FROM user_profiles WHERE id = $1', [req.params['id']]);
+    const u = r.rows[0];
+    if (!u) { res.status(404).json({ error: 'Usuario no encontrado.' }); return; }
+    const replaced = await hasTotp(u.id);
+    const e = await enrollTotp(u, admin.name);
+    const ledger = await appendLedger({
+      id: `log-totp-${randomUUID()}`, userName: admin.name, userRole: admin.role, action: 'GESTIÓN_USUARIO', entityType: 'Usuario',
+      entityCode: u.id, details: `${replaced ? 'Autenticador restablecido' : 'Autenticador activado'} para ${u.name} (${u.email}).${replaced ? ' El registro anterior dejó de servir.' : ''}`,
+    }, clientIp(req));
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ ok: true, replaced, secret: e.secret, uri: e.uri, qr: e.qrDataUrl, ledger });
+  } catch (err) {
+    serverError(res, err, req);
+  }
+});
+
+/** Quita la aplicación autenticadora de una persona (vuelve al código por correo, si lo hay). */
+dataApi.delete('/admin/users/:id/totp', async (req, res) => {
+  if (!authorize(res, ['canManageRoles'], 'los usuarios')) return;
+  const admin = currentUser(res)!;
+  try {
+    const r = await getPool()!.query('SELECT id, name, email FROM user_profiles WHERE id = $1', [req.params['id']]);
+    const u = r.rows[0];
+    if (!u) { res.status(404).json({ error: 'Usuario no encontrado.' }); return; }
+    if (!(await removeTotp(u.id))) { res.json({ ok: true }); return; }
+    const ledger = await appendLedger({
+      id: `log-totp-del-${randomUUID()}`, userName: admin.name, userRole: admin.role, action: 'GESTIÓN_USUARIO', entityType: 'Usuario',
+      entityCode: u.id, details: `Autenticador quitado a ${u.name} (${u.email}).`,
+    }, clientIp(req));
+    res.json({ ok: true, ledger });
+  } catch (err) {
+    serverError(res, err, req);
   }
 });
 
