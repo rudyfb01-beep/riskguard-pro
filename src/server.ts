@@ -306,11 +306,16 @@ app.use(errorHandler);
  * Start the server if this module is the main entry point, or it is ran via PM2.
  * The server listens on the port defined by the `PORT` environment variable, or defaults to 4000.
  */
-if ((isMainModule(import.meta.url) || process.env['pm_id']) && process.argv[2] === 'contrasena') {
+const cliCommand = (process.argv[2] ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+if ((isMainModule(import.meta.url) || process.env['pm_id']) && ['contrasena', 'password'].includes(cliCommand)) {
   // Comando de consola: contraseña temporal para una persona (ver src/server/password-cli.ts).
   runPasswordCli(process.argv[3], () => getDbReady())
     .then(code => process.exit(code))
     .catch(err => { console.error('[Contraseña] No se pudo asignar:', (err as Error).message); process.exit(1); });
+} else if ((isMainModule(import.meta.url) || process.env['pm_id']) && cliCommand) {
+  // Un argumento desconocido no debe levantar un segundo servidor (chocaría con el puerto en uso).
+  console.error(`Comando desconocido: "${process.argv[2]}".\nUso: node dist/app/server/server.mjs contrasena <correo>   (contraseña temporal para una persona)`);
+  process.exit(2);
 } else if (isMainModule(import.meta.url) || process.env['pm_id']) {
   const problems = startupConfigErrors();
   if (problems.length) {

@@ -14,11 +14,12 @@ let srv;
 before(async () => { srv = await startServer(ENV); });
 after(() => srv?.stop());
 
-function cli(email) {
+function cli(email) { return cliWith('contrasena', email); }
+function cliWith(command, email) {
   const dbEnv = process.env.TEST_DATABASE_URL
     ? { DATABASE_URL: (() => { const u = new URL(process.env.TEST_DATABASE_URL); u.pathname = `/riskguard_test_${srv.port}`; return u.toString(); })() }
     : { DB_CLIENT: 'sqlite', SQLITE_PATH: join(srv.dir, 'riskguard.db') };
-  return spawnSync(process.execPath, [SERVER, 'contrasena', email],
+  return spawnSync(process.execPath, [SERVER, command, email],
     { cwd: ROOT, env: { PATH: process.env.PATH, ...ENV, ...dbEnv }, encoding: 'utf8', timeout: 30_000 });
 }
 
@@ -149,6 +150,16 @@ describe('Ingreso con contraseña', () => {
     const r = await login(srv.anon(), CARLOS, t.body.password);
     assert.equal(r.status, 200);
     assert.equal(r.body.mustChange, true);
+  });
+
+  test('comando del servidor: acepta "contraseña" con ñ y no levanta otro servidor con un comando desconocido', () => {
+    const conEnie = cliWith('contraseña', 'nadie@ejemplo.cl');
+    assert.equal(conEnie.status, 1);
+    assert.match(conEnie.stderr, /No hay una persona activa/);
+    const otro = cliWith('clave', ADMIN);
+    assert.equal(otro.status, 2);
+    assert.match(otro.stderr, /Comando desconocido/);
+    assert.doesNotMatch(otro.stdout + otro.stderr, /listening|EADDRINUSE/);
   });
 
   test('comando del servidor con un correo desconocido', () => {
