@@ -9,7 +9,6 @@ import { RiskDataService } from '../services/risk-data.service';
 import { ResilienceService } from '../services/resilience.service';
 import { BiaRan209, MIN_SCENARIOS, PlanRan209, TestRan209 } from '../models/compliance.model';
 import { SecurityService } from '../services/security.service';
-import { CAC_BUSINESS_LINES } from '../models/risk.model';
 import {
   BiaImpact,
   BiaProcess,
@@ -294,7 +293,7 @@ import { ActionPlanService } from '../services/action-plan.service';
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Dueño del proceso</span><input [class]="inputCls" [value]="d.owner" (input)="setBia('owner', $any($event.target).value)" /></label>
               <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Línea de negocio</span>
                 <select [class]="inputCls" (change)="setBia('businessLine', $any($event.target).value)">
-                  @for (l of businessLines; track l) { <option [value]="l" [selected]="l === d.businessLine">{{ l }}</option> }
+                  @for (l of rs.catalog.businessLineOptions(d.businessLine); track l) { <option [value]="l" [selected]="l === d.businessLine">{{ l }}</option> }
                 </select></label>
               <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Descripción</span><textarea rows="2" [class]="inputCls" [value]="d.description" (input)="setBia('description', $any($event.target).value)"></textarea></label>
             </div>
@@ -540,7 +539,6 @@ export class ContinuityPanel {
   readonly notify = output<string>();
 
   readonly inputCls = INPUT;
-  readonly businessLines = CAC_BUSINESS_LINES;
   readonly subTabs: { id: SubTab; label: string; icon: string }[] = [
     { id: 'bia', label: 'Análisis de impacto (BIA)', icon: 'account_tree' },
     { id: 'planes', label: 'Planes', icon: 'menu_book' },
@@ -604,7 +602,7 @@ export class ContinuityPanel {
   newBia() {
     this.formError.set('');
     this.biaDraft.set({
-      id: this.res.newId('bia'), name: '', owner: this.rs.currentProfile().name, businessLine: 'Captaciones y Ahorro', description: '',
+      id: this.res.newId('bia'), name: '', owner: this.rs.currentProfile().name, businessLine: this.rs.catalog.activeBusinessLines()[0]?.name ?? '', description: '',
       impact: { financial: 2, members: 2, regulatory: 2, reputational: 2 }, mtpdHours: 24, rtoHours: 12, rpoHours: 4,
       systems: [], providerIds: [], minimumStaff: 1, alternateSite: '', lastReviewDate: new Date().toISOString().slice(0, 10),
     });

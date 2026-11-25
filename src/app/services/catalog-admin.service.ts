@@ -4,7 +4,7 @@ import { RiskDataService } from './risk-data.service';
 import { ResilienceService } from './resilience.service';
 import { PersistenceService, apiFetch } from './persistence.service';
 import {
-  AccountingAccount, BusinessProcess, GeneralParameters, OrgArea, ProviderCatalogs, RiskAppetite, RiskScale,
+  AccountingAccount, BusinessLine, BusinessProcess, GeneralParameters, OrgArea, ProviderCatalogs, RiskAppetite, RiskScale,
   normalizeAccounts, normalizeGeneralParameters, normalizeProviderCatalogs, normalizeRiskAppetite, normalizeRiskScale,
 } from '../models/catalog.model';
 
@@ -85,6 +85,50 @@ export class CatalogAdminService {
     }
     this.cat.areas.update(list => list.filter(a => a.id !== area.id));
     await this.rs.appendAuditLog('MANTENEDOR_AREA', 'Mantenedor', area.id, `Área eliminada: "${area.name}".`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Líneas de negocio
+  // ---------------------------------------------------------------------------
+
+  businessLineUsage(name: string): { processes: number; flaws: number; bia: number; total: number } {
+    const processes = this.cat.processes().filter(p => p.businessLine === name).length;
+    const flaws = this.rs.flaws().filter(f => f.businessLine === name).length;
+    const bia = this.res.biaProcesses().filter(b => b.businessLine === name).length;
+    return { processes, flaws, bia, total: processes + flaws + bia };
+  }
+
+  async saveBusinessLine(data: BusinessLine): Promise<void> {
+    this.guard();
+    const name = data.name.trim();
+    if (!name) throw new CatalogValidationError('Ingresa el nombre de la línea de negocio.');
+    if (name.length > 100) throw new CatalogValidationError('El nombre admite hasta 100 caracteres.');
+    if (this.cat.businessLines().some(b => b.id !== data.id && b.name.toLowerCase() === name.toLowerCase())) {
+      throw new CatalogValidationError(`Ya existe una línea de negocio llamada "${name}".`);
+    }
+    const prev = this.cat.businessLines().find(b => b.id === data.id);
+    const line: BusinessLine = { ...data, name, description: data.description.trim() };
+    this.cat.businessLines.update(list => (prev ? list.map(b => (b.id === line.id ? line : b)) : [...list, line]));
+
+    if (prev && prev.name !== name && this.cascadeLocally) {
+      const rename = <T extends { businessLine?: string }>(x: T): T => (x.businessLine === prev.name ? { ...x, businessLine: name } : x);
+      this.cat.processes.update(list => list.map(rename));
+      this.rs.flaws.update(list => list.map(rename));
+      this.res.biaProcesses.update(list => list.map(rename));
+    }
+    await this.rs.appendAuditLog('MANTENEDOR_LINEA_NEGOCIO', 'Mantenedor', line.id,
+      prev ? `Línea de negocio modificada: "${prev.name}"${prev.name !== name ? ` → "${name}"` : ''}${prev.active !== line.active ? (line.active ? ' (reactivada)' : ' (desactivada)') : ''}.`
+        : `Línea de negocio creada: "${name}".`);
+  }
+
+  async deleteBusinessLine(line: BusinessLine): Promise<void> {
+    this.guard();
+    const u = this.businessLineUsage(line.name);
+    if (u.total > 0) {
+      throw new CatalogValidationError(`"${line.name}" está en uso (${u.processes} procesos, ${u.flaws} incidentes, ${u.bia} procesos BIA). Desactívala en vez de eliminarla.`);
+    }
+    this.cat.businessLines.update(list => list.filter(b => b.id !== line.id));
+    await this.rs.appendAuditLog('MANTENEDOR_LINEA_NEGOCIO', 'Mantenedor', line.id, `Línea de negocio eliminada: "${line.name}".`);
   }
 
   // ---------------------------------------------------------------------------

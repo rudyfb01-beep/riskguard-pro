@@ -58,7 +58,7 @@ export function recordLabel(o: unknown, fallback = ''): string {
 
 /** Nombre de cada entidad para los avisos de conflicto. */
 const ENTITY_LABEL: Record<string, string> = {
-  areas: 'Área', processes: 'Proceso', roles: 'Puesto', users: 'Usuario', controls: 'Control', risks: 'Riesgo', providers: 'Proveedor',
+  areas: 'Área', 'business-lines': 'Línea de negocio', processes: 'Proceso', roles: 'Puesto', users: 'Usuario', controls: 'Control', risks: 'Riesgo', providers: 'Proveedor',
   'regulatory-milestones': 'Plazo regulatorio', flaws: 'Incidente', alerts: 'Alerta', audits: 'Auditoría', kris: 'KRI', bia: 'BIA', plans: 'Plan de continuidad',
   'continuity-tests': 'Prueba de continuidad', 'info-assets': 'Activo de información', vulnerabilities: 'Vulnerabilidad', 'security-assessment': 'Autoevaluación de seguridad',
   norms: 'Norma', compliance: 'Requisito normativo', 'security-tests': 'Prueba de seguridad', 'action-plans': 'Plan de acción', 'survey-campaigns': 'Campaña',
@@ -115,6 +115,7 @@ export class PersistenceService {
   // Orden de dependencias: debe coincidir con ENTITY_ORDER del servidor.
   private readonly collections: Collection[] = [
     this.col('areas', 'areas', this.cat.areas),
+    this.col('business-lines', 'businessLines', this.cat.businessLines),
     this.col('processes', 'processes', this.cat.processes),
     this.col('roles', 'roles', this.rs.organizationalRoles),
     this.col('users', 'users', this.rs.userProfiles),
@@ -307,8 +308,8 @@ export class PersistenceService {
         const prev = c.snapshot.get(obj.id);
         if (prev !== obj) {
           upserts.push({ entity: c.entity, obj });
-          // Renombrar un área o proceso: el servidor actualiza las referencias y luego se recargan.
-          if ((c.entity === 'areas' || c.entity === 'processes') && prev
+          // Renombrar un área, línea de negocio o proceso: el servidor actualiza las referencias y luego se recargan.
+          if ((c.entity === 'areas' || c.entity === 'business-lines' || c.entity === 'processes') && prev
             && (prev as unknown as { name: string }).name !== (obj as unknown as { name: string }).name) renamedCatalog = true;
         }
       }

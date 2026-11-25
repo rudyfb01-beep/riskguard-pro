@@ -118,8 +118,8 @@ export type IncidentType =
   | 'Vulnerabilidad Operativa';
 
 /**
- * Líneas de negocio de una Cooperativa de Ahorro y Crédito (CAC) para
- * clasificar eventos en la base de pérdidas operacionales.
+ * Líneas de negocio base de una Cooperativa de Ahorro y Crédito (CAC). Se cargan una vez en el
+ * mantenedor de líneas de negocio; desde ahí la organización las agrega, renombra o elimina.
  */
 export const CAC_BUSINESS_LINES = [
   'Créditos de Consumo',
@@ -131,7 +131,8 @@ export const CAC_BUSINESS_LINES = [
   'Tesorería e Inversiones',
   'Soporte Corporativo',
 ] as const;
-export type CacBusinessLine = typeof CAC_BUSINESS_LINES[number];
+/** Nombre de una línea de negocio del mantenedor (los registros guardan el nombre). */
+export type CacBusinessLine = string;
 
 /**
  * Subcategorías (nivel 2) de eventos de pérdida según Basilea, agrupadas por
@@ -364,6 +365,7 @@ export interface AuditLogEntry {
     | 'CONFIGURACIÓN_APR'
     | 'MANTENEDOR_AREA'
     | 'MANTENEDOR_PROCESO'
+    | 'MANTENEDOR_LINEA_NEGOCIO'
     | 'IMPORTACIÓN_RIESGOS'
     | 'CONFIGURACIÓN_PARÁMETROS'
     | 'MODIFICACIÓN_AUDITORÍA'

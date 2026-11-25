@@ -10,7 +10,7 @@
 // =============================================================================
 
 import {
-  CAC_BUSINESS_LINES, Control, ControlTestExecution, OperationalFlaw, UserPermissions, UserProfile,
+  Control, ControlTestExecution, OperationalFlaw, UserPermissions, UserProfile,
 } from '../models/risk.model';
 import { BusinessProcess, OrgArea, PROCESS_CRITICALITIES } from '../models/catalog.model';
 import { ServiceProvider } from '../models/resilience.model';
@@ -31,6 +31,8 @@ export interface BulkLists {
   providers: string[];
   providerCategories: string[];
   biaProcesses: string[];
+  /** Líneas de negocio activas del mantenedor. */
+  businessLines: string[];
 }
 
 export interface BulkField {
@@ -421,7 +423,7 @@ const PROCESS_SPEC: BulkSpec = {
     { key: 'code', label: 'Código', type: 'text', aliases: ['cod', 'codigo del proceso'], hint: 'Vacío: se asigna PRC-NN', example: '' },
     { key: 'area', label: 'Área', type: 'enum', optionsFrom: 'areas', aliases: ['area responsable', 'gerencia'], example: '' },
     { key: 'owner', label: 'Dueño del proceso', type: 'text', aliases: ['dueno', 'responsable', 'owner'], example: 'Juan Soto' },
-    { key: 'businessLine', label: 'Línea de negocio', type: 'enum', options: CAC_BUSINESS_LINES, example: 'Créditos de Consumo' },
+    { key: 'businessLine', label: 'Línea de negocio', type: 'enum', optionsFrom: 'businessLines', example: 'Créditos de Consumo' },
     { key: 'criticality', label: 'Criticidad', type: 'enum', options: PROCESS_CRITICALITIES, hint: 'Por defecto Medio', example: 'Alto' },
     { key: 'description', label: 'Descripción', type: 'text', example: '' },
     { key: 'active', label: 'Activo', type: 'bool', options: YES_NO, example: 'Sí' },
@@ -695,7 +697,7 @@ const FLAW_SPEC: BulkSpec = {
     { key: 'accountingDate', label: 'Fecha contable', type: 'date', aliases: ['fecha de contabilizacion', 'contabilizacion'], example: '2025-08-31' },
     { key: 'loss', label: 'Pérdida bruta', type: 'number', min: 0, aliases: ['perdida', 'monto perdida', 'perdida real', 'monto'], hint: 'En la moneda de registro', example: 3500000 },
     { key: 'recovered', label: 'Monto recuperado', type: 'number', min: 0, aliases: ['recuperado', 'recupero', 'recuperos'], example: 3500000 },
-    { key: 'businessLine', label: 'Línea de negocio', type: 'enum', options: CAC_BUSINESS_LINES, example: 'Soporte Corporativo' },
+    { key: 'businessLine', label: 'Línea de negocio', type: 'enum', optionsFrom: 'businessLines', example: 'Soporte Corporativo' },
     { key: 'baselCategory', label: 'Categoría Basilea', type: 'text', aliases: ['categoria', 'tipo de evento basilea', 'basilea'], hint: 'Una de las 7 categorías de Basilea', example: 'Ejecución y Procesos' },
     { key: 'baselSubcategory', label: 'Subcategoría Basilea', type: 'text', aliases: ['subcategoria'], example: '' },
     { key: 'accountingAccount', label: 'Cuenta contable', type: 'text', aliases: ['cuenta'], example: '' },
@@ -783,16 +785,20 @@ const num = (v: unknown, min = -Infinity, max = Infinity) => typeof v === 'numbe
 const day = (v: unknown) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 const optDay = (v: unknown) => v === undefined || v === null || day(v);
 
-/** Revisa que el registro tenga la forma esperada. Devuelve el problema o null. */
-export function validateBulkRecord(entity: BulkEntity, rec: unknown): string | null {
+/**
+ * Revisa que el registro tenga la forma esperada. Devuelve el problema o null.
+ * `businessLines`: nombres de las líneas de negocio del mantenedor (sin lista solo se valida el largo).
+ */
+export function validateBulkRecord(entity: BulkEntity, rec: unknown, businessLines?: readonly string[]): string | null {
   const r = rec as Record<string, unknown>;
+  const lineOk = (v: unknown) => v === undefined || v === null || (str(v, 100) && (!businessLines || businessLines.includes(v as string)));
   if (!r || typeof r !== 'object' || !nonEmpty(r['id'], 100)) return 'Registro sin identificador.';
   switch (entity) {
     case 'areas':
       return nonEmpty(r['name'], 200) ? null : 'Área sin nombre.';
     case 'processes':
       if (!nonEmpty(r['name'], 200) || !nonEmpty(r['code'], 40)) return 'Proceso sin nombre o código.';
-      if (!inList(r['criticality'], PROCESS_CRITICALITIES) || !optIn(r['businessLine'], CAC_BUSINESS_LINES)) return `Proceso ${r['code']}: criticidad o línea de negocio no válida.`;
+      if (!inList(r['criticality'], PROCESS_CRITICALITIES) || !lineOk(r['businessLine'])) return `Proceso ${r['code']}: criticidad o línea de negocio no válida.`;
       return null;
     case 'users': {
       if (!nonEmpty(r['name'], 200) || !(typeof r['email'] === 'string' && EMAIL_RE.test(r['email']))) return 'Usuario sin nombre o con correo no válido.';
@@ -828,7 +834,7 @@ export function validateBulkRecord(entity: BulkEntity, rec: unknown): string | n
         || !inList(r['incidentType'], ['Falla de Control', 'Evento de Pérdida Real', 'Casi Pérdida (Near Miss)', 'Vulnerabilidad Operativa'])) return `Incidente "${r['title']}": severidad, estado o tipo no válidos.`;
       if (!num(r['realLossAmountUSD'], 0) || !num(r['recoveredAmountUSD'], 0)) return `Incidente "${r['title']}": montos no válidos.`;
       if (!optDay(r['occurrenceDate']) || !optDay(r['discoveryDate']) || !optDay(r['accountingDate'])) return `Incidente "${r['title']}": fechas no válidas.`;
-      if (!optIn(r['baselCategory'], BASEL_CATEGORIES) || !optIn(r['businessLine'], CAC_BUSINESS_LINES)) return `Incidente "${r['title']}": categoría o línea de negocio no válida.`;
+      if (!optIn(r['baselCategory'], BASEL_CATEGORIES) || !lineOk(r['businessLine'])) return `Incidente "${r['title']}": categoría o línea de negocio no válida.`;
       return null;
   }
 }

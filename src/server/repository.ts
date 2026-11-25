@@ -17,7 +17,7 @@ import {
 } from '../app/models/risk.model';
 import { BiaProcess, ContinuityPlan, ContinuityTest, ServiceProvider } from '../app/models/resilience.model';
 import { InformationAsset, SecurityAssessmentItem, Vulnerability } from '../app/models/security.model';
-import { BusinessProcess, OrgArea } from '../app/models/catalog.model';
+import { BusinessLine, BusinessProcess, OrgArea } from '../app/models/catalog.model';
 import { ComplianceNorm, ComplianceRequirement, SecurityTest } from '../app/models/compliance.model';
 import { ActionPlan } from '../app/models/action-plan.model';
 import { SurveyCampaign, SurveyResponse } from '../app/models/survey.model';
@@ -38,7 +38,7 @@ type Row = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** Entidades que la API permite guardar, en orden de dependencias (claves foráneas). */
 export const ENTITY_ORDER = [
-  'areas', 'processes', 'roles', 'users', 'controls', 'risks', 'providers', 'regulatory-milestones',
+  'areas', 'business-lines', 'processes', 'roles', 'users', 'controls', 'risks', 'providers', 'regulatory-milestones',
   'flaws', 'alerts', 'audits', 'kris', 'bia', 'plans', 'continuity-tests', 'crisis-scenarios', 'crisis-events',
   'info-assets', 'vulnerabilities', 'security-assessment', 'norms', 'compliance', 'security-tests', 'action-plans', 'survey-campaigns', 'survey-responses', 'documents', 'approvals',
 ] as const;
@@ -50,6 +50,7 @@ export type SettingKey = typeof SETTING_KEYS[number];
 
 export interface BootstrapData {
   areas: OrgArea[];
+  businessLines: BusinessLine[];
   processes: BusinessProcess[];
   roles: OrganizationalRole[];
   users: UserProfile[];
@@ -145,7 +146,7 @@ export async function loadAll(): Promise<BootstrapData> {
   const [
     roles, users, controls, tests, risks, riskControls, providers, milestones, flaws, regReports, regSubs, regUpdates,
     alerts, audits, findings, kris, bia, biaProviders, plans, planProcesses, ctests, ledger, settings,
-    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans, surveyCampaigns, surveyResponses, approvals, evidenceFiles, documents, versionRows, scenarioRows, crisisRows,
+    infoAssets, vulns, secItems, areas, processes, compliance, secTests, norms, actionPlans, surveyCampaigns, surveyResponses, approvals, evidenceFiles, documents, versionRows, scenarioRows, crisisRows, businessLines,
   ] = await Promise.all([
     q('SELECT * FROM organizational_roles ORDER BY created_at, id'),
     q('SELECT * FROM user_profiles ORDER BY created_at, id'),
@@ -187,6 +188,7 @@ export async function loadAll(): Promise<BootstrapData> {
     q('SELECT entity, id, version FROM record_versions'),
     q('SELECT * FROM crisis_scenarios ORDER BY code'),
     q('SELECT * FROM crisis_events ORDER BY code'),
+    q('SELECT * FROM business_lines ORDER BY name'),
   ]);
   const versions: Record<string, Record<string, number>> = {};
   for (const v of versionRows) (versions[v.entity] ??= {})[v.id] = Number(v.version);
@@ -202,6 +204,7 @@ export async function loadAll(): Promise<BootstrapData> {
 
   return {
     areas: areas.map((r): OrgArea => ({ id: r.id, name: r.name, manager: r.manager ?? '', description: r.description ?? '', active: r.active })),
+    businessLines: businessLines.map((r): BusinessLine => ({ id: r.id, name: r.name, description: r.description ?? '', active: r.active })),
     processes: processes.map((r): BusinessProcess => ({
       id: r.id, code: r.code, name: r.name, areaId: opt(r.area_id), owner: r.owner ?? '', businessLine: opt(r.business_line),
       criticality: r.criticality, description: r.description ?? '', active: r.active,
@@ -554,6 +557,19 @@ const savers: Record<EntityName, (c: DbClient, o: any) => Promise<void>> = {
     }
   },
 
+  async 'business-lines'(c, o: BusinessLine) {
+    const prev = await c.query('SELECT name FROM business_lines WHERE id = $1', [o.id]);
+    const name = String(o.name ?? '').trim();
+    if (!name || name.length > 100) throw new Error('La línea de negocio necesita un nombre de hasta 100 caracteres.');
+    await upsertRow(c, 'business_lines', 'id', { id: o.id, name, description: o.description || null, active: o.active !== false });
+    const oldName: string | undefined = prev.rows[0]?.name;
+    if (oldName && oldName !== name) {
+      // Procesos, incidentes y BIA guardan el nombre de la línea.
+      for (const table of BUSINESS_LINE_TABLES) await c.query(`UPDATE ${table} SET business_line = $2 WHERE business_line = $1`, [oldName, name]);
+      for (const e of ['processes', 'flaws', 'bia'] as const) await bumpAllVersions(c, e, null);
+    }
+  },
+
   async processes(c, o: BusinessProcess) {
     const prev = await c.query('SELECT name FROM business_processes WHERE id = $1', [o.id]);
     const name = o.name.trim();
@@ -886,9 +902,17 @@ async function renameProcessReferences(c: DbClient, oldName: string, newName: st
   }
 }
 
-/** Cuántos registros usan un proceso o un área (no se permite eliminarlos si están en uso). */
-export async function countReferences(entity: 'processes' | 'areas', id: string): Promise<number> {
+/** Tablas que guardan el nombre de una línea de negocio. */
+const BUSINESS_LINE_TABLES = ['business_processes', 'operational_flaws', 'bia_processes'] as const;
+
+/** Cuántos registros usan un proceso, un área o una línea de negocio (no se permite eliminarlos si están en uso). */
+export async function countReferences(entity: 'processes' | 'areas' | 'business-lines', id: string): Promise<number> {
   const pool = getPool()!;
+  if (entity === 'business-lines') {
+    const r = await pool.query(
+      `SELECT ${BUSINESS_LINE_TABLES.map(t => `(SELECT count(*) FROM ${t} x JOIN business_lines b ON b.id = $1 WHERE x.business_line = b.name)`).join(' + ')} AS n`, [id]);
+    return Number(r.rows[0].n);
+  }
   if (entity === 'areas') {
     const r = await pool.query(
       `SELECT (SELECT count(*) FROM business_processes WHERE area_id = $1)
@@ -908,6 +932,7 @@ export async function countReferences(entity: 'processes' | 'areas', id: string)
 
 const TABLE_BY_ENTITY: Record<EntityName, { table: string; pk: string }> = {
   areas: { table: 'org_areas', pk: 'id' },
+  'business-lines': { table: 'business_lines', pk: 'id' },
   processes: { table: 'business_processes', pk: 'id' },
   roles: { table: 'organizational_roles', pk: 'id' },
   users: { table: 'user_profiles', pk: 'id' },

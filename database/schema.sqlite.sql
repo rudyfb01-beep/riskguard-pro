@@ -574,6 +574,16 @@ CREATE TABLE IF NOT EXISTS org_areas (
     PRIMARY KEY (id)
 );
 
+CREATE TABLE IF NOT EXISTS business_lines (
+    id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    active BOOLEAN NOT NULL DEFAULT 1,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    PRIMARY KEY (id)
+);
+
 CREATE TABLE IF NOT EXISTS business_processes (
     id TEXT NOT NULL,
     code TEXT NOT NULL,
@@ -956,6 +966,7 @@ CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_vulnerabilities_asset ON vulnerabilities (asset_id);
 CREATE INDEX IF NOT EXISTS idx_vulnerabilities_status ON vulnerabilities (status, due_date);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_org_areas_name ON org_areas (lower((name)));
+CREATE UNIQUE INDEX IF NOT EXISTS ux_business_lines_name ON business_lines (lower((name)));
 CREATE UNIQUE INDEX IF NOT EXISTS ux_business_processes_name ON business_processes (lower((name)));
 CREATE INDEX IF NOT EXISTS idx_business_processes_area ON business_processes (area_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_compliance_norms_code ON compliance_norms (lower((code)));

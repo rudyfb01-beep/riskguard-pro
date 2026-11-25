@@ -1,11 +1,11 @@
 import { normalizeUfTable } from '../utils/uf';
 import { Injectable, computed, signal } from '@angular/core';
 import {
-  AccountingAccount, AppetiteLimit, BusinessProcess, DEFAULT_GENERAL_PARAMETERS, DEFAULT_PROVIDER_CATALOGS, DEFAULT_RISK_APPETITE,
+  AccountingAccount, AppetiteLimit, BusinessLine, BusinessProcess, DEFAULT_GENERAL_PARAMETERS, DEFAULT_PROVIDER_CATALOGS, DEFAULT_RISK_APPETITE,
   DEFAULT_RISK_SCALE, GeneralParameters, OrgArea, appetiteStatus, normalizeAccounts, normalizeGeneralParameters,
   normalizeProviderCatalogs, normalizeRiskAppetite, normalizeRiskScale,
 } from '../models/catalog.model';
-import { DEFAULT_AREAS } from '../data/base-seed';
+import { DEFAULT_AREAS, DEFAULT_BUSINESS_LINES } from '../data/base-seed';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 
@@ -17,6 +17,7 @@ const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 export class CatalogService {
   readonly areas = signal<OrgArea[]>(clone(DEFAULT_AREAS));
   readonly processes = signal<BusinessProcess[]>([]);
+  readonly businessLines = signal<BusinessLine[]>(clone(DEFAULT_BUSINESS_LINES));
   /** Valor guardado tal cual; usar `params()` para leerlo ya validado. */
   readonly generalParameters = signal<unknown>(clone(DEFAULT_GENERAL_PARAMETERS));
 
@@ -82,6 +83,14 @@ export class CatalogService {
     const n = Number(value ?? 0);
     const abs = Math.abs(Number.isFinite(n) ? n : 0).toLocaleString('es-CL', { maximumFractionDigits: 0 });
     return `${n < 0 ? '-' : ''}${this.currency() === 'CLP' ? '$' : 'US$'}${abs}`;
+  }
+
+  readonly activeBusinessLines = computed(() => this.businessLines().filter(b => b.active).sort((a, b) => a.name.localeCompare(b.name, 'es')));
+
+  /** Nombres de líneas de negocio para una lista de selección: activas + la actual aunque esté inactiva o ya no exista. */
+  businessLineOptions(current?: string): string[] {
+    const list = this.activeBusinessLines().map(b => b.name);
+    return current && !list.includes(current) ? [...list, current] : list;
   }
 
   readonly activeAreas = computed(() => this.areas().filter(a => a.active).sort((a, b) => a.name.localeCompare(b.name, 'es')));

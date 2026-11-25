@@ -15,6 +15,7 @@ const ctx = (existing: unknown[] = [], over: Partial<BulkContext> = {}): BulkCon
   lists: {
     processes: ['Otorgamiento de Créditos', 'Tesorería'], areas: ['Operaciones', 'Riesgos'], roles: ['Analista de Riesgo', 'Gerente General'],
     providers: ['PRV-001 Nube SpA', 'PRV-001', 'Nube SpA'], providerCategories: ['Servicios en la nube', 'Otros servicios'], biaProcesses: ['Pagos'],
+    businessLines: ['Créditos de Consumo', 'Soporte Corporativo'],
   },
   areas: [{ id: 'a1', name: 'Operaciones' }, { id: 'a2', name: 'Riesgos' }],
   roles: [

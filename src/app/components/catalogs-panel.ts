@@ -7,15 +7,14 @@ import { RiskDataService } from '../services/risk-data.service';
 import { CatalogService } from '../services/catalog.service';
 import { CatalogAdminService, CatalogValidationError } from '../services/catalog-admin.service';
 import { PermissionDeniedError } from '../services/risk-data.service';
-import { CAC_BUSINESS_LINES } from '../models/risk.model';
 import {
-  AccountingAccount, BusinessProcess, ClauseDefinition, GeneralParameters, OrgArea, PROCESS_CRITICALITIES, ProcessCriticality,
+  AccountingAccount, BusinessLine, BusinessProcess, ClauseDefinition, GeneralParameters, OrgArea, PROCESS_CRITICALITIES, ProcessCriticality,
   ProviderCatalogs, RISK_LEVEL_BANDS, RiskAppetite, RiskScale, ScaleLevel,
 } from '../models/catalog.model';
 
 const INPUT = 'w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100';
 
-export type CatalogTab = 'procesos' | 'areas' | 'escala' | 'apetito' | 'cuentas' | 'proveedores' | 'parametros' | 'aprobaciones';
+export type CatalogTab = 'procesos' | 'areas' | 'lineas' | 'escala' | 'apetito' | 'cuentas' | 'proveedores' | 'parametros' | 'aprobaciones';
 type SubTab = CatalogTab;
 
 /** Mantenedores: mapa de procesos, áreas y parámetros generales. */
@@ -33,7 +32,7 @@ type SubTab = CatalogTab;
             <h1 class="text-xl font-bold tracking-tight text-slate-900">Mantenedores</h1>
           </div>
           <p class="text-xs text-slate-600 mt-1 max-w-3xl">
-            Mapa de procesos, áreas, escala y apetito de riesgo, plan de cuentas, catálogo de proveedores y parámetros generales.
+            Mapa de procesos, áreas, líneas de negocio, escala y apetito de riesgo, plan de cuentas, catálogo de proveedores y parámetros generales.
             Lo que se define aquí alimenta las listas y evaluaciones de riesgos, controles, incidentes, KRIs, auditorías y puestos.
           </p>
         </div>
@@ -48,6 +47,12 @@ type SubTab = CatalogTab;
             <button type="button" (click)="newArea()" [class.perm-hidden]="!canManage()"
               class="px-3.5 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-xl flex items-center gap-1.5 cursor-pointer shrink-0">
               <mat-icon class="text-sm">add</mat-icon>Nueva área
+            </button>
+          }
+          @case ('lineas') {
+            <button type="button" (click)="newLine()" [class.perm-hidden]="!canManage()"
+              class="px-3.5 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-xl flex items-center gap-1.5 cursor-pointer shrink-0">
+              <mat-icon class="text-sm">add</mat-icon>Nueva línea de negocio
             </button>
           }
           @case ('cuentas') {
@@ -164,6 +169,45 @@ type SubTab = CatalogTab;
             </tbody>
           </table>
         </div>
+      }
+
+      <!-- LÍNEAS DE NEGOCIO -->
+      @if (tab() === 'lineas') {
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
+          <table class="w-full text-xs min-w-[760px]">
+            <thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-200">
+              <tr>
+                <th class="text-left py-2.5 px-3">Línea de negocio</th>
+                <th class="text-center py-2.5 px-3">Procesos</th>
+                <th class="text-center py-2.5 px-3">Incidentes</th>
+                <th class="text-center py-2.5 px-3">Procesos BIA</th>
+                <th class="py-2.5 px-3"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              @for (b of sortedLines(); track b.id) {
+                @let used = admin.businessLineUsage(b.name);
+                <tr class="hover:bg-slate-50" [class.opacity-50]="!b.active">
+                  <td class="py-2.5 px-3">
+                    <div class="font-semibold text-slate-900">{{ b.name }} @if (!b.active) { <span class="text-[10px] font-normal text-slate-500">(inactiva)</span> }</div>
+                    @if (b.description) { <div class="text-[10px] text-slate-500">{{ b.description }}</div> }
+                  </td>
+                  <td class="py-2.5 px-3 text-center font-mono">{{ used.processes || '—' }}</td>
+                  <td class="py-2.5 px-3 text-center font-mono">{{ used.flaws || '—' }}</td>
+                  <td class="py-2.5 px-3 text-center font-mono">{{ used.bia || '—' }}</td>
+                  <td class="py-2.5 px-3 text-right">
+                    <button type="button" (click)="editLine(b)" class="px-2.5 py-1 text-[11px] font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">{{ canManage() ? 'Editar' : 'Ver' }}</button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr><td colspan="5" class="py-8 text-center text-slate-500">No hay líneas de negocio. Crea la primera con "Nueva línea de negocio".</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="text-[11px] text-slate-500 px-1">
+          Las líneas activas aparecen en las listas de procesos, incidentes, BIA y carga masiva. Una línea en uso no se puede eliminar: desactívala y dejará de ofrecerse sin cambiar los registros que ya la tienen.
+        </p>
       }
 
       <!-- ESCALA DE RIESGO -->
@@ -418,10 +462,10 @@ type SubTab = CatalogTab;
                 @for (c of criticalities; track c) { <option [value]="c" [selected]="c === d.criticality">{{ c }}</option> }
               </select></label>
             <label class="block sm:col-span-2"><span class="block text-[11px] font-medium text-slate-600 mb-1">Dueño del proceso</span><input [class]="inputCls" [value]="d.owner" (input)="setProc('owner', $any($event.target).value)" /></label>
-            <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Línea de negocio (CAC)</span>
+            <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Línea de negocio</span>
               <select [class]="inputCls" (change)="setProc('businessLine', $any($event.target).value || undefined)">
                 <option value="" [selected]="!d.businessLine">—</option>
-                @for (b of businessLines; track b) { <option [value]="b" [selected]="b === d.businessLine">{{ b }}</option> }
+                @for (b of cat.businessLineOptions(d.businessLine); track b) { <option [value]="b" [selected]="b === d.businessLine">{{ b }}</option> }
               </select></label>
             <label class="block sm:col-span-3"><span class="block text-[11px] font-medium text-slate-600 mb-1">Descripción</span><textarea rows="2" [class]="inputCls" [value]="d.description" (input)="setProc('description', $any($event.target).value)"></textarea></label>
             <label class="flex items-center gap-2 text-xs sm:col-span-3"><input type="checkbox" class="rounded" [checked]="d.active" (change)="setProc('active', $any($event.target).checked)" /> Activo (aparece en las listas para nuevos registros)</label>
@@ -476,6 +520,49 @@ type SubTab = CatalogTab;
       </div>
     }
 
+    <!-- Modal línea de negocio -->
+    @if (lineDraft(); as d) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg my-6 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+            <h2 class="text-base font-bold text-slate-900 flex items-center gap-2"><mat-icon class="text-indigo-700">storefront</mat-icon>{{ isNew() ? 'Nueva línea de negocio' : d.name }}</h2>
+            <button type="button" (click)="lineDraft.set(null)" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer"><mat-icon>close</mat-icon></button>
+          </div>
+          <fieldset class="p-6 space-y-3" [disabled]="!canManage()">
+            <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Nombre *</span><input [class]="inputCls" maxlength="100" [value]="d.name" (input)="setLine('name', $any($event.target).value)" /></label>
+            <label class="block"><span class="block text-[11px] font-medium text-slate-600 mb-1">Descripción</span><textarea rows="2" [class]="inputCls" [value]="d.description" (input)="setLine('description', $any($event.target).value)"></textarea></label>
+            <label class="flex items-center gap-2 text-xs"><input type="checkbox" class="rounded" [checked]="d.active" (change)="setLine('active', $any($event.target).checked)" /> Activa (aparece en las listas para nuevos registros)</label>
+            @if (!isNew() && originalLine(); as o) {
+              @let used = admin.businessLineUsage(o.name);
+              @if (o.name !== d.name.trim() && used.total > 0) {
+                <p class="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                  Al guardar, los {{ used.total }} registros que usan "{{ o.name }}" ({{ used.processes }} procesos, {{ used.flaws }} incidentes, {{ used.bia }} procesos BIA) pasarán a "{{ d.name.trim() }}".
+                </p>
+              }
+            }
+          </fieldset>
+          <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center gap-3">
+            @if (!isNew() && canManage()) {
+              <button type="button" (click)="askRemoveLine()" class="px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer flex items-center gap-1"><mat-icon class="text-sm">delete</mat-icon>Eliminar</button>
+            }
+            <span class="text-[11px] text-rose-700 flex-1">{{ formError() }}</span>
+            <button type="button" (click)="lineDraft.set(null)" class="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer">{{ canManage() ? 'Cancelar' : 'Cerrar' }}</button>
+            @if (canManage()) {
+              <button type="button" (click)="saveLine()" class="px-4 py-2 text-xs font-semibold text-white bg-indigo-700 hover:bg-indigo-600 rounded-lg cursor-pointer">Guardar línea</button>
+            }
+          </div>
+          @if (confirmLineDelete()) {
+            <div class="px-6 py-3 bg-rose-50 border-t border-rose-200 flex flex-wrap items-center gap-3 text-xs text-rose-900">
+              <mat-icon class="text-sm text-rose-600">warning</mat-icon>
+              <span class="flex-1">¿Eliminar "{{ originalLine()?.name }}"? Esta acción no se puede deshacer.</span>
+              <button type="button" (click)="confirmLineDelete.set(false)" class="px-3 py-1.5 font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer">No</button>
+              <button type="button" (click)="removeLine()" class="px-3 py-1.5 font-semibold text-white bg-rose-700 hover:bg-rose-600 rounded-lg cursor-pointer">Sí, eliminar</button>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
     <!-- Modal cuenta contable -->
     @if (accDraft(); as a) {
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
@@ -512,7 +599,6 @@ export class CatalogsPanel {
 
   readonly inputCls = INPUT;
   readonly criticalities = PROCESS_CRITICALITIES;
-  readonly businessLines = CAC_BUSINESS_LINES;
   readonly severities = ['Crítica', 'Alta', 'Media', 'Baja'] as const;
   readonly currencies = [
     { code: 'CLP' as const, label: 'Peso chileno' },
@@ -529,6 +615,7 @@ export class CatalogsPanel {
   readonly tabs = [
     { id: 'procesos' as SubTab, label: 'Procesos', icon: 'account_tree', count: () => this.cat.processes().length },
     { id: 'areas' as SubTab, label: 'Áreas', icon: 'apartment', count: () => this.cat.areas().length },
+    { id: 'lineas' as SubTab, label: 'Líneas de negocio', icon: 'storefront', count: () => this.cat.businessLines().length },
     { id: 'escala' as SubTab, label: 'Escala de riesgo', icon: 'grid_on', count: undefined },
     { id: 'apetito' as SubTab, label: 'Apetito y tolerancia', icon: 'speed', count: undefined },
     { id: 'cuentas' as SubTab, label: 'Cuentas contables', icon: 'account_balance_wallet', count: () => this.cat.accountingAccounts().length },
@@ -556,10 +643,14 @@ export class CatalogsPanel {
 
   readonly procDraft = signal<BusinessProcess | null>(null);
   readonly areaDraft = signal<OrgArea | null>(null);
+  readonly lineDraft = signal<BusinessLine | null>(null);
+  readonly confirmLineDelete = signal(false);
+  readonly sortedLines = computed(() => [...this.cat.businessLines()].sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, 'es')));
   readonly isNew = signal(false);
   readonly formError = signal('');
   readonly original = computed(() => this.cat.processes().find(p => p.id === this.procDraft()?.id));
   readonly originalArea = computed(() => this.cat.areas().find(a => a.id === this.areaDraft()?.id));
+  readonly originalLine = computed(() => this.cat.businessLines().find(b => b.id === this.lineDraft()?.id));
 
   // Parámetros: borrador editable
   private readonly paramEdits = signal<GeneralParameters | null>(null);
@@ -654,6 +745,52 @@ export class CatalogsPanel {
   removeArea(a: OrgArea) {
     const orig = this.originalArea() ?? a;
     void this.run(() => this.admin.deleteArea(orig), `Área "${orig.name}" eliminada.`, () => this.areaDraft.set(null));
+  }
+
+  // --- Líneas de negocio
+  newLine() {
+    if (!this.gate()) return;
+    this.isNew.set(true);
+    this.formError.set('');
+    this.confirmLineDelete.set(false);
+    this.lineDraft.set({ id: this.admin.newId('bl'), name: '', description: '', active: true });
+  }
+
+  editLine(b: BusinessLine) {
+    this.isNew.set(false);
+    this.formError.set('');
+    this.confirmLineDelete.set(false);
+    this.lineDraft.set({ ...b });
+  }
+
+  setLine<K extends keyof BusinessLine>(k: K, v: BusinessLine[K]) {
+    this.lineDraft.update(d => (d ? { ...d, [k]: v } : d));
+  }
+
+  saveLine() {
+    const d = this.lineDraft();
+    if (!d) return;
+    void this.run(() => this.admin.saveBusinessLine(d), `Línea de negocio "${d.name.trim()}" guardada.`, () => this.lineDraft.set(null));
+  }
+
+  /** Antes de eliminar: si está en uso se explica sin preguntar; si no, se pide confirmación. */
+  askRemoveLine() {
+    const orig = this.originalLine();
+    if (!orig) return;
+    const u = this.admin.businessLineUsage(orig.name);
+    this.formError.set('');
+    if (u.total > 0) {
+      this.formError.set(`En uso (${u.processes} procesos, ${u.flaws} incidentes, ${u.bia} BIA): desactívala en vez de eliminarla.`);
+      return;
+    }
+    this.confirmLineDelete.set(true);
+  }
+
+  removeLine() {
+    const orig = this.originalLine();
+    if (!orig) return;
+    this.confirmLineDelete.set(false);
+    void this.run(() => this.admin.deleteBusinessLine(orig), `Línea de negocio "${orig.name}" eliminada.`, () => this.lineDraft.set(null));
   }
 
   // --- Parámetros
