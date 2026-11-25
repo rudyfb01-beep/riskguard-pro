@@ -96,6 +96,54 @@ describe('Carga masiva', () => {
   });
 });
 
+describe('Mantenedor de líneas de negocio', () => {
+  test('carga las 8 líneas base y solo administración las modifica', async () => {
+    const d = (await elena.call('GET', '/api/data')).body;
+    assert.equal(d.businessLines.length, 8);
+    assert.ok(d.businessLines.some(b => b.name === 'Créditos de Consumo' && b.active));
+    const r = await put(carlos, 'business-lines', { id: 'bl-x', name: 'Microcréditos', description: '', active: true });
+    assert.equal(r.status, 403);
+  });
+
+  test('alta, nombre duplicado, renombre en cascada y eliminación', async () => {
+    let r = await put(elena, 'business-lines', { id: 'bl-test', name: 'Microcréditos', description: 'Pruebas', active: true });
+    assert.equal(r.status, 200);
+    r = await put(elena, 'business-lines', { id: 'bl-dup', name: 'microcréditos', description: '', active: true });
+    assert.equal(r.status, 422, 'nombre repetido (sin distinguir mayúsculas)');
+    r = await put(elena, 'business-lines', { id: 'bl-vacia', name: '   ', description: '', active: true });
+    assert.equal(r.status, 422, 'sin nombre');
+
+    // Un proceso la usa: no se puede eliminar.
+    let d = (await elena.call('GET', '/api/data')).body;
+    const proc = d.processes[0];
+    assert.equal((await put(elena, 'processes', { ...proc, businessLine: 'Microcréditos' })).status, 200);
+    r = await elena.call('DELETE', '/api/data/business-lines/bl-test');
+    assert.equal(r.status, 409);
+
+    // Renombrar actualiza el proceso.
+    r = await put(elena, 'business-lines', { id: 'bl-test', name: 'Microfinanzas', description: 'Pruebas', active: true });
+    assert.equal(r.status, 200);
+    d = (await elena.call('GET', '/api/data')).body;
+    assert.equal(d.processes.find(p => p.id === proc.id).businessLine, 'Microfinanzas');
+
+    // Sin uso: se elimina.
+    assert.equal((await put(elena, 'processes', { ...d.processes.find(p => p.id === proc.id), businessLine: undefined })).status, 200);
+    r = await elena.call('DELETE', '/api/data/business-lines/bl-test');
+    assert.equal(r.status, 200);
+    d = (await elena.call('GET', '/api/data')).body;
+    assert.ok(!d.businessLines.some(b => b.id === 'bl-test'));
+  });
+
+  test('la carga masiva rechaza líneas que no están en el mantenedor', async () => {
+    const d = (await elena.call('GET', '/api/data')).body;
+    const proc = { id: 'proc-bl-test', code: 'PRC-BL1', name: 'Proceso con línea', owner: '', criticality: 'Medio', description: '', active: true };
+    let r = await elena.call('POST', '/api/import/processes', { records: [{ ...proc, businessLine: 'Inexistente' }], fileName: 'p.xlsx' });
+    assert.equal(r.status, 400);
+    r = await elena.call('POST', '/api/import/processes', { records: [{ ...proc, businessLine: d.businessLines[0].name }], fileName: 'p.xlsx' });
+    assert.equal(r.status, 200);
+  });
+});
+
 describe('Gestión de crisis', () => {
   const now = '2026-11-06T15:00:00.000Z';
   const crisis = by => ({

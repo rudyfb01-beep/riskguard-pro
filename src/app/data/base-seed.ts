@@ -1,5 +1,5 @@
-import { OrganizationalRole, RegulatoryMilestoneTemplate, UserPermissions } from '../models/risk.model';
-import { BusinessProcess, OrgArea } from '../models/catalog.model';
+import { CAC_BUSINESS_LINES, OrganizationalRole, RegulatoryMilestoneTemplate, UserPermissions } from '../models/risk.model';
+import { BusinessLine, BusinessProcess, OrgArea } from '../models/catalog.model';
 
 // Datos base: se cargan en una instalación nueva aunque no se usen datos de ejemplo.
 
@@ -149,6 +149,11 @@ export const DEFAULT_REGULATORY_MILESTONES: RegulatoryMilestoneTemplate[] = [
 // -----------------------------------------------------------------------------
 // Mantenedores: áreas y mapa de procesos de referencia para una cooperativa
 // -----------------------------------------------------------------------------
+
+/** Líneas de negocio base (se cargan una vez; luego se administran en Mantenedores). */
+export const DEFAULT_BUSINESS_LINES: BusinessLine[] = CAC_BUSINESS_LINES.map((name, i) => ({
+  id: `bl-${String(i + 1).padStart(2, '0')}`, name, description: '', active: true,
+}));
 
 const area = (id: string, name: string, description: string): OrgArea => ({ id, name, manager: '', description, active: true });
 

@@ -52,6 +52,7 @@ export class BulkImportService {
         providers: providerOptions(this.res.providers()),
         providerCategories: this.cat.providerCatalogs().categories,
         biaProcesses: this.res.biaProcesses().map(b => b.name),
+        businessLines: this.cat.activeBusinessLines().map(b => b.name),
       },
       areas: this.cat.areas(),
       roles: this.rs.organizationalRoles().map(r => ({ id: r.id, title: r.title, department: r.department, badge: r.badge, permissions: r.permissions })),

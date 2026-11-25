@@ -1,7 +1,7 @@
 import { getPool, applySchema } from './db';
 import { appendLedger, computeLedgerHash, importLedgerBlock, loadAll, saveEntity, saveSetting, withTransaction } from './repository';
 import { plansFromExisting } from '../app/utils/action-plans';
-import { COOPERATIVE_PROCESSES, DEFAULT_AREAS, DEFAULT_ORGANIZATIONAL_ROLES, DEFAULT_REGULATORY_MILESTONES } from '../app/data/base-seed';
+import { COOPERATIVE_PROCESSES, DEFAULT_AREAS, DEFAULT_BUSINESS_LINES, DEFAULT_ORGANIZATIONAL_ROLES, DEFAULT_REGULATORY_MILESTONES } from '../app/data/base-seed';
 import {
   DEMO_ACCOUNTING_ACCOUNTS, DEMO_ALERTS, DEMO_AUDITS, DEMO_CONTROLS, DEMO_FLAWS, DEMO_KRIS, DEMO_LEDGER, DEMO_PROCESSES, DEMO_RISKS, DEMO_USERS,
 } from '../app/data/demo-seed';
@@ -105,10 +105,33 @@ async function migrateActionPlans() {
 }
 
 /**
+ * Líneas de negocio (una sola vez por base): las 8 de referencia más las que ya usan procesos,
+ * incidentes y BIA. Se marca con un ajuste para no volver a cargarlas si la organización las elimina.
+ */
+async function seedBusinessLines(c: DbClient) {
+  const done = await c.query(`SELECT 1 FROM system_settings WHERE key = 'seed_business_lines_v1'`);
+  if (done.rowCount) return;
+  if ((await c.query('SELECT 1 FROM business_lines LIMIT 1')).rowCount === 0) {
+    for (const b of DEFAULT_BUSINESS_LINES) await saveEntity('business-lines', b, c);
+    const used = await c.query(
+      `SELECT business_line AS name FROM business_processes UNION SELECT business_line FROM operational_flaws
+        UNION SELECT business_line FROM bia_processes`);
+    let n = 1;
+    for (const { name } of used.rows) {
+      if (!name?.trim()) continue;
+      const exists = (await c.query('SELECT 1 FROM business_lines WHERE lower(name) = lower($1)', [name.trim()])).rowCount;
+      if (!exists) await saveEntity('business-lines', { id: `bl-auto-${n++}`, name: name.trim(), description: '', active: true }, c);
+    }
+  }
+  await c.query(`INSERT INTO system_settings (key, value) VALUES ('seed_business_lines_v1', 'true') ON CONFLICT (key) DO NOTHING`);
+}
+
+/**
  * Carga inicial de mantenedores (una sola vez, cuando las tablas están vacías):
  * áreas base + las que ya usan los puestos, y procesos de referencia + los que ya usan los datos.
  */
 async function seedCatalogs(c: DbClient, useDemoProcesses: boolean) {
+  await seedBusinessLines(c);
   if ((await c.query('SELECT 1 FROM org_areas LIMIT 1')).rowCount === 0) {
     for (const a of DEFAULT_AREAS) await saveEntity('areas', a, c);
     const used = await c.query(

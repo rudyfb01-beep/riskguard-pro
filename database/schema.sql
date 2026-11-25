@@ -865,6 +865,18 @@ CREATE TABLE IF NOT EXISTS org_areas (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_org_areas_name ON org_areas (lower(name));
 
+-- Líneas de negocio: procesos, incidentes y BIA guardan el nombre; al renombrar una línea el
+-- servidor actualiza esas referencias en la misma transacción.
+CREATE TABLE IF NOT EXISTS business_lines (
+    id VARCHAR(64) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_business_lines_name ON business_lines (lower(name));
+
 -- Riesgos, controles, incidentes, KRIs, alertas y hallazgos guardan el nombre del proceso;
 -- al renombrar un proceso el servidor actualiza esas referencias en la misma transacción.
 CREATE TABLE IF NOT EXISTS business_processes (

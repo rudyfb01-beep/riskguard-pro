@@ -53,6 +53,7 @@ export function getDbReady(force = false) {
 /** Permisos que autorizan guardar o eliminar cada entidad (basta uno). */
 const WRITE_PERMISSIONS: Record<EntityName, (keyof UserPermissions)[]> = {
   areas: ['canManageCatalogs'],
+  'business-lines': ['canManageCatalogs'],
   processes: ['canManageCatalogs'],
   roles: ['canManageRoles'],
   users: ['canManageRoles'],
@@ -445,7 +446,7 @@ function baseVersion(req: express.Request): number | null {
 
 /** Colección de /api/data donde está cada entidad (para devolver la versión guardada). */
 const DATA_KEY: Record<EntityName, keyof BootstrapData> = {
-  areas: 'areas', processes: 'processes', roles: 'roles', users: 'users', controls: 'controls', risks: 'risks', providers: 'providers',
+  areas: 'areas', 'business-lines': 'businessLines', processes: 'processes', roles: 'roles', users: 'users', controls: 'controls', risks: 'risks', providers: 'providers',
   'regulatory-milestones': 'regulatoryMilestones', flaws: 'flaws', alerts: 'alerts', audits: 'audits', kris: 'kris', bia: 'bia', plans: 'plans',
   'continuity-tests': 'continuityTests', 'info-assets': 'infoAssets', vulnerabilities: 'vulnerabilities', 'security-assessment': 'securityAssessment',
   norms: 'norms', compliance: 'compliance', 'security-tests': 'securityTests', 'action-plans': 'actionPlans', 'survey-campaigns': 'surveyCampaigns',
@@ -493,9 +494,12 @@ dataApi.post('/import/:entity', async (req, res) => {
     res.status(413).json({ error: `Máximo ${MAX_BULK_ROWS} registros por carga.` });
     return;
   }
+  const businessLines = entity === 'processes' || entity === 'flaws'
+    ? (await getPool()!.query('SELECT name FROM business_lines')).rows.map(r => r.name as string)
+    : undefined;
   const ids = new Set<string>();
   for (const [i, r] of records.entries()) {
-    const problem = validateBulkRecord(spec.entity, r);
+    const problem = validateBulkRecord(spec.entity, r, businessLines);
     if (problem) {
       res.status(400).json({ error: `Registro ${i + 1}: ${problem}` });
       return;
@@ -892,7 +896,7 @@ dataApi.delete('/data/:entity/:id', async (req, res) => {
         return;
       }
     }
-    if (entity === 'areas' || entity === 'processes') {
+    if (entity === 'areas' || entity === 'processes' || entity === 'business-lines') {
       const n = await countReferences(entity, id);
       if (n > 0) {
         res.status(409).json({ error: `No se puede eliminar: hay ${n} registro(s) que lo usan. Puedes desactivarlo.` });

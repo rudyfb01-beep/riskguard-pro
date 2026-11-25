@@ -9,7 +9,7 @@ import { RiskDataService } from '../services/risk-data.service';
 import { ResilienceService } from '../services/resilience.service';
 import { SecurityService } from '../services/security.service';
 import { AiRiskService, AIAnalysisResult } from '../services/ai-risk.service';
-import { BASEL_SUBCATEGORIES, BaselCategory, CAC_BUSINESS_LINES, CacBusinessLine, IncidentType, OperationalFlaw } from '../models/risk.model';
+import { BASEL_SUBCATEGORIES, BaselCategory, CacBusinessLine, IncidentType, OperationalFlaw } from '../models/risk.model';
 import { MoneyPipe } from '../utils/money.pipe';
 import { CyberIncidentInfo, EMPTY_CYBER } from '../models/compliance.model';
 
@@ -249,7 +249,7 @@ import { LinkedPlans } from './linked-plans';
                   <select id="business-line" formControlName="businessLine"
                     class="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
                     <option value="">— Seleccionar —</option>
-                    @for (bl of businessLines; track bl) {
+                    @for (bl of riskService.catalog.businessLineOptions(form.controls.businessLine.value || undefined); track bl) {
                       <option [value]="bl">{{ bl }}</option>
                     }
                   </select>
@@ -623,7 +623,6 @@ export class FlawModal {
   readonly isSaving = signal<boolean>(false);
   readonly aiResult = signal<AIAnalysisResult | null>(null);
 
-  readonly businessLines = CAC_BUSINESS_LINES;
   readonly baselCategories = Object.keys(BASEL_SUBCATEGORIES) as BaselCategory[];
 
   form = new FormGroup({

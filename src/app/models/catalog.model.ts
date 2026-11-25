@@ -14,6 +14,17 @@ export interface OrgArea {
   active: boolean;
 }
 
+/**
+ * Línea de negocio de la cooperativa. Procesos, incidentes y el análisis de impacto (BIA) guardan
+ * su nombre; al renombrarla el servidor actualiza esas referencias.
+ */
+export interface BusinessLine {
+  id: string;
+  name: string;
+  description: string;
+  active: boolean;
+}
+
 export type ProcessCriticality = 'Crítico' | 'Alto' | 'Medio' | 'Bajo';
 export const PROCESS_CRITICALITIES: ProcessCriticality[] = ['Crítico', 'Alto', 'Medio', 'Bajo'];
 
