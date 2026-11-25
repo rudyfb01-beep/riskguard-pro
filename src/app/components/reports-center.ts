@@ -7,6 +7,12 @@ import { ActionPlanService } from '../services/action-plan.service';
 import { AiRiskService } from '../services/ai-risk.service';
 import { MoneyPipe } from '../utils/money.pipe';
 
+export interface Signer {
+  name: string;
+  role: string;
+  area: string;
+}
+
 export type ReportType =
   | 'dictamen-directorio'
   | 'informe-departamental'
@@ -447,32 +453,53 @@ export type ReportType =
               6. Declaración de Conformidad y Pliego de Firmas
             </h3>
 
+            <div class="flex items-center justify-between gap-2 -mt-6 mb-6 no-print">
+              <p class="text-[11px] text-slate-500 flex items-center gap-1">
+                <mat-icon class="text-xs">edit</mat-icon>
+                <span>Haga clic en el nombre, cargo o área para editarlos antes de imprimir.</span>
+              </p>
+              @if (signersEdited()) {
+                <button
+                  type="button"
+                  (click)="resetSigners()"
+                  class="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 flex items-center gap-1"
+                >
+                  <mat-icon class="text-xs">restart_alt</mat-icon>
+                  <span>Restablecer desde Puestos &amp; Permisos</span>
+                </button>
+              }
+            </div>
+
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center text-xs">
-              
-              <!-- Signature 1 -->
-              <div class="flex flex-col items-center">
-                <div class="w-48 border-b-2 border-slate-400 pb-1 mb-2"></div>
-                <strong class="text-slate-900">{{ signer('role-riesgo-op').name }}</strong>
-                <span class="text-slate-500 text-[11px]">{{ signer('role-riesgo-op').role }}</span>
-                <span class="text-[10px] text-slate-400 font-mono">{{ signer('role-riesgo-op').area }}</span>
-              </div>
-
-              <!-- Signature 2 -->
-              <div class="flex flex-col items-center">
-                <div class="w-48 border-b-2 border-slate-400 pb-1 mb-2"></div>
-                <strong class="text-slate-900">{{ signer('role-auditoria-interna').name }}</strong>
-                <span class="text-slate-500 text-[11px]">{{ signer('role-auditoria-interna').role }}</span>
-                <span class="text-[10px] text-slate-400 font-mono">{{ signer('role-auditoria-interna').area }}</span>
-              </div>
-
-              <!-- Signature 3 -->
-              <div class="flex flex-col items-center">
-                <div class="w-48 border-b-2 border-slate-400 pb-1 mb-2"></div>
-                <strong class="text-slate-900">{{ signer('role-comite-riesgos').name }}</strong>
-                <span class="text-slate-500 text-[11px]">{{ signer('role-comite-riesgos').role }}</span>
-                <span class="text-[10px] text-slate-400 font-mono">{{ signer('role-comite-riesgos').area }}</span>
-              </div>
-
+              @for (s of signers(); track $index; let i = $index) {
+                <div class="flex flex-col items-center gap-0.5">
+                  <div class="w-48 border-b-2 border-slate-400 pb-1 mb-2"></div>
+                  <input
+                    type="text"
+                    [value]="s.name"
+                    (input)="editSigner(i, 'name', $event)"
+                    placeholder="Nombre del firmante"
+                    [attr.aria-label]="'Nombre del firmante ' + (i + 1)"
+                    class="signer-field w-full max-w-[16rem] font-bold text-slate-900"
+                  />
+                  <input
+                    type="text"
+                    [value]="s.role"
+                    (input)="editSigner(i, 'role', $event)"
+                    placeholder="Cargo"
+                    [attr.aria-label]="'Cargo del firmante ' + (i + 1)"
+                    class="signer-field w-full max-w-[16rem] text-slate-500 text-[11px]"
+                  />
+                  <input
+                    type="text"
+                    [value]="s.area"
+                    (input)="editSigner(i, 'area', $event)"
+                    placeholder="Área"
+                    [attr.aria-label]="'Área del firmante ' + (i + 1)"
+                    class="signer-field w-full max-w-[16rem] text-[10px] text-slate-400 font-mono"
+                  />
+                </div>
+              }
             </div>
           </div>
         }
@@ -529,11 +556,38 @@ export class ReportsCenter {
     day: 'numeric'
   });
 
-  /** Firmante del cargo indicado (primer usuario activo con ese cargo) o línea en blanco con el cargo. */
-  signer(roleId: string): { name: string; role: string; area: string } {
+  /** Cargos que firman el pliego, en orden. */
+  private readonly signerRoleIds = ['role-riesgo-op', 'role-auditoria-interna', 'role-comite-riesgos'] as const;
+
+  /** Firmante del cargo indicado (primer usuario activo con ese cargo); sin usuario, el nombre queda en blanco para escribirlo. */
+  signer(roleId: string): Signer {
     const role = this.riskService.organizationalRoles().find(r => r.id === roleId);
     const user = this.riskService.userProfiles().find(u => u.roleId === roleId && u.active !== false);
-    return { name: user?.name ?? '________________', role: role?.title ?? '', area: role?.department ?? '' };
+    return { name: user?.name ?? '', role: role?.title ?? '', area: role?.department ?? '' };
+  }
+
+  /** Cambios escritos a mano en el pliego (por posición y campo); lo no editado sigue a Puestos & Permisos. */
+  private readonly signerEdits = signal<Partial<Signer>[]>([]);
+
+  /** Firmantes que se muestran e imprimen: datos de Puestos & Permisos con las ediciones encima. */
+  readonly signers = computed<Signer[]>(() => {
+    const edits = this.signerEdits();
+    return this.signerRoleIds.map((roleId, i) => ({ ...this.signer(roleId), ...edits[i] }));
+  });
+
+  readonly signersEdited = computed(() => this.signerEdits().some(e => e && Object.keys(e).length > 0));
+
+  editSigner(index: number, field: keyof Signer, event: Event) {
+    const value = (event.target as HTMLInputElement).value;
+    this.signerEdits.update(list => {
+      const next = [...list];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  }
+
+  resetSigners() {
+    this.signerEdits.set([]);
   }
 
   /** Folio estable: fecha del día y número de bloques de la bitácora. */

@@ -12,7 +12,33 @@
   }
 }
 
+/* Campos editables del pliego de firmas: se ven como texto y se marcan al pasar o editar. */
+.signer-field {
+  background: transparent;
+  border: 1px dashed transparent;
+  border-radius: 0.375rem;
+  padding: 0.125rem 0.375rem;
+  text-align: center;
+  outline: none;
+}
+.signer-field:hover {
+  border-color: #cbd5e1;
+}
+.signer-field:focus {
+  border-color: #10b981;
+  background: #f0fdf4;
+}
+
 @media print {
+  .signer-field,
+  .signer-field:hover,
+  .signer-field:focus {
+    border-color: transparent !important;
+    background: transparent !important;
+  }
+  .signer-field::placeholder {
+    color: transparent !important;
+  }
   .no-print {
     display: none !important;
   }
